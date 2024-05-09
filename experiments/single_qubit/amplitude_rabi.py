@@ -170,7 +170,7 @@ class AmplitudeRabiProgram(RAveragerProgram):
         # add readout pulses to respective channels
         if self.res_ch_types[qTest] == 'mux4':
             self.set_pulse_registers(ch=self.res_chs[qTest], style="const", length=self.readout_lengths_dac[qTest], mask=mask)
-        else: self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], phase=0, gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest])
+        else: self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
 
         # initialize registers
         if self.qubit_ch_types[qTest] == 'int4':
@@ -302,7 +302,7 @@ class AmplitudeRabiExperiment(Experiment):
             else: 
                 print('here', self.cfg.device.qubit.pulses.pi_ge.sigma[qTest])
                 self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]
-        print('qTest = ', self.cfg.expt.sigma_test)
+        print('qTest sigma = ', self.cfg.expt.sigma_test)
 
         amprabi = AmplitudeRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
         # print(amprabi)

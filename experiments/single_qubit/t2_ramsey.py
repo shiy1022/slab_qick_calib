@@ -128,7 +128,7 @@ class RamseyProgram(RAveragerProgram):
         # add readout pulses to respective channels
         if self.res_ch_types[qTest] == 'mux4':
             self.set_pulse_registers(ch=self.res_chs[qTest], style="const", length=self.readout_lengths_dac[qTest], mask=mask)
-        else: self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], phase=0, gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest])
+        else: self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
 
         # initialize wait registers
         self.safe_regwi(self.q_rps[qTest], self.r_wait, self.us2cycles(cfg.expt.start))
@@ -252,6 +252,7 @@ class RamseyExperiment(Experiment):
             # fitparams=[8, 0.5, 0, 20, None, None]
             if fit_twofreq: fitfunc = fitter.fittwofreq_decaysin
             else: fitfunc = fitter.fitdecaysin
+    
             if debug:
                 p_avgi, pCov_avgi, init_guess_i = fitfunc(data['xpts'][:-1], data["avgi"][:-1], fitparams=fitparams, debug=True)
                 p_avgq, pCov_avgq,init_guess_q = fitfunc(data['xpts'][:-1], data["avgq"][:-1], fitparams=fitparams, debug=True)
@@ -263,6 +264,7 @@ class RamseyExperiment(Experiment):
                 p_avgi, pCov_avgi = fitfunc(data['xpts'][:-1], data["avgi"][:-1], fitparams=fitparams)
                 p_avgq, pCov_avgq = fitfunc(data['xpts'][:-1], data["avgq"][:-1], fitparams=fitparams)
                 p_amps, pCov_amps = fitfunc(data['xpts'][:-1], data["amps"][:-1], fitparams=fitparams)
+            
             data['fit_avgi'] = p_avgi   
             data['fit_avgq'] = p_avgq
             data['fit_amps'] = p_amps
@@ -339,6 +341,7 @@ class RamseyExperiment(Experiment):
                 print(f'T2 Ramsey from fit amps [us]: {p[3]}')
         if debug: 
             pinit = data['init_guess_amps']
+            print(pinit)
             plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *pinit), label='Initial Guess')
         plt.figure(figsize=(10,9))
         plt.subplot(211, 

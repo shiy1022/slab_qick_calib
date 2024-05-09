@@ -72,6 +72,7 @@ def hist(data, plot=True, span=None, verbose=True):
     xe, ye = np.median(Ie_new), np.median(Qe_new)
     if plot_f: xf, yf = np.median(If_new), np.median(Qf_new)
     if verbose:
+        print('hi')
         print('Rotated:')
         print(f'Ig {xg} +/- {np.std(Ig)} \t Qg {yg} +/- {np.std(Qg)} \t Amp g {np.abs(xg+1j*yg)}')
         print(f'Ie {xe} +/- {np.std(Ie)} \t Qe {ye} +/- {np.std(Qe)} \t Amp e {np.abs(xe+1j*ye)}')
@@ -325,7 +326,7 @@ class HistogramExperiment(Experiment):
         self.data = data
         return data
 
-    def analyze(self, data=None, span=None, verbose=True, **kwargs):
+    def analyze(self, data=None, span=None, verbose=False, **kwargs):
         if data is None:
             data=self.data
         
@@ -350,7 +351,6 @@ class HistogramExperiment(Experiment):
             print(f'gf fidelity (%): {100*fids[1]}')
             print(f'ef fidelity (%): {100*fids[2]}')
         print(f'rotation angle (deg): {angle}')
-        # print(f'set angle to (deg): {-angle}')
         print(f'threshold ge: {thresholds[0]}')
         if self.cfg.expt.check_f:
             print(f'threshold gf: {thresholds[1]}')
@@ -400,9 +400,11 @@ class SingleShotOptExperiment(Experiment):
         angle = np.zeros(shape=(len(fpts), len(gainpts), len(lenpts)))
 
         qubit = self.cfg.expt.qubit
-
+        Ig, Ie, Qg, Qe = [], [], [], []
         for f_ind, f in enumerate(tqdm(fpts, disable=not progress)):
+            Ig.append([]); Ie.append([]); Qg.append([]); Qe.append([])
             for g_ind, gain in enumerate(gainpts):
+                Ig[-1].append([]); Ie[-1].append([]); Qg[-1].append([]); Qe[-1].append([])
                 for l_ind, l in enumerate(lenpts):
                     shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file)
                     shot.cfg = self.cfg
@@ -416,6 +418,8 @@ class SingleShotOptExperiment(Experiment):
                         check_e = not check_f
                     shot.cfg.expt = dict(reps=self.cfg.expt.reps, check_e=check_e, check_f=check_f, qubit=self.cfg.expt.qubit)
                     shot.go(analyze=False, display=False, progress=progress, save=False)
+                    Ig[-1][-1].append(shot.data['Ig']); Ie[-1][-1].append(shot.data['Ie']); 
+                    Qg[-1][-1].append(shot.data['Qg']); Qe[-1][-1].append(shot.data['Qe'])
                     results = shot.analyze(verbose=False)
                     fid[f_ind, g_ind, l_ind] = results['fids'][0] if not check_f else results['fids'][1]
                     threshold[f_ind, g_ind, l_ind] = results['thresholds'][0] if not check_f else results['thresholds'][1]
@@ -424,7 +428,7 @@ class SingleShotOptExperiment(Experiment):
                     # print(f'\tfid ge [%]: {100*results["fids"][0]}')
                     if check_f: print(f'\tfid gf [%]: {100*results["fids"][1]}')
 
-        self.data = dict(fpts=fpts, gainpts=gainpts, lenpts=lenpts, fid=fid, threshold=threshold, angle=angle)
+        self.data = dict(fpts=fpts, gainpts=gainpts, lenpts=lenpts, fid=fid, threshold=threshold, angle=angle, Ig=Ig, Ie=Ie, Qg=Qg, Qe=Qe)
         return self.data
 
     def analyze(self, data=None, **kwargs):

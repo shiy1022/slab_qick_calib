@@ -169,20 +169,20 @@ class ResonatorSpectroscopyExperiment(Experiment):
 
         return data
 
-    def analyze(self, data=None, fit=False, findpeaks=False, verbose=True, coarse_scan = False, **kwargs):
+    def analyze(self, data=None, fit=True, findpeaks=False, verbose=True, coarse_scan = False, **kwargs):
         if data is None:
             data=self.data
             
         if fit:
             xdata = data["xpts"][1:-1]
             ydata = data['amps'][1:-1]
-            #data['fit'], data['fit_err'] = fitter.fithanger(xdata, ydata, fitparams=fitparams)
             fitparams = [max(ydata), -(max(ydata)-min(ydata)), xdata[np.argmin(ydata)], 0.1 ]
+            #data['fit'], data['fit_err'] = fitter.fithanger(xdata, ydata)
             # print(fitparams)
             data["lorentz_fit"]=dsfit.fitlor(xdata, ydata, fitparams=fitparams)
-            print('From Fit:')
-            print(f'\tf0: {data["lorentz_fit"][2]}')
-            print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
+            #print('From Fit:')
+            #print(f'\tf0: {data["lorentz_fit"][2]}')
+            #print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
             # if isinstance(data['fit'], (list, np.ndarray)):
             #     f0, Qi, Qe, phi, scale, a0, slope = data['fit']
             #     if 'lo' in self.cfg.hw:
@@ -208,7 +208,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             xdata = data["xpts"][1:-1]
             ydata = data['amps'][1:-1]
             #coarse_peaks = find_peaks(-ydata, distance=100, prominence= 2)#, width=3, threshold = 0.9, rel_height=1) 
-            coarse_peaks = find_peaks(-ydata, distance=50, prominence=1.5, width=[1,25])#, width=3, threshold=0.2, rel_height=0.3)
+            coarse_peaks = find_peaks(-ydata, distance=20, prominence=0.125, width=[1,25])#, width=3, threshold=0.2, rel_height=0.3)
 
             data['coarse_peaks_index'] = coarse_peaks 
             data['coarse_peaks'] = xdata[coarse_peaks[0]]
@@ -227,9 +227,8 @@ class ResonatorSpectroscopyExperiment(Experiment):
         plt.figure(figsize=(16,16))
         plt.subplot(311, title=f"Resonator  Spectroscopy at gain {self.cfg.device.readout.gain}",  ylabel="Amps [ADC units]")
         plt.plot(xpts, data['amps'][1:-1],'o-')
-        # if fit:
-        #     plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["fit"]))
         if fit:
+            #plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["fit"]))
             plt.plot(xpts, dsfit.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
         if findpeaks:
             for peak in data['minpeaks']:

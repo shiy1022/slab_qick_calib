@@ -124,6 +124,9 @@ class T1Experiment(Experiment):
         super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
 
     def acquire(self, progress=False, debug=False):
+
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         q_ind = self.cfg.expt.qubit
         for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
             for key, value in subcfg.items() :
@@ -142,8 +145,7 @@ class T1Experiment(Experiment):
         avgq = avgq[0][0]
         amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
         phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-        now = datetime.now()
-        current_time = now.strftime("%H:%M:%S")
+        
         current_time = current_time.encode('ascii','replace')
 
         data={'xpts': x_pts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}

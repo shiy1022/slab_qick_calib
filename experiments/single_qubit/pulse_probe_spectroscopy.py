@@ -159,7 +159,7 @@ class PulseProbeSpectroscopyExperiment(Experiment):
             data=self.data
         if coarse:
             xdata = data['xpts'][1:-1]
-            coarse_peaks = find_peaks(data['amps'][1:-1], distance=50, prominence=3, width=[1,100])#, width=3, threshold=0.2, rel_height=0.3)            
+            coarse_peaks = find_peaks(data['amps'][1:-1], distance=50, prominence=0.5, width=[1,100])#, width=3, threshold=0.2, rel_height=0.3)            
             data['coarse_peaks_x'] = xdata[coarse_peaks[0]]
             data['coarse_peaks_y'] = data['amps'][coarse_peaks[0]]
 
@@ -187,7 +187,7 @@ class PulseProbeSpectroscopyExperiment(Experiment):
         plt.plot(xpts, data["amps"][1:-1],'o-')
         if coarse:
             for i in range(len(data['coarse_peaks_x'])):
-                plt.plot(data['coarse_peaks_x'][i], data['coarse_peaks_y'][i], '.',color='r')
+                plt.axvline(data['coarse_peaks_x'][i], ls='--',color='k')
                 print(f'Found peak in amps at [MHz] {data["coarse_peaks_x"][i]}')
         if fit:
             plt.plot(xpts, signs[0]*fitter.lorfunc(data["xpts"][1:-1], *data["fit_amps"]))
