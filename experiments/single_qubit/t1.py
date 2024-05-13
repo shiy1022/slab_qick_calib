@@ -120,8 +120,8 @@ class T1Experiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='T1', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='T1', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
 

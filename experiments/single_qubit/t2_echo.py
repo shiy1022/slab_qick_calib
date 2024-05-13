@@ -86,7 +86,7 @@ class RamseyEchoProgram(RAveragerProgram):
 
         if self.res_ch_type == 'mux4':
             self.set_pulse_registers(ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask)
-        else: self.set_pulse_registers(ch=self.res_ch, style="const", freq=self.f_res_reg, phase=0, gain=cfg.device.readout.gain, length=self.readout_length_dac)
+        else: self.set_pulse_registers(ch=self.res_ch, style="const", freq=self.f_res_reg, phase=self.deg2reg(-cfg.device.readout.phase, gen_ch = self.res_ch), gain=cfg.device.readout.gain, length=self.readout_length_dac)
 
         self.sync_all(200)
     
@@ -215,8 +215,8 @@ class RamseyEchoExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='RamseyEcho', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='RamseyEcho', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
         assert self.cfg.expt.cp != self.cfg.expt.cpmg, 'Must select either CP or CPMG experiment!'

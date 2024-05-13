@@ -211,8 +211,8 @@ class RamseyExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='Ramsey', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='Ramsey', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
         # expand entries in config that are length 1 to fill all qubits

@@ -128,8 +128,8 @@ class PulseProbeSpectroscopyExperiment(Experiment):
         gain: Qubit pulse gain [DAC units]
     """
 
-    def __init__(self, soccfg=None, path='', prefix='PulseProbeSpectroscopy', config_file=None, progress=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='PulseProbeSpectroscopy', config_file=None, progress=None, im=None):
+        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
         q_ind = self.cfg.expt.qubit

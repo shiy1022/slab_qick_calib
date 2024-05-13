@@ -269,8 +269,8 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         } 
     """
 
-    def __init__(self, soccfg=None, path='', prefix='ResonatorPowerSweepSpectroscopy', config_file=None, progress=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='ResonatorPowerSweepSpectroscopy', config_file=None, progress=None, im=None):
+        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False):
         if 'smart' in self.cfg.expt and self.cfg.expt.smart==True:

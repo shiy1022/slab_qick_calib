@@ -162,6 +162,7 @@ def hist(data, plot=True, span=None, verbose=True):
 
 class HistogramProgram(AveragerProgram):
     def __init__(self, soccfg, cfg):
+
         self.cfg = AttrDict(cfg)
         self.cfg.update(self.cfg.expt)
 
@@ -169,6 +170,7 @@ class HistogramProgram(AveragerProgram):
         self.cfg.reps = cfg.expt.reps
         
         super().__init__(soccfg, self.cfg)
+
 
     def initialize(self):
         cfg = AttrDict(self.cfg)
@@ -224,7 +226,7 @@ class HistogramProgram(AveragerProgram):
         qubit = cfg.expt.qubit
 
         # Phase reset all channels
-        print("using phase reset")
+        #print("using phase reset")
         for ch in self.gen_chs.keys():
             # print(self.gen_chs.keys())
             if self.gen_chs[ch]['mux_freqs'] is None: # doesn't work for the mux channels # is None or ch in self.res_chs:
@@ -275,8 +277,8 @@ class HistogramExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='Histogram', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='Histogram', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
         q_ind = self.cfg.expt.qubit
@@ -384,8 +386,8 @@ class SingleShotOptExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='Histogram', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='Histogram', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=True):
         fpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
@@ -406,7 +408,7 @@ class SingleShotOptExperiment(Experiment):
             for g_ind, gain in enumerate(gainpts):
                 Ig[-1].append([]); Ie[-1].append([]); Qg[-1].append([]); Qe[-1].append([])
                 for l_ind, l in enumerate(lenpts):
-                    shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file)
+                    shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file, im=self.im)
                     shot.cfg = self.cfg
                     shot.cfg.device.readout.frequency = float(f)
                     shot.cfg.device.readout.gain = int(gain)
