@@ -40,7 +40,7 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, start=7000, span=250, r
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
     return rspec
 
-def make_rspec_fine(soc, expt_path, cfg_file, im=None, qubit_i, j, center=None, span=5, reps=500, smart=True):
+def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, j, im=None, center=None, span=5, reps=500, smart=True):
     
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
@@ -96,8 +96,12 @@ def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, span_f=5, npts_f=
     rpowspec.cfg.device.readout.readout_length = 5
     return rpowspec
 
-def make_chi(soc, expt_path, cfg_file, qubit_i, span=3, npts=151, reps=3000):
+def make_chi(soc, expt_path, cfg_file, qubit_i, go=False, span=3, npts=151, reps=500):
     # This adds an e pulse first 
+
+    span = span # MHz
+    npts = npts
+    
     rspec_chi = meas.ResonatorSpectroscopyExperiment(
         soccfg=soc,
         path=expt_path,
@@ -105,8 +109,6 @@ def make_chi(soc, expt_path, cfg_file, qubit_i, span=3, npts=151, reps=3000):
         config_file=cfg_file,
         )
 
-    span = span # MHz
-    npts = npts
     rspec_chi.cfg.expt = dict(
         start=rspec_chi.cfg.device.readout.frequency[qubit_i]-span/2, # MHz
         # start=rspec_chi.cfg.device.readout.frequency[qubit_i]-rspec_chi.cfg.device.readout.lo_sideband[qubit_i]*span, # MHz
@@ -118,7 +120,9 @@ def make_chi(soc, expt_path, cfg_file, qubit_i, span=3, npts=151, reps=3000):
         qubit=qubit_i,
     )
     # rspec_chi.cfg.device.readout.relax_delay = 100 # Wait time between experiments [us]
-    rspec_chi.go(analyze=False, display=False, progress=True, save=False)
+    if go: 
+        rspec_chi.go(analyze=True, display=True, progress=True, save=True)
+    
     return rspec_chi
 
 def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=1500, reps=50, rounds=20, gain=None, coarse=False, ef=False):
@@ -328,6 +332,9 @@ def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 201, r
 
 def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=600, npts=200, reps=500, rounds=1):
 
+    span = span 
+    npts = npts
+    
     t1 = meas.T1Experiment(
       soccfg=soc,
       path=expt_path,
@@ -335,9 +342,6 @@ def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=600, npts
       config_file= cfg_file,
       im=im
     )
-
-    span = span 
-    npts = npts
 
     t1.cfg.expt = dict(
         start=0, # wait time [us]
@@ -347,12 +351,39 @@ def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=600, npts
         rounds=rounds, # number of start to finish sweeps to average over
         qubit=qubit_i,
         length_scan = span, # length of the scan in us
-        num_saved_points = 10, # number of points to save for the T1 continuous scan 
     )
 
     if go:
         t1.go(analyze=True, display=True, progress=True, save=True)
 
+    return t1
+
+def make_t1_2d(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=600, npts=200, reps=500, rounds=1, sweep_pts=100):
+
+    span = span 
+    npts = npts
+    
+    t1 = meas.T1_2D(
+      soccfg=soc,
+      path=expt_path,
+      prefix=f"t1_2d_qubit{qubit_i}",
+      config_file= cfg_file,
+      im=im
+    )
+
+    t1.cfg.expt = dict(
+        start=0, # wait time [us]
+        step=int(span/npts), 
+        expts=npts,
+        reps=reps, # number of times we repeat a time point 
+        rounds=rounds, # number of start to finish sweeps to average over
+        qubit=qubit_i,
+        length_scan = span, # length of the scan in us
+        sweep_pts = sweep_pts, # number of points to sweep over,
+    )
+
+    if go:
+        t1.go(analyze=True, display=True, progress=True, save=True)
 
     return t1
 
@@ -513,7 +544,8 @@ def make_amprabiEF(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=30
         soccfg=soc,
         path=expt_path,
         prefix=prefix,
-        config_file=cfg_file,        im=im
+        config_file=cfg_file,        
+        im=im
     )
 
     amprabiEF.cfg.expt = dict(

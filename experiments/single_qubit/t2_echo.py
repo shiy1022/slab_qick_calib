@@ -244,16 +244,24 @@ class RamseyEchoExperiment(Experiment):
         self.data=data
         return data
 
-    def analyze(self, data=None, fit=True, **kwargs):
+    def analyze(self, data=None, fit=True, debug=False, **kwargs):
         if data is None:
             data=self.data
 
         if fit:
             # fitparams=[amp, freq (non-angular), phase (deg), decay time, amp offset, decay time offset]
             # Remove the first and last point from fit in case weird edge measurements
-            p_avgi, pCov_avgi = fitter.fitdecaysin(data['xpts'][:-1], data["avgi"][:-1], fitparams=None)
-            p_avgq, pCov_avgq = fitter.fitdecaysin(data['xpts'][:-1], data["avgq"][:-1], fitparams=None)
-            p_amps, pCov_amps = fitter.fitdecaysin(data['xpts'][:-1], data["amps"][:-1], fitparams=None)
+            if debug: 
+                p_avgi, pCov_avgi, init_guess_i = fitter.fitdecaysin(data['xpts'][:-1], data["avgi"][:-1], fitparams=None, debug=True)
+                p_avgq, pCov_avgq, init_guess_q = fitter.fitdecaysin(data['xpts'][:-1], data["avgq"][:-1], fitparams=None, debug=True)
+                p_amps, pCov_amps, init_guess_amps = fitter.fitdecaysin(data['xpts'][:-1], data["amps"][:-1], fitparams=None, debug=True)
+                data['init_guess_i'] = p_avgi   
+                data['init_guess_q'] = p_avgq
+                data['init_guess_amps'] = p_amps
+            else:
+                p_avgi, pCov_avgi = fitter.fitdecaysin(data['xpts'][:-1], data["avgi"][:-1], fitparams=None)
+                p_avgq, pCov_avgq = fitter.fitdecaysin(data['xpts'][:-1], data["avgq"][:-1], fitparams=None)
+                p_amps, pCov_amps = fitter.fitdecaysin(data['xpts'][:-1], data["amps"][:-1], fitparams=None)
             data['fit_avgi'] = p_avgi   
             data['fit_avgq'] = p_avgq
             data['fit_amps'] = p_amps
@@ -265,7 +273,7 @@ class RamseyEchoExperiment(Experiment):
             # data['f_ge_adjust_ramsey_amps'] = sorted((self.cfg.expt.ramsey_freq - p_amps[1], -self.cfg.expt.ramsey_freq - p_amps[1]), key=abs)
         return data
 
-    def display(self, data=None, fit=True, **kwargs):
+    def display(self, data=None, fit=True, debug=False, **kwargs):
         if data is None:
             data=self.data
 
@@ -312,6 +320,11 @@ class RamseyEchoExperiment(Experiment):
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][0]}\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][1]}')
             print(f'T2 Echo from fit I [us]: {p[3]}')
+        if debug: 
+            pinit = data['init_guess_amps']
+            print(pinit)
+            plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *pinit), label='Initial Guess')
+
         plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC level]")
         plt.plot(data["xpts"][:-1], data["avgq"][:-1],'o-')
         if fit:

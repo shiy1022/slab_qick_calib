@@ -334,5 +334,104 @@ class T1Continuous(Experiment):
         return self.fname
     
 
+class T1_2D(Experiment):
+    """
+    sweep_pts = number of points in the 2D sweep
+    """
+    def __init__(self, soccfg=None, path='', prefix='T1_2D', config_file=None, progress=None, im=None):
+            super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    
+    def acquire(self, progress=False, debug=False):
 
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = current_time.encode('ascii','replace')
+
+        q_ind = self.cfg.expt.qubit
+        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
+            for key, value in subcfg.items() :
+                if isinstance(value, list):
+                    subcfg.update({key: value[q_ind]})
+                elif isinstance(value, dict):
+                    for key2, value2 in value.items():
+                        for key3, value3 in value2.items():
+                            if isinstance(value3, list):
+                                value2.update({key3: value3[q_ind]})    
+                    
+        sweeppts = np.arange(self.cfg.expt["sweep_pts"])
+        data={"xpts":[], "sweeppts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
+
+        for i in tqdm(sweeppts):
+            t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
+        
+            xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False, debug=debug)
+        
+            avgi = avgi[0][0]
+            avgq = avgq[0][0]
+            amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
+            phases = np.angle(avgi+1j*avgq) # Calculating the phase        
+
+            data["avgi"].append(avgi)
+            data["avgq"].append(avgq)
+            data["amps"].append(amps)
+            data["phases"].append(phases)
+        
+        data['xpts'] = xpts
+        data['sweeppts'] = sweeppts
+        data['time'] = current_time
+
+        for k, a in data.items():
+            data[k] = np.array(a)
+        self.data=data
+        return data
+    
+    def analyze(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data
+        pass
+
+    def display(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data 
+        
+        x_sweep = data['xpts']
+        y_sweep = data['sweeppts']
+        avgi = data['avgi']
+        avgq = data['avgq']
+
+        plt.figure(figsize=(10,8))
+        plt.subplot(211, title="T1 2D", ylabel="Points")
+        plt.imshow(
+            np.flip(avgi, 0),
+            cmap='viridis',
+            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+            aspect='auto')
+        plt.colorbar(label='I [ADC level]')
+        plt.clim(vmin=None, vmax=None)
+        # plt.axvline(1684.92, color='k')
+        # plt.axvline(1684.85, color='r')
+
+        plt.subplot(212, xlabel="Points", ylabel="Frequency [MHz]")
+        plt.imshow(
+            np.flip(avgq, 0),
+            cmap='viridis',
+            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+            aspect='auto')
+        plt.colorbar(label='Q [ADC level]')
+        plt.clim(vmin=None, vmax=None)
+        
+        if fit: pass
+
+        plt.tight_layout()
+        plt.show()
+
+        plt.plot(x_sweep, data['amps'][0])
+        plt.title(f'First point')
+        plt.show()
+
+        
+    def save_data(self, data=None):
+        print(f'Saving {self.fname}')
+        super().save_data(data=data)
+        return self.fname
         

@@ -319,3 +319,137 @@ class LengthRabiExperiment(Experiment):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
+    
+    class LengthRabiChevronExperiment(Experiment):
+        """
+        Length Rabi Experiment
+        Experimental Config:
+        expt = dict(
+            start_f: start qubit frequency (MHz), 
+            step_f: frequency step (MHz), 
+            expts_f: number of experiments in frequency,
+            start_gain: qubit gain [dac level]
+            step_gain: gain step [dac level]
+            expts_gain: number steps
+            reps: number averages per expt
+            rounds: number repetitions of experiment sweep
+            sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
+            pulse_type: 'gauss' or 'const'
+        )
+        """
+
+        def __init__(self, soccfg=None, path='', prefix='LengthRabiChevron', config_file=None, progress=None, im=None):
+            super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+
+        def acquire(self, progress=False, debug=False):
+            # expand entries in config that are length 1 to fill all qubits
+            num_qubits_sample = len(self.cfg.device.qubit.f_ge)
+            for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
+                for key, value in subcfg.items() :
+                    if isinstance(value, dict):
+                        for key2, value2 in value.items():
+                            for key3, value3 in value2.items():
+                                if not(isinstance(value3, list)):
+                                    value2.update({key3: [value3]*num_qubits_sample})                                
+                    elif not(isinstance(value, list)):
+                        subcfg.update({key: [value]*num_qubits_sample})
+
+            if self.cfg.expt.checkZZ:
+                assert len(self.cfg.expt.qubits) == 2
+                qZZ, qTest = self.cfg.expt.qubits
+                assert qZZ != 1
+                assert qTest == 1
+            else: qTest = self.cfg.expt.qubits[0]
+
+            freqpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
+            data={"xpts":[], "freqpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
+            adc_ch = self.cfg.hw.soc.adcs.readout.ch
+
+
+            lengths = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(self.cfg.expt["expts"])
+            if 'sigma_test' not in self.cfg.expt:
+                if self.cfg.expt.checkZZ:
+                    self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_Q1_ZZ.sigma[qZZ]
+                elif self.cfg.expt.checkEF:
+                    self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_ef.sigma[qTest]
+                else:
+                    self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]
+
+            for freq in tqdm(freqpts):
+                data['avgi'].append([])
+                data['avgg'].append([])
+                data['phases'].append([])
+                data['amps'].append([])
+                data['xpts'].append([])
+                self.cfg.expt.f_pi_test = freq
+                for length in tqdm(lengths, disable=not progress):
+                    self.cfg.expt.length_placeholder = float(length)
+                    lengthrabi = LengthRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
+                    self.prog = lengthrabi                         
+                    avgi, avgq = lengthrabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False, debug=debug)        
+                    avgi = avgi[0][0]
+                    avgq = avgq[0][0]
+                    amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
+                    phases = np.angle(avgi+1j*avgq) # Calculating the phase        
+                    data["xpts"][-1].append(length)
+                    data["avgi"][-1].append(avgi)
+                    data["avgq"][-1].append(avgq)
+                    data["amps"][-1].append(amps)
+                    data["phases"][-1].append(phases)
+            
+    
+            data['freqpts'] = freqpts
+            for k, a in data.items():
+                data[k] = np.array(a)
+            self.data=data
+            return data
+
+        def analyze(self, data=None, fit=True, **kwargs):
+            if data is None:
+                data=self.data
+            pass
+
+        def display(self, data=None, fit=True, **kwargs):
+            if data is None:
+                data=self.data 
+            
+            x_sweep = data['xpts']
+            y_sweep = data['freqpts']
+            avgi = data['avgi']
+            avgq = data['avgq']
+
+            plt.figure(figsize=(10,8))
+            plt.subplot(211, title="Length Rabi", ylabel="Frequency [MHz]")
+            plt.imshow(
+                np.flip(avgi, 0),
+                cmap='viridis',
+                extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+                aspect='auto')
+            plt.colorbar(label='I [ADC level]')
+            plt.clim(vmin=None, vmax=None)
+            # plt.axvline(1684.92, color='k')
+            # plt.axvline(1684.85, color='r')
+
+            plt.subplot(212, xlabel="Length [us]", ylabel="Frequency [MHz]")
+            plt.imshow(
+                np.flip(avgq, 0),
+                cmap='viridis',
+                extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+                aspect='auto')
+            plt.colorbar(label='Q [ADC level]')
+            plt.clim(vmin=None, vmax=None)
+            
+            if fit: pass
+
+            plt.tight_layout()
+            plt.show()
+
+            plt.plot(y_sweep, data['amps'][:,-1])
+            plt.title(f'Length {x_sweep[-1]}')
+            plt.show()
+
+        
+    def save_data(self, data=None):
+        print(f'Saving {self.fname}')
+        super().save_data(data=data)
+        return self.fname

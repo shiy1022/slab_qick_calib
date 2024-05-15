@@ -153,18 +153,19 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
     fft_freqs = np.fft.fftfreq(len(ydata), d=xdata[1]-xdata[0])
     fft_phases = np.angle(fourier)
 
-    sorted_fourier = np.sort(fourier)
-    max_ind = np.argwhere(fourier == sorted_fourier[-1])[0][0]
+    sorted_fourier = np.sort(np.abs(fourier))
+    max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-1])[0][0]
     if max_ind == 0:
-        max_ind = np.argwhere(fourier == sorted_fourier[-2])[0][0]
+        max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-2])[0][0]
     max_freq = np.abs(fft_freqs[max_ind])
     max_phase = fft_phases[max_ind]
-    #if debug:
-         #plt.figure()
-         #plt.plot(fft_freqs, fourier,'.-')
+    if debug:
+         plt.figure()
+         plt.plot(fft_freqs, fourier,'.-')
          #plt.plot(fourier, fft_phases,'.')
-         #plt.xlim([0,20])
-         #print(max_phase)
+         plt.xlim([0,0.2])
+         print(max_phase)
+         print(max_freq)
     if fitparams[0] is None: fitparams[0]=max(ydata)-min(ydata)
     if fitparams[1] is None: fitparams[1]=max_freq
     # if fitparams[2] is None: fitparams[2]=0

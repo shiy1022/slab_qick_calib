@@ -195,7 +195,7 @@ class AmplitudeRabiProgram(RAveragerProgram):
         # self.sync_all(10)
 
         # initializations as necessary
-        if self.checkZZ:                    
+        if self.checkZZ:    
             self.setup_and_pulse(ch=self.qubit_chs[qZZ], style="arb", phase=0, freq=self.f_ge_reg[qZZ], gain=cfg.device.qubit.pulses.pi_ge.gain[qZZ], waveform="pi_qubitZZ")
             self.sync_all(0)
         if self.checkEF and self.pulse_ge:
@@ -302,7 +302,7 @@ class AmplitudeRabiExperiment(Experiment):
             else: 
                 print('here', self.cfg.device.qubit.pulses.pi_ge.sigma[qTest])
                 self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]
-        print('qTest sigma = ', self.cfg.expt.sigma_test)
+        #print('qTest sigma = ', self.cfg.expt.sigma_test)
 
         amprabi = AmplitudeRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
         # print(amprabi)

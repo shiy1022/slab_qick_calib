@@ -464,7 +464,7 @@ class SingleShotOptExperiment(Experiment):
         # lenpts = [data['lenpts'][0]]
         for g_ind, gain in enumerate(gainpts):
             for l_ind, l in enumerate(lenpts):
-                plt.plot(fpts, 100*fid[:,g_ind, l_ind], 'o-', label=f'gain: {gain:.2}, len [us]: {l}')
+                plt.plot(fpts, 100*fid[:,g_ind, l_ind], 'o-', label=f'gain: {gain}, len [us]: {l}')
         plt.xlabel('Frequency [MHz]')
         plt.ylabel(f'Fidelity [%]')
         plt.legend()
