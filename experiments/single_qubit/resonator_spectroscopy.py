@@ -118,8 +118,8 @@ class ResonatorSpectroscopyExperiment(Experiment):
         )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='ResonatorSpectroscopy', config_file=None, progress=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='ResonatorSpectroscopy', config_file=None, progress=None, im=None):
+        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False):
         if 'smart' in self.cfg.expt and self.cfg.expt.smart==True:
@@ -169,35 +169,39 @@ class ResonatorSpectroscopyExperiment(Experiment):
 
         return data
 
-    def analyze(self, data=None, fit=True, findpeaks=False, verbose=True, coarse_scan = False, **kwargs):
+    def analyze(self, data=None, fit=True, findpeaks=False, verbose=True, coarse_scan = False, hanger=False, **kwargs):
         if data is None:
             data=self.data
             
-        if fit:
+        if fit:           
             xdata = data["xpts"][1:-1]
             ydata = data['amps'][1:-1]
             fitparams = [max(ydata), -(max(ydata)-min(ydata)), xdata[np.argmin(ydata)], 0.1 ]
-            #data['fit'], data['fit_err'] = fitter.fithanger(xdata, ydata)
-            # print(fitparams)
-            data["lorentz_fit"]=dsfit.fitlor(xdata, ydata, fitparams=fitparams)
-            #print('From Fit:')
-            #print(f'\tf0: {data["lorentz_fit"][2]}')
-            #print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
-            # if isinstance(data['fit'], (list, np.ndarray)):
-            #     f0, Qi, Qe, phi, scale, a0, slope = data['fit']
-            #     if 'lo' in self.cfg.hw:
-            #         print(float(self.cfg.hw.lo.readout.frequency)*1e-6)
-            #         print(f0)
-            #     if verbose:
-            #         print(f'\nFreq with minimum transmission: {xdata[np.argmin(ydata)]}')
-            #         print(f'Freq with maximum transmission: {xdata[np.argmax(ydata)]}')
-            #         print('From fit:')
-            #         print(f'\tf0: {f0}')
-            #         print(f'\tQi: {Qi}')
-            #         print(f'\tQe: {Qe}')
-            #         print(f'\tQ0: {1/(1/Qi+1/Qe)}')
-            #         print(f'\tkappa [MHz]: {f0*(1/Qi+1/Qe)}')
-            #         print(f'\tphi [radians]: {phi}')
+            if hanger: 
+                data['fit'], data['fit_err'] = fitter.fithanger(xdata, ydata)
+
+                if isinstance(data['fit'], (list, np.ndarray)):
+                    f0, Qi, Qe, phi, scale, a0, slope = data['fit']
+                if 'lo' in self.cfg.hw:
+                    print(float(self.cfg.hw.lo.readout.frequency)*1e-6)
+                    print(f0)
+                if verbose:
+                    print(f'\nFreq with minimum transmission: {xdata[np.argmin(ydata)]}')
+                    print(f'Freq with maximum transmission: {xdata[np.argmax(ydata)]}')
+                    print('From fit:')
+                    print(f'\tf0: {f0}')
+                    print(f'\tQi: {Qi}')
+                    print(f'\tQe: {Qe}')
+                    print(f'\tQ0: {1/(1/Qi+1/Qe)}')
+                    print(f'\tkappa [MHz]: {f0*(1/Qi+1/Qe)}')
+                    print(f'\tphi [radians]: {phi}')
+            else: 
+                print(fitparams)
+                data["lorentz_fit"]=dsfit.fitlor(xdata, ydata, fitparams=fitparams)
+                print('From Fit:')
+                print(f'\tf0: {data["lorentz_fit"][2]}')
+                print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
+            
             
         if findpeaks:
             maxpeaks, minpeaks = dsfit.peakdetect(data['amps'][1:-1], x_axis=data['xpts'][1:-1], lookahead=10, delta=0.01)
@@ -214,7 +218,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data['coarse_peaks'] = xdata[coarse_peaks[0]]
         return data
 
-    def display(self, data=None, fit=True, findpeaks=False, coarse_scan = False, **kwargs):
+    def display(self, data=None, fit=True, findpeaks=False, coarse_scan = False, hanger=True, **kwargs):
         if data is None:
             data=self.data 
 
@@ -225,11 +229,13 @@ class ResonatorSpectroscopyExperiment(Experiment):
             xpts = data['xpts'][1:-1]
 
         plt.figure(figsize=(16,16))
-        plt.subplot(311, title=f"Resonator  Spectroscopy at gain {self.cfg.device.readout.gain}",  ylabel="Amps [ADC units]")
+        plt.subplot(311, title=f"Resonator  Spectroscopy at Gain {self.cfg.device.readout.gain}",  ylabel="Amps [ADC units]")
         plt.plot(xpts, data['amps'][1:-1],'o-')
         if fit:
-            #plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["fit"]))
-            plt.plot(xpts, dsfit.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
+            if hanger: 
+                plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["fit"]))
+            else:
+                plt.plot(xpts, dsfit.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
         if findpeaks:
             for peak in data['minpeaks']:
                 plt.axvline(peak[0], linestyle='--', color='0.2')

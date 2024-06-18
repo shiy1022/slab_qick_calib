@@ -10,7 +10,7 @@ from datetime import datetime
 import experiments.fitting as fitter
 
 
-class T1Program_2QB(AveragerProgram):
+class T1Program(RAveragerProgram):
     def __init__(self, soccfg, cfg):
         self.cfg = AttrDict(cfg)
         self.cfg.update(self.cfg.expt)
@@ -44,13 +44,9 @@ class T1Program_2QB(AveragerProgram):
 
         self.q_rpA = self.ch_page(self.qubit_chA) # get register page for qubit_ch
         self.q_rpB = self.ch_page(self.qubit_chB) # get register page for qubit_ch
-
-        self.r_rpA = self.ch_page(self.res_chA) # get register page for resonator_ch
-        self.r_rpB = self.ch_page(self.res_chB) # get register page for qubit_ch
-
-
-        # self.safe_regwi(self.q_rpA, self.r_wait, self.us2cycles(cfg.expt.startA))
-        # self.safe_regwi(self.q_rpB, self.r_wait, self.us2cycles(cfg.expt.startB))
+        self.r_wait = 3
+        self.safe_regwi(self.q_rpA, self.r_wait, self.us2cycles(cfg.expt.startA))
+        self.safe_regwi(self.q_rpB, self.r_wait, self.us2cycles(cfg.expt.startB))
         
         self.f_geA = self.freq2reg(cfg.device.qubit.f_ge[qA], gen_ch=self.qubit_chA)
         self.f_geB = self.freq2reg(cfg.device.qubit.f_ge[qB], gen_ch=self.qubit_chB)
@@ -61,13 +57,11 @@ class T1Program_2QB(AveragerProgram):
         self.readout_length_dacA = self.us2cycles(cfg.device.readout.readout_length[qA], gen_ch=self.res_chA)
         self.readout_length_dacB = self.us2cycles(cfg.device.readout.readout_length[qB], gen_ch=self.res_chB)
 
-
         self.readout_length_adcA = self.us2cycles(cfg.device.readout.readout_length[qA], ro_ch=self.adc_chA)
         self.readout_length_adcB = self.us2cycles(cfg.device.readout.readout_length[qB], ro_ch=self.adc_chB)
 
-
-        # self.readout_length_adcA += 1 # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
-        # self.readout_length_adcB += 1 # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
+        self.readout_length_adcA += 1 # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
+        self.readout_length_adcB += 1 # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
 
         # declare res dacs
         mask = None
@@ -117,8 +111,6 @@ class T1Program_2QB(AveragerProgram):
             self.set_pulse_registers(ch=self.qubit_chA, style="const", freq=self.f_geA, phase=0, gain=cfg.expt.startA, length=self.pi_sigmaA)
             self.set_pulse_registers(ch=self.qubit_chB, style="const", freq=self.f_geB, phase=0, gain=cfg.expt.startB, length=self.pi_sigmaB)
 
-
-        
         self.set_pulse_registers(ch=self.res_chA, style="const", freq=self.f_res_regA, phase=0, gain=cfg.device.readout.gain[qA], length=self.readout_length_dacA)
         self.set_pulse_registers(ch=self.res_chB, style="const", freq=self.f_res_regB, phase=0, gain=cfg.device.readout.gain[qB], length=self.readout_length_dacB)
 
@@ -126,88 +118,37 @@ class T1Program_2QB(AveragerProgram):
 
     def body(self):
         cfg=AttrDict(self.cfg)
-        qA, qB = self.qubits
-
-        self.sync_all()
         self.pulse(ch=self.qubit_chA)
         self.pulse(ch=self.qubit_chB)
-    
 
-        # self.measure(pulse_ch=[self.res_chA], 
-        #      adcs=[self.adc_chA],
-        #      adc_trig_offset=cfg.device.readout.trig_offset[qA] + self.us2cycles(cfg.expt.startA),
-        #      wait=True,
-        #      syncdelay=self.us2cycles([cfg.device.readout.relax_delay[qA]]), 
-        #      t = self.us2cycles(cfg.expt.startA))
-        
-        # self.measure(pulse_ch=[self.res_chB], 
-        #      adcs=[self.adc_chB],
-        #      adc_trig_offset=cfg.device.readout.trig_offset[qB] + self.us2cycles(cfg.expt.startB),
-        #      wait=True,
-        #      syncdelay=self.us2cycles([cfg.device.readout.relax_delay[qB]]), 
-        #      t = self.us2cycles(cfg.expt.startB))
-        
-        # Test 
-        self.measure(pulse_ch=[self.res_chA], 
-             adcs=[self.adc_chA],
-             adc_trig_offset=cfg.device.readout.trig_offset[qA] + self.us2cycles(cfg.expt.startA),
-             wait=False,
-             syncdelay=0 , 
-             t = self.us2cycles(cfg.expt.startA))
-        
-        self.measure(pulse_ch=[self.res_chB], 
-             adcs=[self.adc_chB],
-             adc_trig_offset=cfg.device.readout.trig_offset[qB] + self.us2cycles(cfg.expt.startB),
-             wait=False,
-             syncdelay=0, 
-             t = self.us2cycles(cfg.expt.startB))
-        
-        self.sync_all()
-        
-        # self.safe_regwi(self.r_rpA,  self.sreg(self.res_chA , "t"), self.us2cycles(self.pi_sigmaA*4 + self.cfg.expt.startA ) )
+        self.qubits = self.cfg.expt.qubits
+        qA, qB = self.qubits
 
-        # self.safe_regwi(self.r_rpB,  self.sreg(self.res_chB "t") , self.us2cycles(self.pi_sigmaB*4 + self.cfg.expt.startB )) 
-
-
-          # self.trigger(adcs, pins=pins, adc_trig_offset=adc_trig_offset)
-        # self.pulse(ch=pulse_ch, t=t)
-        # if wait:
-        #     # tProc should wait for the readout to complete.
-        #     # This prevents loop counters from getting incremented before the data is available.
-        #     self.wait_all()
-        # if syncdelay is not None:
-        #     self.sync_all(syncdelay)
-
-
-        # if self.cfg.expt.startA < self.cfg.expt.startB:
-        #     self.sync(self.q_rpA, self.r_wait) #self.us2cycles(self.cfg.expt.startA)
-        #     self.pulse(ch=self.res_chA, t=0 )
-        #     self.sync(self.q_rpB, self.us2cycles(self.cfg.expt.startB - self.cfg.expt.startA))
-        #     self.pulse(ch=self.res_chB, t=0 )
-
-        # else: 
-        #     self.sync(self.q_rpB, self.us2cylces(self.cfg.expt.startB))
-        #     self.pulse(ch=self.res_chB, t=0 )
-        #     self.sync(self.q_rpA, self.us2cycles(self.cfg.expt.startA - self.cfg.expt.startB))
-        #     self.pulse(ch=self.res_chA, t=0 )
-
+        if self.cfg.expt.startA < self.cfg.expt.startB:
+            self.sync(self.q_rpA, self.r_wait) #self.us2cycles(self.cfg.expt.startA)
+            self.pulse(ch=self.res_chA, t=0 )
+            self.sync(self.q_rpB, self.us2cycles(self.cfg.expt.startB - self.cfg.expt.startA))
+            self.pulse(ch=self.res_chB, t=0 )
+        else: 
+            self.sync(self.q_rpB, self.us2cycles(self.cfg.expt.startB))
+            self.pulse(ch=self.res_chB, t=0 )
+            self.sync(self.q_rpA, self.us2cycles(self.cfg.expt.startA - self.cfg.expt.startB))
+            self.pulse(ch=self.res_chA, t=0 )
 
         # self.trigger([self.adc_chA], pins=None, adc_trig_offset= self.us2cycles(cfg.device.readout.trig_offset[qA]))
         # self.trigger([self.adc_chB], pins=None, adc_trig_offset=self.us2cycles(cfg.device.readout.trig_offset[qB]))
 
-       
         # self.wait_all()
         # sync_delay = self.us2cycles(max([cfg.device.readout.relax_delay[qA],cfg.device.readout.relax_delay[qB]]))
-        # self.sync_all(self, sync_delay)
+        # self.sync_all(sync_delay)
 
         # self.sync(self.q_rp, self.r_wait) # wait for the time stored in the wait variable register
 
-
-        #self.measure(pulse_ch=[self.res_chA, self.res_chB], 
-        #      adcs=[self.adc_chA, self.adc_chB],
-        #      adc_trig_offset=cfg.device.readout.trig_offset[qA],
-        #      wait=True,
-        #      syncdelay=self.us2cycles(max([cfg.device.readout.relax_delay[qA],cfg.device.readout.relax_delay[qB]])))
+        self.measure(pulse_ch=[self.res_chA, self.res_chB], 
+             adcs=[self.adc_chA, self.adc_chB],
+             adc_trig_offset=cfg.device.readout.trig_offset[qA],
+             wait=True,
+             syncdelay=self.us2cycles(max([cfg.device.readout.relax_delay[qA],cfg.device.readout.relax_delay[qB]])))
         
     def collect_shots(self):
         # collect shots for the relevant adc and I and Q channels
@@ -218,9 +159,9 @@ class T1Program_2QB(AveragerProgram):
         shots_q0B = self.dq_buf[1] / self.readout_length_adcB #[self.cfg.expt.qubit]
         return shots_i0A, shots_q0A, shots_i0B, shots_q0B
     
-    # def update(self):
-    #     self.mathi(self.q_rpA, self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update wait time
-    #     self.mathi(self.q_rpB, self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update wait time
+    def update(self):
+        self.mathi(self.q_rpA, self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update wait time
+        self.mathi(self.q_rpB, self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update wait time
 
 # ====================================================== #
 class T1_2qbExperiment(Experiment):
@@ -236,27 +177,28 @@ class T1_2qbExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='T1', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='T1', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
-        # q_ind = self.cfg.expt.qubit
-        # for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-        #     for key, value in subcfg.items() :
-        #         if isinstance(value, list):
-        #             subcfg.update({key: value[q_ind]})
-        #         elif isinstance(value, dict):
-        #             for key2, value2 in value.items():
-        #                 for key3, value3 in value2.items():
-        #                     if isinstance(value3, list):
-        #                         value2.update({key3: value3[q_ind]})                                
 
-        t1 = T1Program_2QB(soccfg=self.soccfg, cfg=self.cfg)
-        avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
+        qA, qB = self.cfg.expt.qubits
 
-        shots_iA, shots_qA, shots_iB, shots_qB = t1.collect_shots()
+        # expand entries in config that are length 1 to fill all qubits
+        num_qubits_sample = 2
+        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
+            for key, value in subcfg.items() :
+                if isinstance(value, dict):
+                    for key2, value2 in value.items():
+                        for key3, value3 in value2.items():
+                            if not(isinstance(value3, list)):
+                                value2.update({key3: [value3]*num_qubits_sample})                                
+                elif not(isinstance(value, list)):
+                    subcfg.update({key: [value]*num_qubits_sample})
+                                        
 
-       
+        t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
+        xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
 
         avgiA = avgi[0][0]
         avgqA = avgq[0][0]
@@ -267,7 +209,7 @@ class T1_2qbExperiment(Experiment):
         avgqB = avgq[1][0]
         ampsB = np.abs(avgiB+1j*avgqB) # Calculating the magnitude
         phasesB = np.angle(avgiB+1j*avgqB) # Calculating the phase      
-        data={'avgiA':avgiA, 'avgiB':avgiB,'avgqA':avgqA, 'avgqB':avgqB, 'ampsA':ampsA, 'ampsB':ampsB,'phasesA':phasesA, 'phasesB':phasesB, 'raw_iA': shots_iA,'raw_iB': shots_iB, 'raw_A': shots_qA, 'raw_B': shots_qB}  
+        data={'avgiA':avgiA, 'avgiB':avgiB,'avgqA':avgqA, 'avgqB':avgqB, 'ampsA':ampsA, 'ampsB':ampsB,'phasesA':phasesA, 'phasesB':phasesB,'xpts':xpts}  
 
         self.data=data
         return data
@@ -374,28 +316,26 @@ class T1_2qbContinuous(Experiment):
         #                 for key3, value3 in value2.items():
         #                     if isinstance(value3, list):
         #                         value2.update({key3: value3[q_ind]})                                
-        t1 = T1Program_2QB(soccfg=self.soccfg, cfg=self.cfg)
-        avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)
-          
+        t1A = T1Program(soccfg=self.soccfg, cfg=self.cfg)
+        x_ptsA, avgiA, avgqA = t1A.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
 
-        shots_iA, shots_qA, shots_iB, shots_qB = t1.collect_shots()
+        shots_iA, shots_qA, shots_iB, shots_qB = t1A.collect_shots()
        
 
 
-        avgiA = avgi[0][0]
-        avgqA = avgq[0][0]
+        avgiA = avgiA[0][0]
+        avgqA = avgqA[0][0]
         ampsA = np.abs(avgiA+1j*avgqA) # Calculating the magnitude
         phasesA = np.angle(avgiA+1j*avgqA) # Calculating the phase      
 
-        avgiB = avgi[1][0]
-        avgqB = avgq[1][0]
+        avgiB = avgiB[0][0]
+        avgqB = avgqB[0][0]
         ampsB = np.abs(avgiB+1j*avgqB) # Calculating the magnitude
         phasesB = np.angle(avgiB+1j*avgqB) # Calculating the phase      
 
         now = datetime.now()
-        current_time = now.strftime("%H:%M:%S")
-        current_time = current_time.encode('ascii','replace')
-        data={'avgiA':avgiA, 'avgiB':avgiB,'avgqA':avgqA, 'avgqB':avgqB, 'ampsA':ampsA, 'ampsB':ampsB,'phasesA':phasesA, 'phasesB':phasesB, 'time':current_time, 'raw_iA': shots_iA,'raw_iB': shots_iB, 'raw_A': shots_qA, 'raw_B': shots_qB}   
+        current_time = np.array([now.strftime("%H:%M:%S")])
+        data={'xptsA': x_ptsA, 'xptsB': x_ptsB, 'avgiA':avgiA, 'avgiB':avgiB,'avgqA':avgqA, 'avgqB':avgqB, 'ampsA':ampsA, 'ampsB':ampsB,'phasesA':phasesA, 'phasesB':phasesB, 'time':current_time, 'raw_iA': shots_iA,'raw_iB': shots_iB, 'raw_A': shots_qA, 'raw_B': shots_qB}   
         
         self.data=data
         return data

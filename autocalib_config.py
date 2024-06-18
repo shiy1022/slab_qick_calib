@@ -141,7 +141,7 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=1500,
         prefix = f"qubit_spectroscopy_qubit{qubit_i}"
 
     if coarse is True and gain is None:
-        gain=500
+        gain=10000
     elif gain is None:
         gain=100
 
@@ -179,6 +179,52 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=1500,
 
     qspec.cfg.device.readout.relax_delay = 10 # Wait time between experiments [us]
     return qspec
+
+def make_qspec_ef(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=500, reps=50, rounds=3, gain=None, coarse=False):
+
+    if coarse and span is None:
+        span=500 
+        prefix = f"qubit_spectroscopy_coarse_qubit{qubit_i}"
+    elif span is None:
+        span=5
+        prefix = f"qubit_spectroscopy_fine_qubit{qubit_i}"
+    else:
+        prefix = f"qubit_spectroscopy_qubit{qubit_i}"
+
+    if coarse is True and gain is None:
+        gain=20000
+    elif gain is None:
+        gain=200
+
+    qEFspec = meas.PulseProbeEFSpectroscopyExperiment(
+        soccfg=soc,
+        path=expt_path,
+        prefix=f"qubit_EF_spectroscopy_qubit{qubit_i}",
+        config_file=cfg_file,
+        im=im
+    )
+
+    span = span
+    npts = npts 
+
+    qEFspec.cfg.expt = dict(
+        start=qEFspec.cfg.device.qubit.f_ef[qubit_i]-0.5*span, # resonator frequency to be mixed up [MHz]
+        step=span/npts, # min step ~1 Hz
+        expts=npts, # Number of experiments stepping from start
+        reps=reps, # Number of averages per point
+        rounds=rounds, # Number of start to finish sweeps to average over
+        length=1, # ef probe constant pulse length [us]
+        gain=gain, # ef pulse gain
+        pulse_type='gauss', # ef pulse type
+        qubit=qubit_i,
+    )
+
+    # qEFspec.cfg.device.readout.relax_delay = 500 # Wait time between experiments [us]
+    
+    if go: 
+        qEFspec.go(analyze=True, display=True, progress=True, save=True)
+
+    return qEFspec
 
 def make_lengthrabi(soc, expt_path, cfg_file, qubit_i, im=None, npts = 100, reps = 500, gain = 2000, num_pulses = 1):
     lengthrabi = meas.LengthRabiExperiment(
@@ -451,7 +497,7 @@ def make_t1_cont(soc, expt_path, cfg_file, qubit_i, reps=2000000, norm=False, de
 
     return t1_cont
 
-def make_singleshot(soc, expt_path, cfg_file, qubit_i, im=None, go=False, reps=10000):
+def make_singleshot(soc, expt_path, cfg_file, qubit_i, im=None, go=False, reps=10000, check_f=False):
 
     shot = meas.HistogramExperiment(
     soccfg=soc,
@@ -464,7 +510,7 @@ def make_singleshot(soc, expt_path, cfg_file, qubit_i, im=None, go=False, reps=1
     shot.cfg.expt = dict(
         reps=reps,
         check_e = True, 
-        check_f=False,
+        check_f=check_f,
         qubit=qubit_i,
     )
 
@@ -474,7 +520,7 @@ def make_singleshot(soc, expt_path, cfg_file, qubit_i, im=None, go=False, reps=1
 
     return shot
 
-def make_singleshot_opt(soc, expt_path, cfg_file, qubit_i, go=False, im=None, reps=10000, start_f = None, span_f=0.5, npts_f =5, start_gain=None, span_gain=25000, npts_gain=5, start_len=None, span_len=25.0, npts_len=5):
+def make_singleshot_opt(soc, expt_path, cfg_file, qubit_i, go=False, im=None, reps=10000, start_f = None, span_f=0.5, npts_f =5, start_gain=None, span_gain=25000, npts_gain=5, start_len=None, span_len=25.0, npts_len=5, check_f=False):
 
     shotopt = meas.SingleShotOptExperiment(
         soccfg=soc,
@@ -527,6 +573,7 @@ def make_singleshot_opt(soc, expt_path, cfg_file, qubit_i, go=False, im=None, re
         start_len=start_len,
         step_len=step_len,
         expts_len=npts_len,
+        check_f=check_f,
     )
 
     if go:
@@ -601,3 +648,29 @@ def make_acstark(soc, expt_path, cfg_file, qubit_i, span_f=100, npts_f=300, span
     )
     acspec.cfg.device.readout.relax_delay = 25
     return acspec
+
+def make_rb(soc, expt_path, cfg_file, qubit_i, im=None, go=False):
+    
+
+    rb = meas.SingleRB(
+      soccfg=soc,
+      path=expt_path,
+      prefix=f"rb_qubit{qubit_i}",
+      config_file= cfg_file,
+    )
+
+    rb.cfg.expt = dict(
+        qubit= qubit_i,
+        singleshot_reps= 10000,   # single shot measurement repetitions
+        span= 50,   # single shot plot span
+        reps= 100,
+        rounds= 10,
+        variations= 20,   # number of different sequences
+        rb_depth= 5,    # rb sequence depth
+        IRB_gate_no= -1   # IRB gate number, -1 means not using
+    )
+
+    if go:
+        rb.go(analyze=True, display=True, progress=True, save=True)
+
+    return rb

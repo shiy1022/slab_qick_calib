@@ -212,21 +212,6 @@ class T1Experiment(Experiment):
 
 
         plt.show()
-    
-    def save_T1_Values(self, fit = True, data = None): 
-        if data is None:
-            data=self.data  
-        
-        length_scan = len(data["xpts"])
-        t1_points = np.linspace(0, length_scan, self.cfg.expt.num_saved_points)
-        data['t1_save_i'] = np.zeros(len(t1_points)-1)
-        data['t1_save_q'] = np.zeros(len(t1_points)-1)
-
-        if fit:
-            for i in range(len(t1_points)-1):
-                data['t1_save_i'][i] = data["avgi"][int(t1_points[i])]
-            for i in range(len(t1_points)-1):
-                data['t1_save_q'][i] = data["avgq"][int(t1_points[i])]
         
     def save_data(self, data=None):
         print(f'Saving {self.fname}')

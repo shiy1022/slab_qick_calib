@@ -107,15 +107,12 @@ def sinfunc(x, *p):
     yscale, freq, phase_deg, y0 = p
     return yscale*np.sin(2*np.pi*freq*x + phase_deg*np.pi/180) + y0
 
-def fitsin(xdata, ydata, fitparams=None):
+def fitsin(xdata, ydata, fitparams=None, debug=False):
     if fitparams is None: fitparams = [None]*4
-    fourier = np.fft.fft(ydata)
-    fft_freqs = np.fft.fftfreq(len(ydata), d=xdata[1]-xdata[0])
-    fft_phases = np.angle(fourier)
-    max_ind = np.argmax(np.abs(fourier[1:])) + 1
-    max_freq = np.abs(fft_freqs[max_ind])
-    max_phase = fft_phases[max_ind]
-    if fitparams[0] is None: fitparams[0]=max(ydata)-min(ydata)
+    
+    max_freq, max_phase = fourier_init(xdata, ydata, debug)
+
+    if fitparams[0] is None: fitparams[0]=1/2*(max(ydata)-min(ydata))
     if fitparams[1] is None: fitparams[1]=max_freq
     if fitparams[2] is None: fitparams[2]=max_phase*180/np.pi
     if fitparams[3] is None: fitparams[3]=np.mean(ydata)
@@ -135,7 +132,10 @@ def fitsin(xdata, ydata, fitparams=None):
     except RuntimeError: 
         print('Warning: fit failed!')
         # return 0, 0
-    return pOpt, pCov
+    if debug:
+        return pOpt, pCov, fitparams 
+    else: 
+        return pOpt, pCov
 
 # ====================================================== #
 
@@ -147,25 +147,10 @@ def decaysin(x, *p):
 
 def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
     # yscale, freq, phase_deg, decay, y0
-    import matplotlib.pyplot as plt 
+    
     if fitparams is None: fitparams = [None]*5
-    fourier = np.fft.fft(ydata)
-    fft_freqs = np.fft.fftfreq(len(ydata), d=xdata[1]-xdata[0])
-    fft_phases = np.angle(fourier)
+    max_freq, max_phase = fourier_init(xdata, ydata, debug)
 
-    sorted_fourier = np.sort(np.abs(fourier))
-    max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-1])[0][0]
-    if max_ind == 0:
-        max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-2])[0][0]
-    max_freq = np.abs(fft_freqs[max_ind])
-    max_phase = fft_phases[max_ind]
-    if debug:
-         plt.figure()
-         plt.plot(fft_freqs, fourier,'.-')
-         #plt.plot(fourier, fft_phases,'.')
-         plt.xlim([0,0.2])
-         print(max_phase)
-         print(max_freq)
     if fitparams[0] is None: fitparams[0]=max(ydata)-min(ydata)
     if fitparams[1] is None: fitparams[1]=max_freq
     # if fitparams[2] is None: fitparams[2]=0
@@ -199,6 +184,30 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
         return pOpt, pCov
 
 # ====================================================== #
+
+def fourier_init(xdata, ydata, debug):
+    fourier = np.fft.fft(ydata)
+    fft_freqs = np.fft.fftfreq(len(ydata), d=xdata[1]-xdata[0])
+    fft_phases = np.angle(fourier)
+
+    sorted_fourier = np.sort(np.abs(fourier))
+    max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-1])[0][0]
+    if max_ind == 0:
+        max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-2])[0][0]
+    max_freq = np.abs(fft_freqs[max_ind])
+    max_phase = fft_phases[max_ind]
+    if debug:
+        import matplotlib.pyplot as plt
+        plt.figure()
+        fourier[np.argmax(np.abs(fourier))] = np.nan
+        plt.plot(fft_freqs, fourier,'.')
+        plt.xlim(left=0)
+        #plt.plot(fourier, fft_phases,'.')
+
+        print('Max phase is ' + str(max_phase))
+        print('Max freq is ' + str(max_freq))
+
+    return max_freq, max_phase 
 
 def twofreq_decaysin(x, *p):
     yscale0, freq0, phase_deg0, decay0, y00, x00, yscale1, freq1, phase_deg1, y01 = p

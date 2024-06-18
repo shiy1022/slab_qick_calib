@@ -371,6 +371,7 @@ class AmplitudeRabiExperiment(Experiment):
         if data is None:
             data=self.data 
 
+
         if self.cfg.expt.checkZZ: # [x, 1] means test Q1 with ZZ from Qx; [1, x] means test Qx with ZZ from Q1, sort by Qx in both cases
             assert len(self.qubits) == 2
             assert 1 in self.qubits

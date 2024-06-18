@@ -128,8 +128,8 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='PulseProbeEFSpectroscopy', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='PulseProbeEFSpectroscopy', config_file=None, progress=None,im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
         q_ind = self.cfg.expt.qubit
@@ -155,7 +155,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
         self.data=data
         return data
 
-    def analyze(self, data=None, fit=True, signs=[1,1], **kwargs):
+    def analyze(self, data=None, fit=True, signs=[1,1,1], **kwargs):
         if data is None:
             data=self.data
         if fit:
@@ -165,7 +165,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             data['fit_avgq'], data['fit_err_avgq'] = fitter.fitlor(xdata, signs[2]*data['avgq'][1:-1])
         return data
 
-    def display(self, data=None, fit=True, signs=[1,1], **kwargs):
+    def display(self, data=None, fit=True, signs=[1,1,1], **kwargs):
         if data is None:
             data=self.data 
 

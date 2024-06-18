@@ -400,13 +400,19 @@ class SingleShotOptExperiment(Experiment):
         fid = np.zeros(shape=(len(fpts), len(gainpts), len(lenpts)))
         threshold = np.zeros(shape=(len(fpts), len(gainpts), len(lenpts)))
         angle = np.zeros(shape=(len(fpts), len(gainpts), len(lenpts)))
-
+        if 'check_f' not in self.cfg.expt: 
+            check_f = False
+        else:
+            check_f = self.cfg.expt.check_f
         qubit = self.cfg.expt.qubit
         Ig, Ie, Qg, Qe = [], [], [], []
+        if check_f: If, Qf = [], []
         for f_ind, f in enumerate(tqdm(fpts, disable=not progress)):
             Ig.append([]); Ie.append([]); Qg.append([]); Qe.append([])
+            if check_f: If.append([]); Qf.append([])
             for g_ind, gain in enumerate(gainpts):
                 Ig[-1].append([]); Ie[-1].append([]); Qg[-1].append([]); Qe[-1].append([])
+                if check_f: If[-1].append([]); Qf[-1].append([])
                 for l_ind, l in enumerate(lenpts):
                     shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file, im=self.im)
                     shot.cfg = self.cfg
@@ -414,14 +420,12 @@ class SingleShotOptExperiment(Experiment):
                     shot.cfg.device.readout.gain = int(gain)
                     shot.cfg.device.readout.readout_length = float(l) 
                     check_e = True
-                    if 'check_f' not in self.cfg.expt: check_f = False
-                    else:
-                        check_f = self.cfg.expt.check_f
-                        check_e = not check_f
+                    
                     shot.cfg.expt = dict(reps=self.cfg.expt.reps, check_e=check_e, check_f=check_f, qubit=self.cfg.expt.qubit)
                     shot.go(analyze=False, display=False, progress=progress, save=False)
                     Ig[-1][-1].append(shot.data['Ig']); Ie[-1][-1].append(shot.data['Ie']); 
                     Qg[-1][-1].append(shot.data['Qg']); Qe[-1][-1].append(shot.data['Qe'])
+                    if check_f: If[-1][-1].append(shot.data['If']); Qf[-1][-1].append(shot.data['Qf'])
                     results = shot.analyze(verbose=False)
                     fid[f_ind, g_ind, l_ind] = results['fids'][0] if not check_f else results['fids'][1]
                     threshold[f_ind, g_ind, l_ind] = results['thresholds'][0] if not check_f else results['thresholds'][1]
@@ -431,6 +435,7 @@ class SingleShotOptExperiment(Experiment):
                     if check_f: print(f'\tfid gf [%]: {100*results["fids"][1]}')
 
         self.data = dict(fpts=fpts, gainpts=gainpts, lenpts=lenpts, fid=fid, threshold=threshold, angle=angle, Ig=Ig, Ie=Ie, Qg=Qg, Qe=Qe)
+        if check_f: self.data['If'] = If; self.data['Qf'] = Qf
         return self.data
 
     def analyze(self, data=None, **kwargs):
