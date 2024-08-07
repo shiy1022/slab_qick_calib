@@ -162,22 +162,27 @@ class T1Experiment(Experiment):
         data['fit_avgi'], data['fit_err_avgi'] = fitter.fitexp(data['xpts'][:-1], data['avgi'][:-1], fitparams=None)
         data['fit_avgq'], data['fit_err_avgq'] = fitter.fitexp(data['xpts'][:-1], data['avgq'][:-1], fitparams=None)
 
-        t1_err_i = np.sqrt(data['fit_err_avgi'][3][3])
-        t1_fit_i =data['fit_avgi'][3]
-        err_ratio_i = t1_err_i/t1_fit_i
+        t1_err_amps = np.sqrt(data['fit_err_amps'][2][2])
+        t1_fit_amps =data['fit_amps'][2]
+        err_ratio_amps = np.abs(t1_err_amps/t1_fit_amps)
+        print('t1_amps error:fit ratio=', err_ratio_amps)
+
+        t1_err_i = np.sqrt(data['fit_err_avgi'][2][2])
+        t1_fit_i =data['fit_avgi'][2]
+        err_ratio_i = np.abs(t1_err_i/t1_fit_i)
         print('t1_i error:fit ratio=', err_ratio_i)
 
-        t1_err_q = np.sqrt(data['fit_err_avgq'][3][3])
-        t1_fit_q =data['fit_avgq'][3]
-        err_ratio_q = t1_err_q/t1_fit_q
+        t1_err_q = np.sqrt(data['fit_err_avgq'][2][2])
+        t1_fit_q =data['fit_avgq'][2]
+        err_ratio_q = np.abs(t1_err_q/t1_fit_q)
         print('t1_q error:fit ratio=', err_ratio_q)
 
-        if err_ratio_i< err_ratio_q:
+        if err_ratio_i< err_ratio_amps:
             print('t1_i is better, saving T1_i to results cfg file') 
             new_t1 = t1_fit_i
         else: 
-            print('t1_q is better, saving t1_q to results cfg file')
-            new_t1 = t1_fit_q
+            print('t1_amps is better, saving t1_amps to results cfg file')
+            new_t1 = t1_fit_amps
 
 
         data['new_t1']=new_t1
@@ -188,27 +193,39 @@ class T1Experiment(Experiment):
         if data is None:
             data=self.data 
 
+        plt.figure(figsize=(10, 5))
+        plt.subplot(111,title="$T_1$", ylabel="Amps [ADC units]")
+        plt.plot(data["xpts"][:-1], data["amps"][:-1],'o-')
+        if fit:
+            p = data['fit_amps']
+            pCov = data['fit_err_amps']
+            captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
+            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_amps"]), label=captionStr)
+            plt.legend()
+            print(f'Fit T1 amps [us]: {data["fit_amps"][2]}')
+            data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
+
         plt.figure(figsize=(10,10))
         plt.subplot(211, title="$T_1$", ylabel="I [ADC units]")
         plt.plot(data["xpts"][:-1], data["avgi"][:-1],'o-')
         if fit:
             p = data['fit_avgi']
             pCov = data['fit_err_avgi']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+            captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
             plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgi"]), label=captionStr)
             plt.legend()
-            print(f'Fit T1 avgi [us]: {data["fit_avgi"][3]}')
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][3][3])/data['fit_avgi'][3]
+            print(f'Fit T1 avgi [us]: {data["fit_avgi"][2]}')
+            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][2][2])/data['fit_avgi'][2]
         plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC units]")
         plt.plot(data["xpts"][:-1], data["avgq"][:-1],'o-')
         if fit:
             p = data['fit_avgq']
             pCov = data['fit_err_avgq']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+            captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
             plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgq"]), label=captionStr)
             plt.legend()
-            print(f'Fit T1 avgq [us]: {data["fit_avgq"][3]}')
-            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][3][3])/data['fit_avgq'][3]
+            print(f'Fit T1 avgq [us]: {data["fit_avgq"][2]}')
+            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][2][2])/data['fit_avgq'][2]
 
 
         plt.show()

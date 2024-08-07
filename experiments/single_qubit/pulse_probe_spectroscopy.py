@@ -79,12 +79,14 @@ class PulseProbeSpectroscopyProgram(RAveragerProgram):
 
         if self.res_ch_type == 'mux4':
             self.set_pulse_registers(ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask)
-        else: self.set_pulse_registers(ch=self.res_ch, style="const", freq=self.f_res_reg, phase=0, gain=cfg.device.readout.gain, length=self.readout_length_dac)
+        else: 
+            self.set_pulse_registers(ch=self.res_ch, style="const", freq=self.f_res_reg, phase=0, gain=cfg.device.readout.gain, length=self.readout_length_dac)
 
         # initialize registers
         if self.qubit_ch_type == 'int4':
             self.r_freq = self.sreg(self.qubit_ch, "freq") # get freq register for qubit_ch    
-        else: self.r_freq = self.sreg(self.qubit_ch, "freq") # get freq register for qubit_ch    
+        else: 
+            self.r_freq = self.sreg(self.qubit_ch, "freq") # get freq register for qubit_ch    
         self.r_freq2 = 4
         self.safe_regwi(self.q_rp, self.r_freq2, self.f_start)
 

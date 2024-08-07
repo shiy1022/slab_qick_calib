@@ -122,8 +122,9 @@ class ResonatorSpectroscopyExperiment(Experiment):
         super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False):
+        q_ind = self.cfg.expt.qubit
         if 'smart' in self.cfg.expt and self.cfg.expt.smart==True:
-            kappa = self.cfg.expt['kappa']
+            kappa = self.cfg.device.qubit['kappa'][q_ind]
             N = self.cfg.expt["expts"] 
             df = self.cfg.expt["step"]*N 
             w = df / kappa 
@@ -134,7 +135,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             xpts = fr + R * df / (2 * w)*np.tan(n/(N-1)*at)
         else:
             xpts=self.cfg.expt["start"] + self.cfg.expt["step"]*np.arange(self.cfg.expt["expts"])
-        q_ind = self.cfg.expt.qubit
+        
         for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
             for key, value in subcfg.items() :
                 if isinstance(value, list):
@@ -169,7 +170,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
 
         return data
 
-    def analyze(self, data=None, fit=True, findpeaks=False, verbose=True, coarse_scan = False, hanger=False, **kwargs):
+    def analyze(self, data=None, fit=True, findpeaks=False, verbose=True, coarse_scan = False, hanger=True, **kwargs):
         if data is None:
             data=self.data
             
@@ -179,12 +180,13 @@ class ResonatorSpectroscopyExperiment(Experiment):
             fitparams = [max(ydata), -(max(ydata)-min(ydata)), xdata[np.argmin(ydata)], 0.1 ]
             if hanger: 
                 data['fit'], data['fit_err'] = fitter.fithanger(xdata, ydata)
-
+                
                 if isinstance(data['fit'], (list, np.ndarray)):
                     f0, Qi, Qe, phi, scale, a0, slope = data['fit']
                 if 'lo' in self.cfg.hw:
                     print(float(self.cfg.hw.lo.readout.frequency)*1e-6)
                     print(f0)
+                data['kappa']=f0*(1/Qi+1/Qe)
                 if verbose:
                     print(f'\nFreq with minimum transmission: {xdata[np.argmin(ydata)]}')
                     print(f'Freq with maximum transmission: {xdata[np.argmax(ydata)]}')
@@ -212,7 +214,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             xdata = data["xpts"][1:-1]
             ydata = data['amps'][1:-1]
             #coarse_peaks = find_peaks(-ydata, distance=100, prominence= 2)#, width=3, threshold = 0.9, rel_height=1) 
-            coarse_peaks = find_peaks(-ydata, distance=20, prominence=0.125, width=[1,25])#, width=3, threshold=0.2, rel_height=0.3)
+            coarse_peaks = find_peaks(-ydata, distance=20, prominence=0.5, width=[1,25])#, width=3, threshold=0.2, rel_height=0.3)
 
             data['coarse_peaks_index'] = coarse_peaks 
             data['coarse_peaks'] = xdata[coarse_peaks[0]]
@@ -223,8 +225,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data=self.data 
 
         if 'lo' in self.cfg.hw:
-            xpts = float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband[self.qubit]*(self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1])
-            
+            xpts = float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband[self.qubit]*(self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1])           
         else:
             xpts = data['xpts'][1:-1]
 
@@ -393,6 +394,10 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
 
+        
+    def save_data(self, data=None):
+        print(f'Saving {self.fname}')
+        super().save_data(data=data)
 # ====================================================== #
 
 class ResonatorVoltSweepSpectroscopyExperiment(Experiment):

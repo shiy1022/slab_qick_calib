@@ -107,10 +107,10 @@ class AmplitudeRabiProgram(RAveragerProgram):
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
         elif self.res_ch_types[qTest] == 'mux4':
             assert self.res_chs[qTest] == 6
-            mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
+            mask = [0,1,2,3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
-            mux_freqs = cfg.device.readout.frequency
-            mux_gains = cfg.device.readout.gain
+            mux_freqs = cfg.device.readout.frequency[0:4]
+            mux_gains = cfg.device.readout.gain[0:4]
             ro_ch=self.adc_chs[qTest]
         self.declare_gen(ch=self.res_chs[qTest], nqz=cfg.hw.soc.dacs.readout.nyquist[qTest], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
         self.declare_readout(ch=self.adc_chs[qTest], length=self.readout_lengths_adc[qTest], freq=cfg.device.readout.frequency[qTest], gen_ch=self.res_chs[qTest])
@@ -170,7 +170,10 @@ class AmplitudeRabiProgram(RAveragerProgram):
         # add readout pulses to respective channels
         if self.res_ch_types[qTest] == 'mux4':
             self.set_pulse_registers(ch=self.res_chs[qTest], style="const", length=self.readout_lengths_dac[qTest], mask=mask)
-        else: self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
+        else: 
+            self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], 
+                                     gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], 
+                                     phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
 
         # initialize registers
         if self.qubit_ch_types[qTest] == 'int4':

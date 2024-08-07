@@ -1,30 +1,47 @@
 import experiments as meas
 import config
+import matplotlib.pyplot as plt
+import experiments.fitting as fitter
+import numpy as np
+max_gain = 32768
 
-def make_tof(soc, expt_path, cfg_file, qubit_i):
+def safe_gain(gain):
+    gain = np.min([gain, max_gain])
+    return gain
+
+
+def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True):
 
     tof = meas.ToFCalibrationExperiment(soccfg=soc,
     path=expt_path,
     prefix=f"adc_trig_offset_calibration_qubit{qubit_i}",
-    config_file=cfg_file)
+    config_file=cfg_file, 
+    im=im)
 
     tof.cfg.expt = dict(pulse_length=0.5, # [us]
     readout_length=1.0, # [us]
     trig_offset=0, # [clock ticks]
-    gain=30000, # blast the power just for the RFSoC calibration
+    gain=1, # blast the power just for the RFSoC calibration
+    #gain=32000,
     frequency=tof.cfg.device.readout.frequency[qubit_i], # [MHz]
     reps=1000, # Number of averages per point
     qubit=qubit_i) 
 
     tof.cfg.device.readout.relax_delay[qubit_i]=0.1 # wait time between experiments [us]
+
+    if go: 
+        tof.go(analyze=False, display=False, progress=True, save=True)
+        tof.display(adc_trig_offset=150) 
+    
     return tof
 
-def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, start=7000, span=250, reps=800, npts=5000):
+def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000):
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
     path=expt_path,
     prefix=f"resonator_spectroscopy_coarse",
     config_file=cfg_file,   
+    im=im
     )
 
     rspec.cfg.expt = dict(
@@ -40,16 +57,15 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, start=7000, span=250, r
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
     return rspec
 
-def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, j, im=None, center=None, span=5, reps=500, smart=True):
+def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=500, reps=500, smart=True):
     
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
     path=expt_path,
-    prefix=f"resonator_spectroscopy_res{j}",
+    prefix=f"resonator_spectroscopy_res{qubit_i}",
     config_file=cfg_file,  
     im=im
     )
-    npts = 1000 
 
     if center==None: 
         center = rspec.cfg.device.readout.frequency[qubit_i]
@@ -58,7 +74,6 @@ def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, j, im=None, center=None, 
         start = center-span/2, #Lowest resontaor frequency
         step=span/npts, # min step ~1 Hz
         smart=smart,
-        kappa=0.35,
         expts=npts, # Number experiments stepping from start
         reps= reps, # Number averages per point 
         pulse_e=False, # add ge pi pulse prior to measurement
@@ -67,15 +82,20 @@ def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, j, im=None, center=None, 
     )
 
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
+
+    if go: 
+        rspec.go(analyze=True, display=True, progress=True, save=True)
+
     return rspec
 
-def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, span_f=5, npts_f=250, span_gain=27000, start_gain=5000, npts_gain=10, reps=500, smart=False):
+def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5, npts_f=250, span_gain=27000, start_gain=5000, npts_gain=10, reps=500, smart=False):
 
     rpowspec = meas.ResonatorPowerSweepSpectroscopyExperiment(
         soccfg=soc,
         path=expt_path,
         prefix=f"ResonatorPowerSweepSpectroscopyExperiment_qubit{qubit_i}",
         config_file=cfg_file,
+        im=im
     )
 
     rpowspec.cfg.expt = dict(
@@ -96,17 +116,20 @@ def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, span_f=5, npts_f=
     rpowspec.cfg.device.readout.readout_length = 5
     return rpowspec
 
-def make_chi(soc, expt_path, cfg_file, qubit_i, go=False, span=3, npts=151, reps=500):
+def make_chi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=3, npts=251, reps=500, check_e=True, check_f=False, smart=True):
     # This adds an e pulse first 
 
-    span = span # MHz
-    npts = npts
+    if check_f: 
+        prefix = f"resonator_spectroscopy_chi_qubit{qubit_i}_f"
+    else:
+        prefix = f"resonator_spectroscopy_chi_qubit{qubit_i}"
     
     rspec_chi = meas.ResonatorSpectroscopyExperiment(
         soccfg=soc,
         path=expt_path,
-        prefix=f"resonator_spectroscopy_chi_qubit{qubit_i}",
+        prefix=prefix,
         config_file=cfg_file,
+        im=im
         )
 
     rspec_chi.cfg.expt = dict(
@@ -115,15 +138,17 @@ def make_chi(soc, expt_path, cfg_file, qubit_i, go=False, span=3, npts=151, reps
         step=span/npts,
         expts=npts,
         reps=reps,
-        pulse_e=True, # add ge pi pulse prior to measurement
-        pulse_f=False, # add ef pi pulse prior to measurement
+        pulse_e=check_e, # add ge pi pulse prior to measurement
+        pulse_f=check_f, # add ef pi pulse prior to measurement
         qubit=qubit_i,
+        smart=smart
     )
     # rspec_chi.cfg.device.readout.relax_delay = 100 # Wait time between experiments [us]
     if go: 
         rspec_chi.go(analyze=True, display=True, progress=True, save=True)
     
     return rspec_chi
+
 
 def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=1500, reps=50, rounds=20, gain=None, coarse=False, ef=False):
 # This one may need a bunch of options. 
@@ -148,7 +173,7 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=1500,
     qspec = meas.PulseProbeSpectroscopyExperiment(
     soccfg=soc,
     path = expt_path, 
-    prefix = f"qubit_spectroscopy_coarse_qubit{qubit_i}",
+    prefix = prefix,
     config_file=cfg_file,
     im=im
     )
@@ -323,7 +348,7 @@ def make_amprabi_chevron(soc, expt_path, cfg_file, qubit_i, im=None, span_gain=2
     # amprabichev.cfg.device.readout.relax_delay = 50 # Wait time between experiments [us]
     return amprabichev
 
-def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 300, reps = 200, rounds=2, step=0.5, ramsey_freq=0.1):
+def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 300, reps = 200, rounds=2, step=None, ramsey_freq=0.1):
     t2r = meas.RamseyExperiment(
         soccfg=soc,
         path=expt_path,
@@ -331,6 +356,15 @@ def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 300, r
         config_file=cfg_file,
         im=im
     )
+
+    #ramsey_freq=npts/t2_1/8, npts=npts, reps=250, step=t2_1/npts
+    if step is None: 
+        span = 2*t2r.cfg.device.qubit.T2r[qubit_i]
+        step = span/npts
+
+
+#    if span is None: 
+#        
 
     t2r.cfg.expt = dict(
         start=0, # wait time tau [us]
@@ -350,7 +384,7 @@ def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 300, r
 
     return t2r
 
-def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 201, reps = 100, rounds=2, ramsey_freq=2.0, step=0.1):
+def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 201, reps = 100, rounds=2, ramsey_freq=2.0, step=None):
 
     t2e = meas.RamseyEchoExperiment(
         soccfg=soc,
@@ -359,6 +393,10 @@ def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 201, r
         config_file=cfg_file,
         im=im
         )
+    
+    if step is None: 
+        span = 2*t2e.cfg.device.qubit.T2e[qubit_i]
+        step = span/npts
 
     t2e.cfg.expt = dict(
         start=1, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
@@ -376,7 +414,7 @@ def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 201, r
         t2e.go(analyze=True, display=True, progress=True, save=True)
     return t2e
 
-def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=600, npts=200, reps=500, rounds=1):
+def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=200, reps=500, rounds=1):
 
     span = span 
     npts = npts
@@ -388,10 +426,12 @@ def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=600, npts
       config_file= cfg_file,
       im=im
     )
+    if span is None: 
+        span = 3*t1.cfg.device.qubit.T1[qubit_i]
 
     t1.cfg.expt = dict(
         start=0, # wait time [us]
-        step=int(span/npts), 
+        step=span/npts, 
         expts=npts,
         reps=reps, # number of times we repeat a time point 
         rounds=rounds, # number of start to finish sweeps to average over
@@ -511,7 +551,7 @@ def make_singleshot(soc, expt_path, cfg_file, qubit_i, im=None, go=False, reps=1
         reps=reps,
         check_e = True, 
         check_f=check_f,
-        qubit=qubit_i,
+        qubits=[qubit_i],
     )
 
     if go:
@@ -520,7 +560,7 @@ def make_singleshot(soc, expt_path, cfg_file, qubit_i, im=None, go=False, reps=1
 
     return shot
 
-def make_singleshot_opt(soc, expt_path, cfg_file, qubit_i, go=False, im=None, reps=10000, start_f = None, span_f=0.5, npts_f =5, start_gain=None, span_gain=25000, npts_gain=5, start_len=None, span_len=25.0, npts_len=5, check_f=False):
+def make_singleshot_opt(soc, expt_path, cfg_file, qubit_i, go=False, im=None, reps=10000, start_f = None, span_f=0.5, npts_f =5, start_gain=None, span_gain=None, npts_gain=5, start_len=None, span_len=None, npts_len=5, check_f=False):
 
     shotopt = meas.SingleShotOptExperiment(
         soccfg=soc,
@@ -538,22 +578,31 @@ def make_singleshot_opt(soc, expt_path, cfg_file, qubit_i, go=False, im=None, re
     if npts_gain==1 and start_gain is None:
         start_gain = shotopt.cfg.device.readout.gain[qubit_i]
     elif start_gain is None:
-        start_gain = 1000
+        start_gain = shotopt.cfg.device.readout.gain[qubit_i] * 0.3
 
     if npts_len==1 and start_len is None:
         start_len = shotopt.cfg.device.readout.readout_length[qubit_i]
     elif start_len is None:
-        start_len = 2
+        start_len = shotopt.cfg.device.readout.readout_length[qubit_i]*0.3
 
     if npts_f == 1:
         step_f =0 
     else:
         step_f = span_f/(npts_f-1)
 
+    if span_gain is None: 
+        span_gain = 1.8 * shotopt.cfg.device.readout.gain[qubit_i]
+
+    if span_gain + start_gain > max_gain:
+        span_gain = max_gain - start_gain
+
     if npts_gain == 1:
-        step_gain =0 
+        step_gain = 0
     else:
         step_gain = span_gain/(npts_gain-1)
+
+    if span_len is None:
+        span_len = 1.8 * shotopt.cfg.device.readout.readout_length[qubit_i]
 
     if npts_len == 1:
         step_len =0 
@@ -574,10 +623,11 @@ def make_singleshot_opt(soc, expt_path, cfg_file, qubit_i, go=False, im=None, re
         step_len=step_len,
         expts_len=npts_len,
         check_f=check_f,
+        save_data=True
     )
 
     if go:
-        shotopt.go(analyze=True, display=True, progress=True, save=True)
+        shotopt.go(analyze=False, display=False, progress=False, save=True)
 
     return shotopt
 

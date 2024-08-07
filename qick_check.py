@@ -1,0 +1,23 @@
+def check_freqs(qubit_i, cfg_file):
+    mirror_freq = 6881.280/2
+    print('We mirror around ' + str(mirror_freq))
+    freq = auto_cfg.device.qubit.f_ge[i]
+    fef = auto_cfg.device.qubit.f_ef[i]
+
+    freq_offset = freq-mirror_freq
+
+    alt_freq = mirror_freq - freq_offset
+
+    freq_offset_ef = fef-mirror_freq
+
+    alt_fef = mirror_freq - freq_offset_ef
+
+    print('Possible frequencies are ' +str(freq) + ' and ' + str(alt_freq))
+    print('Possible ef frequencies are ' +str(fef) + ' and ' + str(alt_fef))
+    alpha = freq-fef 
+    alpha2 = freq - alt_fef
+    print('Anharmonicity is ' + str(alpha) + '. With alt_ef it is ' + str(alpha2))
+    if fef < freq and alt_fef < freq and fef > alt_freq and alt_fef > alt_freq: 
+        print('Both ef frequencies are less than chosen freq and greater than alt freq, so freq is correct choice')
+    if alt_fef > freq and alt_fef > alt_freq: 
+        print('Alt ef is greater than freq and alt freq, so ef is correct choice')

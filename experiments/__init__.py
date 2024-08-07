@@ -21,12 +21,14 @@ def import_modules_from_files(module_path, f):
 path = __path__[0]
 thismodule = sys.modules[__name__]
 files=os.listdir(path)
+files = [f for f in files if not f.endswith('.ini')]
 module_path = os.path.split(path)[-1]
 for f in files:
     fpath = os.path.join(path, f)
     if f[0]=="_" or f[0]==".": continue
     if os.path.isdir(fpath):
         subfiles = os.listdir(fpath)
+        subfiles = [f for f in subfiles if not f.endswith('.ini')]
         submodule_path = module_path + "." + os.path.split(fpath)[-1]
         for subf in subfiles:
             import_modules_from_files(submodule_path, subf)

@@ -60,15 +60,19 @@ def get_best_fit(data, fitfunc=None, prefixes=['fit'], check_measures=('amps', '
 # ====================================================== #
 
 def expfunc(x, *p):
+    y0, yscale, decay = p
+    return y0 + yscale*np.exp(-x/decay)
+
+def expfunc2(x, *p):
     y0, yscale, x0, decay = p
     return y0 + yscale*np.exp(-(x-x0)/decay)
 
 def fitexp(xdata, ydata, fitparams=None):
-    if fitparams is None: fitparams = [None]*4
+    if fitparams is None: fitparams = [None]*3
     if fitparams[0] is None: fitparams[0] = ydata[-1]
     if fitparams[1] is None: fitparams[1] = ydata[0]-ydata[-1]
-    if fitparams[2] is None: fitparams[2] = xdata[0]
-    if fitparams[3] is None: fitparams[3] = (xdata[-1]-xdata[0])/5
+    #if fitparams[2] is None: fitparams[2] = xdata[0]
+    if fitparams[2] is None: fitparams[2] = (xdata[-1]-xdata[0])/4
     pOpt = fitparams
     pCov = np.full(shape=(len(fitparams), len(fitparams)), fill_value=np.inf)
     try:

@@ -70,20 +70,27 @@ class T1Program(RAveragerProgram):
         mux_gains = None
         ro_chA = self.adc_chA
         ro_chB = self.adc_chB
-
         if self.res_ch_type == 'int4':
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-        elif self.res_ch_type == 'mux4':
-            assert self.res_ch == 6
-            mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-            mux_freqs = [0]*4
-            mux_freqs[cfg.expt.qubit] = cfg.device.readout.frequency
-            mux_gains = [0]*4
-            mux_gains[cfg.expt.qubit] = cfg.device.readout.gain
-        
-        self.declare_gen(ch=self.res_chA, nqz=cfg.hw.soc.dacs.readout.nyquist[qA], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_chA)
-        self.declare_gen(ch=self.res_chB, nqz=cfg.hw.soc.dacs.readout.nyquist[qB], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_chB)
+        elif self.res_ch_type == 'mux4':            
+            
+            mask = [0, 2] # indices of mux_freqs, mux_gains list to play
+            assert self.res_ch == cfg.hw.soc.dacs.readout.ch[mask[0]]
+            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[mask]
+            mux_mixer_freq = [0]*len(mask)
+            mux_freqs = [0]*len(mask)
+            mux_ro_ch = cfg.hw.soc.adcs.readout.ch[mask[0]]
+            mux_nqz = [0]*len(mask)
+            mux_nqz[cfg.expt.qubit] = cfg.hw.soc.dacs.readout.nyquist[mask]
+            mux_freqs[cfg.expt.qubit] = cfg.device.readout.frequency[mask]
+            mux_gains = [0]*len(mask)
+            mux_gains[cfg.expt.qubit] = cfg.device.readout.gain[mask]
+            if 'mux4' in self.res_ch_types: # declare mux4 channel
+                self.declare_gen(ch=0, nqz=mux_nqz, mixer_freq=mux_mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=mux_ro_ch)
+                self.handle_mux4_pulse(name=f'measure', ch=6, length=max(self.readout_lengths_dac), mask=self.mask, play=False, set_reg=True)
+        else:
+            self.declare_gen(ch=self.res_chA, nqz=cfg.hw.soc.dacs.readout.nyquist[qA], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_chA)
+            self.declare_gen(ch=self.res_chB, nqz=cfg.hw.soc.dacs.readout.nyquist[qB], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_chB)                   
 
         # declare qubit dacs
         mixer_freq = 0

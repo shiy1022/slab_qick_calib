@@ -128,7 +128,8 @@ class RamseyProgram(RAveragerProgram):
         # add readout pulses to respective channels
         if self.res_ch_types[qTest] == 'mux4':
             self.set_pulse_registers(ch=self.res_chs[qTest], style="const", length=self.readout_lengths_dac[qTest], mask=mask)
-        else: self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
+        else: 
+            self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
 
         # initialize wait registers
         self.safe_regwi(self.q_rps[qTest], self.r_wait, self.us2cycles(cfg.expt.start))
@@ -329,8 +330,8 @@ class RamseyExperiment(Experiment):
                 captionStr = f'$T_2$ Ramsey fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *p), label=captionStr)
                 x0 = -(p[2]+180)/360/p[1]
-                plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
-                plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
+                plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
+                plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.legend()
                 print(f'Current pi pulse frequency: {f_pi_test}')
                 print(f"Fit frequency from amps [MHz]: {p[1]} +/- {np.sqrt(pCov[1][1])}")
@@ -352,8 +353,8 @@ class RamseyExperiment(Experiment):
                 captionStr = f'$T_2$ Ramsey fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *p), label=captionStr)
                 x0 = -(p[2]+180)/360/p[1]
-                plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
-                plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
+                plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
+                plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.legend()
                 print(f'Current pi pulse frequency: {f_pi_test}')
                 print(f'Fit frequency from I [MHz]: {p[1]} +/- {np.sqrt(pCov[1][1])}')
@@ -378,8 +379,8 @@ class RamseyExperiment(Experiment):
                 captionStr = f'$T_2$ Ramsey fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *p), label=captionStr)
                 x0 = -(p[2]+180)/360/p[1]
-                plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
-                plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
+                plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
+                plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.legend()
                 print(f'Fit frequency from Q [MHz]: {p[1]} +/- {np.sqrt(pCov[1][1])}')
                 if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
