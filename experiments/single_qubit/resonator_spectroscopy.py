@@ -124,7 +124,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
     def acquire(self, progress=False):
         q_ind = self.cfg.expt.qubit
         if 'smart' in self.cfg.expt and self.cfg.expt.smart==True:
-            kappa = self.cfg.device.qubit['kappa'][q_ind]
+            kappa = np.abs(self.cfg.device.qubit['kappa'][q_ind])
             N = self.cfg.expt["expts"] 
             df = self.cfg.expt["step"]*N 
             w = df / kappa 
