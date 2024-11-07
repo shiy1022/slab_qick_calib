@@ -312,7 +312,7 @@ class AmplitudeRabiExperiment(Experiment):
         # from qick.helpers import progs2json
         # print(progs2json([amprabi.dump_prog()]))
         
-        xpts, avgi, avgq = amprabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)
+        xpts, avgi, avgq = amprabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)
         # print(amprabi)
 
         # shots_i = amprabi.di_buf[adc_ch].reshape((self.cfg.expt.expts, self.cfg.expt.reps)) / amprabi.readout_length_adc

@@ -230,7 +230,7 @@ class RamseyExperiment(Experiment):
 
         ramsey = RamseyProgram(soccfg=self.soccfg, cfg=self.cfg)
         
-        x_pts, avgi, avgq = ramsey.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
+        x_pts, avgi, avgq = ramsey.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
  
         avgi = avgi[0][0]
         avgq = avgq[0][0]

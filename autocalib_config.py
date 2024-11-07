@@ -57,7 +57,7 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, sp
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
     return rspec
 
-def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=500, reps=500, smart=True):
+def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=200, reps=500, smart=True):
     
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,

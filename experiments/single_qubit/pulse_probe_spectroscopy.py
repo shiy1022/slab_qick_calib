@@ -146,7 +146,7 @@ class PulseProbeSpectroscopyExperiment(Experiment):
                                 value2.update({key3: value3[q_ind]})                                
 
         qspec = PulseProbeSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
-        xpts, avgi, avgq = qspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
+        xpts, avgi, avgq = qspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
         avgi = avgi[0][0]
         avgq = avgq[0][0]
         amps = np.abs(avgi+1j*avgq)
