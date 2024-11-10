@@ -5,7 +5,7 @@ import time
 
 from qick import *
 from qick.helpers import gauss
-from slab import Experiment, dsfit, AttrDict
+from slab import Experiment, AttrDict
 from scipy.signal import find_peaks
 
 import experiments.fitting as fitter
@@ -41,7 +41,7 @@ class ResonatorSpectroscopyProgram(AveragerProgram):
         self.f_ge = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_ch)
         if self.cfg.expt.pulse_f: 
             self.f_ef = self.freq2reg(cfg.device.qubit.f_ef, gen_ch=self.qubit_ch)
-        self.res_gain = cfg.device.readout.gain
+        self.res_gain = cfg.expt.gain
         self.readout_length_dac = self.us2cycles(cfg.device.readout.readout_length, gen_ch=self.res_ch)
         self.readout_length_adc = self.us2cycles(cfg.device.readout.readout_length, ro_ch=self.adc_ch)
         self.readout_length_adc += 1 # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
@@ -58,9 +58,9 @@ class ResonatorSpectroscopyProgram(AveragerProgram):
             mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
             mux_freqs = [0]*4
-            mux_freqs[cfg.expt.qubit] = self.frequency
+            mux_freqs[cfg.expt.qubit_chan] = self.frequency
             mux_gains = [0]*4
-            mux_gains[cfg.expt.qubit] = self.res_gain
+            mux_gains[cfg.expt.qubit_chan] = self.res_gain
         self.declare_gen(ch=self.res_ch, nqz=cfg.hw.soc.dacs.readout.nyquist, mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
         # print(f'readout freq {mixer_freq} +/- {self.frequency}')
         mixer_freq = 0
@@ -175,12 +175,16 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data=self.data
             
         if fit:           
-            xdata = data["xpts"][1:-1]
+            
+            if 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
+                xdata = self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1]
+            else:
+                xdata = data["xpts"][1:-1]
+
             ydata = data['amps'][1:-1]
             fitparams = [max(ydata), -(max(ydata)-min(ydata)), xdata[np.argmin(ydata)], 0.1 ]
             if hanger: 
-                data['fit'], data['fit_err'] = fitter.fithanger(xdata, ydata)
-                
+                data['fit'], data['fit_err'], data['init'] = fitter.fithanger(xdata, ydata)                
                 if isinstance(data['fit'], (list, np.ndarray)):
                     f0, Qi, Qe, phi, scale, a0, slope = data['fit']
                 if 'lo' in self.cfg.hw:
@@ -199,14 +203,13 @@ class ResonatorSpectroscopyExperiment(Experiment):
                     print(f'\tphi [radians]: {phi}')
             else: 
                 print(fitparams)
-                data["lorentz_fit"]=dsfit.fitlor(xdata, ydata, fitparams=fitparams)
+                data["lorentz_fit"]=fitter.fitlor(xdata, ydata, fitparams=fitparams)
                 print('From Fit:')
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
-            
-            
+               
         if findpeaks:
-            maxpeaks, minpeaks = dsfit.peakdetect(data['amps'][1:-1], x_axis=data['xpts'][1:-1], lookahead=10, delta=0.01)
+            maxpeaks, minpeaks = fitter.peakdetect(data['amps'][1:-1], x_axis=data['xpts'][1:-1], lookahead=10, delta=0.01)
             data['maxpeaks'] = maxpeaks
             data['minpeaks'] = minpeaks
         
@@ -220,23 +223,30 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data['coarse_peaks'] = xdata[coarse_peaks[0]]
         return data
 
-    def display(self, data=None, fit=True, findpeaks=False, coarse_scan = False, hanger=True, **kwargs):
+    def display(self, data=None, fit=True, findpeaks=False, coarse_scan = False, hanger=True, debug=True, **kwargs):
         if data is None:
             data=self.data 
 
         if 'lo' in self.cfg.hw:
-            xpts = float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband[self.qubit]*(self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1])           
+            xpts = float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband[self.qubit]*(self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1])       
+        elif 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
+            xpts = self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1]      
         else:
             xpts = data['xpts'][1:-1]
 
-        plt.figure(figsize=(16,16))
-        plt.subplot(311, title=f"Resonator  Spectroscopy at Gain {self.cfg.device.readout.gain}",  ylabel="Amps [ADC units]")
+        fig=plt.figure(figsize=(12,16))
+        plt.subplot(311, title=f"Resonator  Spectroscopy at Gain {self.cfg.expt.gain}",  ylabel="Amps [ADC units]")
         plt.plot(xpts, data['amps'][1:-1],'o-')
         if fit:
-            if hanger: 
-                plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["fit"]))
+            if hanger:
+                if not any(np.isnan(data["fit"])):
+                    plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["fit"]))
+                if debug: 
+                    plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["init"]))
+            elif not any(np.isnan(data["lorentz_fit"])):
+                plt.plot(xpts, fitter.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
             else:
-                plt.plot(xpts, dsfit.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
+                print("Lorentzian fit contains NaN values, skipping plot.")
         if findpeaks:
             for peak in data['minpeaks']:
                 plt.axvline(peak[0], linestyle='--', color='0.2')
@@ -257,6 +267,9 @@ class ResonatorSpectroscopyExperiment(Experiment):
         plt.subplot(313, xlabel="Readout Frequency [MHz]", ylabel="Q [ADC units]")
         plt.plot(xpts, data["avgq"][1:-1],'o-')
         plt.show()
+        
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
@@ -291,8 +304,17 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
             xpts = fr + R * df / (2 * w)*np.tan(n/(N-1)*at)
         else:
             xpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
-        gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
-
+        
+        if 'log' in self.cfg.expt and self.cfg.expt.log==True:
+            rat = self.cfg.expt.rat
+            gainpts = rat**(np.arange(self.cfg.expt["expts_gain"]))
+            rep_list = np.round(self.cfg.expt["reps"] * (1/rat**2)**np.arange(self.cfg.expt["expts_gain"]))
+            
+            #gainpts = self.cfg.expt["start_gain"] * 10**(self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"]))
+        else:
+            gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
+            rep_list = self.cfg.expt["reps"] * np.ones(self.cfg.expt["expts_gain"])
+        pts = np.arange(self.cfg.expt["expts_gain"])
         q_ind = self.cfg.expt.qubit
         for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
             for key, value in subcfg.items() :
@@ -305,8 +327,9 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
                                 value2.update({key3: value3[q_ind]})                                
 
         data={"xpts":[], "gainpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
-        for gain in tqdm(gainpts, disable=not progress):
-            self.cfg.device.readout.gain = gain
+        for i in tqdm(pts, disable=not progress):
+            self.cfg.expt.gain = gainpts[i]
+            self.cfg.expt.reps = int(np.max([rep_list[i],20]))
             data["avgi"].append([])
             data["avgq"].append([])
             data["amps"].append([])
@@ -345,8 +368,8 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
             if lowgain == None: lowgain = data['gainpts'][0]
             i_highgain = np.argmin(np.abs(data['gainpts']-highgain))
             i_lowgain = np.argmin(np.abs(data['gainpts']-lowgain))
-            fit_highpow=dsfit.fitlor(data["xpts"], data["amps"][i_highgain])
-            fit_lowpow=dsfit.fitlor(data["xpts"], data["amps"][i_lowgain])
+            fit_highpow=fitter.fitlor(data["xpts"], data["amps"][i_highgain])
+            fit_lowpow=fitter.fitlor(data["xpts"], data["amps"][i_lowgain])
             data['fit'] = [fit_highpow, fit_lowpow]
             data['fit_gains'] = [highgain, lowgain]
             data['lamb_shift'] = fit_highpow[2] - fit_lowpow[2]
@@ -361,14 +384,17 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         outer_sweep = data['gainpts']
 
         amps = data['amps']
-        for amps_gain in amps:
-            amps_gain -= np.average(amps_gain)
+        for i in range(len(amps)):
+            amps[i,:] =amps[i,:]/np.median(amps[i,:])
         
         y_sweep = outer_sweep
         x_sweep = inner_sweep
 
+        if 'log' in self.cfg.expt and self.cfg.expt.log:
+            y_sweep = np.log10(y_sweep)
+
         # THIS IS CORRECT EXTENT LIMITS FOR 2D PLOTS
-        plt.figure(figsize=(10,8))
+        fig=plt.figure(figsize=(10,8))
         plt.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
         
         if fit:
@@ -386,18 +412,16 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         plt.xlabel("Resonator Frequency [MHz]")
         plt.ylabel("Resonator Gain [DAC level]")
         # plt.clim(vmin=-0.2, vmax=0.2)
-        plt.clim(vmin=-10, vmax=5)
-        plt.colorbar(label='Amps-Avg [ADC level]')
+        #plt.clim(vmin=-10, vmax=5)
+        plt.colorbar(label='Amps/Avg [ADC level]')
         plt.show()
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
 
-        
-    def save_data(self, data=None):
-        print(f'Saving {self.fname}')
-        super().save_data(data=data)
 # ====================================================== #
 
 class ResonatorVoltSweepSpectroscopyExperiment(Experiment):

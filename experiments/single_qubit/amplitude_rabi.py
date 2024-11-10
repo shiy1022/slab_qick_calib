@@ -3,7 +3,7 @@ import numpy as np
 from qick import *
 from qick.helpers import gauss
 
-from slab import Experiment, dsfit, AttrDict
+from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 
 import scipy as sp
@@ -502,7 +502,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
             self.cfg.expt.f_pi_test = freq
             amprabi = AmplitudeRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
         
-            xpts, avgi, avgq = amprabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False, debug=debug)
+            xpts, avgi, avgq = amprabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
         
             avgi = avgi[0][0]
             avgq = avgq[0][0]

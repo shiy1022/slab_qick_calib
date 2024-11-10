@@ -80,6 +80,7 @@ def fitexp(xdata, ydata, fitparams=None):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit failed!')
+        pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov
 
@@ -102,6 +103,7 @@ def fitlor(xdata, ydata, fitparams=None):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit failed!')
+        pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov
 
@@ -135,6 +137,7 @@ def fitsin(xdata, ydata, fitparams=None, debug=False):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit failed!')
+        pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     if debug:
         return pOpt, pCov, fitparams 
@@ -181,6 +184,7 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
             pOpt, pCov = sp.optimize.curve_fit(decaysin, xdata, ydata, p0=fitparams, bounds=bounds)
         except:
             print('Warning: fit failed!')
+            pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     if debug:
         return pOpt, pCov, fitparams
@@ -256,6 +260,7 @@ def fittwofreq_decaysin(xdata, ydata, fitparams=None):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit failed!')
+        pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov
 
@@ -269,7 +274,9 @@ def hangerfunc(x, *p):
 def hangerS21func(x, *p):
     f0, Qi, Qe, phi, scale, a0 = p
     Q0 = 1 / (1/Qi + np.real(1/Qe))
-    return a0 + np.abs(hangerfunc(x, *p)) - scale*(1-Q0/Qe)
+    
+    #return a0 + np.abs(hangerfunc(x, *p)) - scale*(1-Q0/Qe)
+    return np.abs(hangerfunc(x, *p)) 
 
 def hangerS21func_sloped(x, *p):
     f0, Qi, Qe, phi, scale, a0, slope = p
@@ -279,16 +286,16 @@ def hangerphasefunc(x, *p):
     return np.angle(hangerfunc(x, *p))
 
 def fithanger(xdata, ydata, fitparams=None):
-    # f0, Qi, Qe, phi, scale, a0
+    # f0, Qi, Qe, phi, scale, a0, slope
     if fitparams is None: fitparams = [None]*7
-    if fitparams[0] is None: fitparams[0]=np.average(xdata)
-    if fitparams[1] is None: fitparams[1]=50000 
-    if fitparams[2] is None: fitparams[2]=10000
-    if fitparams[3] is None: fitparams[3]=0
-    if fitparams[4] is None: fitparams[4]=max(ydata)-min(ydata)
-    if fitparams[5] is None: fitparams[5]=np.average(ydata)
+    if fitparams[0] is None: 
+        fitparams[0]=xdata[np.argmin(np.abs(ydata))] #f0
+    if fitparams[1] is None: fitparams[1]=50000 #Qi
+    if fitparams[2] is None: fitparams[2]=10000 #Qe
+    if fitparams[3] is None: fitparams[3]=0 #phi
+    if fitparams[4] is None: fitparams[4]=max(ydata) # scale
+    if fitparams[5] is None: fitparams[5]=np.average(ydata) # a0
     if fitparams[6] is None: fitparams[6]=(ydata[-1] - ydata[0]) / (xdata[-1] - xdata[0])
-
     print(fitparams)
 
     # bounds = (
@@ -296,8 +303,8 @@ def fithanger(xdata, ydata, fitparams=None):
     #     [np.max(xdata), 1e9, 1e9, 2*np.pi, (max(np.abs(ydata))-min(np.abs(ydata)))*10, np.max(np.abs(ydata))]
     #     )
     bounds = (
-        [np.min(xdata), 0, 0, -np.inf, 0, min(ydata), -np.inf],
-        [np.max(xdata), np.inf, np.inf, np.inf, np.inf, max(ydata), np.inf],
+        [np.min(xdata), 0,           0, -np.inf, 0,      min(ydata), -np.inf],
+        [np.max(xdata), np.inf, np.inf,  np.inf, np.inf, max(ydata), np.inf],
         )
     for i, param in enumerate(fitparams):
         if not (bounds[0][i] < param < bounds[1][i]):
@@ -312,8 +319,9 @@ def fithanger(xdata, ydata, fitparams=None):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit failed!')
+        pOpt = [np.nan]*len(pOpt)
         # return 0, 0
-    return pOpt, pCov
+    return pOpt, pCov, fitparams
 
 # ====================================================== #
 
@@ -354,6 +362,7 @@ def fitrb(xdata, ydata, fitparams=None):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit failed!')
+        pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov
 

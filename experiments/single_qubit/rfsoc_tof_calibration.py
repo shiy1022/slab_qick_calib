@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm_notebook as tqdm
 
 from qick import *
-from slab import Experiment, dsfit, AttrDict
+from slab import Experiment, AttrDict
 
 """
 Run this calibration when the wiring of the setup is changed.

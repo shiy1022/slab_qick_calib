@@ -9,7 +9,6 @@ def safe_gain(gain):
     gain = np.min([gain, max_gain])
     return gain
 
-
 def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True):
 
     tof = meas.ToFCalibrationExperiment(soccfg=soc,
@@ -35,7 +34,7 @@ def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True):
     
     return tof
 
-def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000):
+def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000, gain=0.2):
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
     path=expt_path,
@@ -52,19 +51,21 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, sp
         pulse_e=False, # add ge pi pulse prior to measurement
         pulse_f=False, # add ef pi pulse prior to measurement
         qubit=qubit_i,
+        gain=gain,
+        qubit_chan=rspec.cfg.hw.soc.adcs.readout.ch[qubit_i],
     )
 
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
     return rspec
 
-def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=200, reps=500, smart=True):
+def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=200, reps=500, gain=0.05, smart=True):
     
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
     path=expt_path,
     prefix=f"resonator_spectroscopy_res{qubit_i}",
     config_file=cfg_file,  
-    im=im
+    im=im, 
     )
 
     if center==None: 
@@ -79,6 +80,8 @@ def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=
         pulse_e=False, # add ge pi pulse prior to measurement
         pulse_f=False, # add ef pi pulse prior to measurement
         qubit=qubit_i,
+        qubit_chan=rspec.cfg.hw.soc.adcs.readout.ch[qubit_i],
+        gain=gain
     )
 
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
@@ -88,7 +91,7 @@ def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=
 
     return rspec
 
-def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5, npts_f=250, span_gain=27000, start_gain=5000, npts_gain=10, reps=500, smart=False):
+def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5, npts_f=250, span_gain=27000, start_gain=5000, npts_gain=10, reps=500, smart=False, log=True, rat=0.8):
 
     rpowspec = meas.ResonatorPowerSweepSpectroscopyExperiment(
         soccfg=soc,
@@ -104,12 +107,15 @@ def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5
         smart = smart, 
         expts_f=npts_f, # Number experiments stepping freq from start
         start_gain=start_gain,
-        step_gain=int(span_gain/npts_gain), # Gain step size
+        step_gain=span_gain/npts_gain, # Gain step size
         expts_gain=npts_gain+1, # Number experiments stepping gain from start
         reps= reps, # Number averages per point
         pulse_e=False, # add ge pi pulse before measurement
         pulse_f=False, # add ef pi pulse before measurement
         qubit=qubit_i,  
+        log=log,
+        rat=rat,
+        qubit_chan=rpowspec.cfg.hw.soc.adcs.readout.ch[qubit_i],
     ) 
 
     rpowspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]    
@@ -148,7 +154,6 @@ def make_chi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=3, npts=
         rspec_chi.go(analyze=True, display=True, progress=True, save=True)
     
     return rspec_chi
-
 
 def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=1500, reps=50, rounds=20, gain=None, coarse=False, ef=False):
 # This one may need a bunch of options. 

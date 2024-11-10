@@ -4,7 +4,7 @@ from qick import *
 from qick.helpers import gauss
 from copy import deepcopy
 
-from slab import Experiment, dsfit, AttrDict
+from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 
 def hist(data, plot=True, span=None, verbose=True):

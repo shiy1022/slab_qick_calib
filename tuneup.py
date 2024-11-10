@@ -50,6 +50,27 @@ def check_readout(soc, expt_path, cfg_file, qubit_i, im=None, span=2.5, npts=201
     ax[0].plot(chif.data['xpts'][1:-1], fitter.hangerS21func_sloped(chif.data["xpts"][1:-1], *chif.data["fit"]),'k')
     
     ax[0].legend()
-    chi.data['chi'] = rspec.data['fit'][0]-chi.data['fit'][0]
+    chi.data['chi'] = (rspec.data['fit'][0]-chi.data['fit'][0])/2
     chi.data['freq_opt']=rspec.data['xpts'][arg]
     return chi 
+
+def measure_temp(soc, expt_path, cfg_path, qubit_i, im=None, npts=20, reps=650, rounds=100, chan='fit_avgi'):
+    
+    rabief=cfg.make_amprabiEF(soc, expt_path, cfg_path, qubit_i, im=im, go=True, pulse_ge=True)
+    rabief_nopulse=cfg.make_amprabiEF(soc, expt_path, cfg_path, qubit_i, im=im, go=True, pulse_ge=False, reps=reps, rounds=rounds, npts=npts)
+
+    # To measure temperature, use fewer points to get more signal more quickly 
+    h = 6.62607015e-34
+    fge = 1e6*rabief.cfg.device.qubit.f_ge[qubit_i]
+    kB = 1.380649e-23
+    qubit_temp = 1e3*h*fge/(kB*np.log(rabief.data[chan][0]/rabief_nopulse.data[chan][0]))
+    population = rabief_nopulse.data[chan][0]/rabief.data[chan][0]
+    print('Qubit temp [mK]:', qubit_temp)
+    print('State preparation ratio:', population)
+
+    print(rabief.data['fit_avgq'][0])
+    print(rabief_nopulse.data['fit_avgq'][0])
+
+    print(rabief.data['fit_amps'][0])
+    print(rabief_nopulse.data['fit_amps'][0])
+    return qubit_temp, population

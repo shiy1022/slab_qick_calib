@@ -4,7 +4,7 @@ from tqdm import tqdm_notebook as tqdm
 
 from qick import *
 from qick.helpers import gauss
-from slab import Experiment, dsfit, AttrDict
+from slab import Experiment, AttrDict
 
 import experiments.fitting as fitter
 
