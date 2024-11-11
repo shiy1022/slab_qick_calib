@@ -177,7 +177,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
         if fit:           
             
             if 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
-                xdata = self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1]
+                xdata = self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'][1:-1]
             else:
                 xdata = data["xpts"][1:-1]
 
@@ -230,7 +230,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
         if 'lo' in self.cfg.hw:
             xpts = float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband[self.qubit]*(self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1])       
         elif 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
-            xpts = self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1]      
+            xpts = self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'][1:-1]      
         else:
             xpts = data['xpts'][1:-1]
 
@@ -240,9 +240,9 @@ class ResonatorSpectroscopyExperiment(Experiment):
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
-                    plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["fit"]))
+                    plt.plot(xpts, fitter.hangerS21func_sloped(xpts, *data["fit"]))
                 if debug: 
-                    plt.plot(xpts, fitter.hangerS21func_sloped(data["xpts"][1:-1], *data["init"]))
+                    plt.plot(xpts, fitter.hangerS21func_sloped(xpts, *data["init"]))
             elif not any(np.isnan(data["lorentz_fit"])):
                 plt.plot(xpts, fitter.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
             else:
@@ -308,7 +308,7 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         if 'log' in self.cfg.expt and self.cfg.expt.log==True:
             rat = self.cfg.expt.rat
             gainpts = rat**(np.arange(self.cfg.expt["expts_gain"]))
-            rep_list = np.round(self.cfg.expt["reps"] * (1/rat**2)**np.arange(self.cfg.expt["expts_gain"]))
+            rep_list = np.round(self.cfg.expt["reps"] * (1/rat**1.75+3)**np.arange(self.cfg.expt["expts_gain"]))
             
             #gainpts = self.cfg.expt["start_gain"] * 10**(self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"]))
         else:
@@ -329,7 +329,7 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         data={"xpts":[], "gainpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
         for i in tqdm(pts, disable=not progress):
             self.cfg.expt.gain = gainpts[i]
-            self.cfg.expt.reps = int(np.max([rep_list[i],20]))
+            self.cfg.expt.reps = int(np.max([rep_list[i],35]))
             data["avgi"].append([])
             data["avgq"].append([])
             data["amps"].append([])
@@ -423,6 +423,99 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         super().save_data(data=data)
 
 # ====================================================== #
+
+class Resonator2DSpectroscopyExperiment(Experiment):
+    """Resonator 2D Spectroscopy Experiment
+       Experimental Config
+       expt_cfg={
+       "start_f": start frequency (MHz), 
+       "step_f": frequency step (MHz), 
+       "expts_f": number of experiments in frequency,
+       "reps": number of reps, 
+        } 
+    """
+
+    def __init__(self, soccfg=None, path='', prefix='Resonator2DSpectroscopy', config_file=None, progress=None, im=None):
+        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
+
+    def acquire(self, progress=False):
+       
+        xpts = self.cfg.expt["start"] + self.cfg.expt["step"]*np.arange(self.cfg.expt["expts"])
+        pts = np.arange(self.cfg.expt['pts'])
+        q_ind = self.cfg.expt.qubit
+        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
+            for key, value in subcfg.items() :
+                if isinstance(value, list):
+                    subcfg.update({key: value[q_ind]})
+                elif isinstance(value, dict):
+                    for key2, value2 in value.items():
+                        for key3, value3 in value2.items():
+                            if isinstance(value3, list):
+                                value2.update({key3: value3[q_ind]})                                
+
+        data={"xpts":[], "gainpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[],'pts':pts}
+        for i in tqdm(pts, disable=not progress):
+            data["avgi"].append([])
+            data["avgq"].append([])
+            data["amps"].append([])
+            data["phases"].append([])
+            
+
+            for f in tqdm(xpts, disable=True):
+                self.cfg.expt.frequency = f
+                rspec = ResonatorSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
+                self.prog = rspec
+                avgi, avgq = rspec.acquire(self.im[self.cfg.aliases.soc], load_pulses=True, progress=False)
+                avgi = avgi[0][0]
+                avgq = avgq[0][0]
+                amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
+                phase = np.angle(avgi+1j*avgq) # Calculating the phase
+                data["avgi"][-1].append(avgi)
+                data["avgq"][-1].append(avgq)
+                data["amps"][-1].append(amp)
+                data["phases"][-1].append(phase)
+        
+        data["xpts"] = xpts
+        
+        for k, a in data.items():
+            data[k] = np.array(a)
+        
+        self.data = data
+        return data
+
+    def analyze(self, data=None, fit=True, highgain=None, lowgain=None, **kwargs):
+        if data is None:
+            data=self.data
+        
+        return data
+
+    def display(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data 
+
+        inner_sweep = data['xpts'] #float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband*(self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'])
+        outer_sweep = data['pts']
+        
+        y_sweep = outer_sweep
+        x_sweep = inner_sweep
+
+        # THIS IS CORRECT EXTENT LIMITS FOR 2D PLOTS
+        fig=plt.figure(figsize=(10,8))
+        plt.pcolormesh(x_sweep, y_sweep, data['amps'], cmap='viridis', shading='auto')
+        
+        plt.title(f"Resonator Spectroscopy Time Sweep")
+        plt.xlabel("Resonator Frequency [MHz]")
+        plt.ylabel("Time")
+        # plt.clim(vmin=-0.2, vmax=0.2)
+        #plt.clim(vmin=-10, vmax=5)
+        plt.colorbar(label='Amps/Avg [ADC level]')
+        plt.show()
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        
+    def save_data(self, data=None):
+        print(f'Saving {self.fname}')
+        super().save_data(data=data)
 
 class ResonatorVoltSweepSpectroscopyExperiment(Experiment):
     """Resonator Volt Sweep Spectroscopy Experiment

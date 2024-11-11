@@ -58,7 +58,7 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, sp
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
     return rspec
 
-def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=200, reps=500, gain=0.05, smart=True):
+def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=200, reps=500, gain=0.05, smart=False):
     
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
@@ -90,6 +90,41 @@ def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=
         rspec.go(analyze=True, display=True, progress=True, save=True)
 
     return rspec
+
+
+def make_rspec_2d(cfg_dict, qubit_i=0, go=True, center=None, span=5, npts=200, reps=500, gain=0.05, smart=False, pts=1000):
+    rspec = meas.Resonator2DSpectroscopyExperiment(
+    soccfg=cfg_dict['soc'],
+    path=cfg_dict['expt_path'],
+    prefix=f"resonator_2dspectroscopy_res{qubit_i}",
+    config_file=cfg_dict['cfg_file'],  
+    im=cfg_dict['im'], 
+    )
+
+    if center==None: 
+        center = rspec.cfg.device.readout.frequency[qubit_i]
+
+    rspec.cfg.expt = dict(
+        start = center-span/2, #Lowest resontaor frequency
+        step=span/npts, # min step ~1 Hz
+        smart=smart,
+        pts=pts,
+        expts=npts, # Number experiments stepping from start
+        reps= reps, # Number averages per point 
+        pulse_e=False, # add ge pi pulse prior to measurement
+        pulse_f=False, # add ef pi pulse prior to measurement
+        qubit=qubit_i,
+        qubit_chan=rspec.cfg.hw.soc.adcs.readout.ch[qubit_i],
+        gain=gain
+    )
+
+    rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
+
+    if go: 
+        rspec.go(analyze=False, display=True, progress=True, save=True)
+
+    return rspec
+
 
 def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5, npts_f=250, span_gain=27000, start_gain=5000, npts_gain=10, reps=500, smart=False, log=True, rat=0.8):
 
