@@ -7,6 +7,9 @@ from copy import deepcopy
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 
+blue="#4053d3"
+red ="#b51d14"
+
 def hist(data, plot=True, span=None, verbose=True):
 
     """
@@ -39,8 +42,8 @@ def hist(data, plot=True, span=None, verbose=True):
         fig.tight_layout()
         m=0.7
         a=0.25
-        axs[0,0].plot(Ig, Qg, '.', label='g', color='b', alpha=a, markersize=m)
-        axs[0,0].plot(Ie, Qe, '.', label='e', color='r', alpha=a, markersize=m)
+        axs[0,0].plot(Ig, Qg, '.', label='g', color=blue, alpha=a, markersize=m)
+        axs[0,0].plot(Ie, Qe, '.', label='e', color=red, alpha=a, markersize=m)
         
         if plot_f: axs[0,0].plot(If, Qf,'.', label='f', color='g', alpha=a, markersize=m)
         axs[0,0].plot(xg, yg, color='k', marker='o')
@@ -52,6 +55,8 @@ def hist(data, plot=True, span=None, verbose=True):
         axs[0,0].legend(loc='upper right')
         axs[0,0].set_title('Unrotated')
         axs[0,0].axis('equal')
+    else:
+        fig=None
 
     """Compute the rotation angle"""
     theta = -np.arctan2((ye-yg),(xe-xg))
@@ -86,8 +91,8 @@ def hist(data, plot=True, span=None, verbose=True):
     ylims = [yg-span, yg+span]
 
     if plot:
-        axs[0,1].plot(Ig_new, Qg_new,'.', label='g', color='b', alpha=a, markersize=m)
-        axs[0,1].plot(Ie_new, Qe_new, '.', label='e', color='r', alpha=a, markersize=m)
+        axs[0,1].plot(Ig_new, Qg_new,'.', label='g', color=blue, alpha=a, markersize=m)
+        axs[0,1].plot(Ie_new, Qe_new, '.', label='e', color=red, alpha=a, markersize=m)
         if plot_f: axs[0, 1].plot(If_new, Qf_new, '.', label='f', color='g', alpha=a, markersize=m)
         axs[0,1].plot(xg, yg, color='k', marker='o')
         axs[0,1].plot(xe, ye, color='k', marker='o')    
@@ -100,8 +105,8 @@ def hist(data, plot=True, span=None, verbose=True):
 
         """X and Y ranges for histogram"""
 
-        ng, binsg, pg = axs[1,0].hist(Ig_new, bins=numbins, range = xlims, color='b', label='g', alpha=0.5)
-        ne, binse, pe = axs[1,0].hist(Ie_new, bins=numbins, range = xlims, color='r', label='e', alpha=0.5)
+        ng, binsg, pg = axs[1,0].hist(Ig_new, bins=numbins, range = xlims, color=blue, label='g', alpha=0.5)
+        ne, binse, pe = axs[1,0].hist(Ie_new, bins=numbins, range = xlims, color=red, label='e', alpha=0.5)
         if plot_f:
             nf, binsf, pf = axs[1,0].hist(If_new, bins=numbins, range = xlims, color='g', label='f', alpha=0.5)
         axs[1,0].set_ylabel('Counts')
@@ -140,8 +145,8 @@ def hist(data, plot=True, span=None, verbose=True):
             axs[1,0].axvline(thresholds[2], color='0.2', linestyle='--')
 
         axs[1,1].set_title('Cumulative Counts')
-        axs[1,1].plot(binsg[:-1], np.cumsum(ng), 'b', label='g')
-        axs[1,1].plot(binse[:-1], np.cumsum(ne), 'r', label='e')
+        axs[1,1].plot(binsg[:-1], np.cumsum(ng), color=blue, label='g')
+        axs[1,1].plot(binse[:-1], np.cumsum(ne), color=red, label='e')
         axs[1,1].axvline(thresholds[0], color='0.2', linestyle='--')
         axs[1,1].plot(np.nan, np.nan, color = 'white', label='Threshold: {:.2f}'.format(thresholds[0]))
         axs[1,1].plot(np.nan, np.nan, color = 'white', label='Angle: {:.2f}$^\circ$'.format(theta*180/np.pi))
@@ -157,7 +162,7 @@ def hist(data, plot=True, span=None, verbose=True):
         plt.subplots_adjust(hspace=0.25, wspace=0.15)        
         plt.show()
 
-    return fids, thresholds, theta*180/np.pi # fids: ge, gf, ef
+    return fids, thresholds, theta*180/np.pi, fig # fids: ge, gf, ef
 
 # ====================================================== #
 
@@ -207,9 +212,13 @@ class HistogramProgram(AveragerProgram):
         elif self.res_ch_types[qTest] == 'mux4':
             assert self.res_chs[qTest] == 6
             mask = [0,1,2,3] # indices of mux_freqs, mux_gains list to play
+
+            mux_freqs = [0]*4
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency[qTest]
+            mux_gains = [0]*4
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain[qTest]
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
-            mux_freqs = cfg.device.readout.frequency[0:4]
-            mux_gains = cfg.device.readout.gain[0:4]
+            
             ro_ch=self.adc_chs[qTest]
         else:
             ro_ch = self.adc_chs[qTest]
@@ -261,7 +270,7 @@ class HistogramProgram(AveragerProgram):
         #print("using phase reset")
         for ch in self.gen_chs.keys():
             # print(self.gen_chs.keys())
-            if self.gen_chs[ch]['mux_freqs'] is None: # doesn't work for the mux channels # is None or ch in self.res_chs:
+            if not self.res_ch_types[qTest] == 'mux4':#self.gen_chs[ch]['mux_freqs'] is None: # doesn't work for the mux channels # is None or ch in self.res_chs:
                self.setup_and_pulse(ch=ch, style='const', freq=self.f_res_reg[qTest], phase=0, gain=0, length=self.us2cycles(0.1), phrst=1)
             #self.sync_all()
 
@@ -337,7 +346,7 @@ class HistogramExperiment(Experiment):
         cfg.expt.pulse_f = False
         histpro = HistogramProgram(soccfg=self.soccfg, cfg=cfg)
         print(self.im[self.cfg.aliases.soc])
-        avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress, debug=debug)
+        avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress)
         data['Ig'], data['Qg'] = histpro.collect_shots()
 
         # Excited state shots
@@ -349,7 +358,7 @@ class HistogramExperiment(Experiment):
             cfg.expt.pulse_e = True 
             cfg.expt.pulse_f = False
             histpro = HistogramProgram(soccfg=self.soccfg, cfg=cfg)
-            avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress, debug=debug)
+            avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress, )
             data['Ie'], data['Qe'] = histpro.collect_shots()
 
         # Excited state shots
@@ -359,7 +368,7 @@ class HistogramExperiment(Experiment):
             cfg.expt.pulse_e = True 
             cfg.expt.pulse_f = True
             histpro = HistogramProgram(soccfg=self.soccfg, cfg=cfg)
-            avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress, debug=debug)
+            avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress, )
             data['If'], data['Qf'] = histpro.collect_shots()
 
         self.data = data
@@ -369,7 +378,7 @@ class HistogramExperiment(Experiment):
         if data is None:
             data=self.data
         
-        fids, thresholds, angle = hist(data=data, plot=False, span=span, verbose=verbose)
+        fids, thresholds, angle, _ = hist(data=data, plot=False, span=span, verbose=verbose)
         data['fids'] = fids
         data['angle'] = angle
         data['thresholds'] = thresholds
@@ -380,7 +389,7 @@ class HistogramExperiment(Experiment):
         if data is None:
             data=self.data 
         
-        fids, thresholds, angle = hist(data=data, plot=True, verbose=verbose, span=span)
+        fids, thresholds, angle, fig = hist(data=data, plot=True, verbose=verbose, span=span)
             
         print(f'ge fidelity (%): {100*fids[0]}')
         if 'expt' not in self.cfg: 
@@ -394,6 +403,9 @@ class HistogramExperiment(Experiment):
         if self.cfg.expt.check_f:
             print(f'threshold gf: {thresholds[1]}')
             print(f'threshold ef: {thresholds[2]}')
+
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
@@ -456,11 +468,11 @@ class SingleShotOptExperiment(Experiment):
                     shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file, im=self.im)
                     shot.cfg = self.cfg
                     shot.cfg.device.readout.frequency = float(f)
-                    shot.cfg.device.readout.gain = int(gain)
+                    shot.cfg.device.readout.gain = gain
                     shot.cfg.device.readout.readout_length = float(l) 
                     check_e = True
                     
-                    shot.cfg.expt = dict(reps=self.cfg.expt.reps, check_e=check_e, check_f=check_f, qubit=self.cfg.expt.qubit, save_data=self.cfg.expt.save_data)
+                    shot.cfg.expt = dict(reps=self.cfg.expt.reps, check_e=check_e, check_f=check_f, qubit=self.cfg.expt.qubit, save_data=self.cfg.expt.save_data, qubits=self.cfg.expt.qubits, qubit_chan = self.cfg.expt.qubit_chan)
                     shot.go(analyze=False, display=False, progress=progress, save=False)
                     Ig[-1][-1].append(shot.data['Ig']); Ie[-1][-1].append(shot.data['Ie']); 
                     Qg[-1][-1].append(shot.data['Qg']); Qe[-1][-1].append(shot.data['Qe'])

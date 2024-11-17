@@ -54,9 +54,10 @@ class PulseProbeEFSpectroscopyProgram(RAveragerProgram):
             mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
             mux_freqs = [0]*4
-            mux_freqs[cfg.expt.qubit] = cfg.device.readout.frequency
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency
             mux_gains = [0]*4
-            mux_gains[cfg.expt.qubit] = cfg.device.readout.gain
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain
+            
             ro_ch=self.adc_ch
         self.declare_gen(ch=self.res_ch, nqz=cfg.hw.soc.dacs.readout.nyquist, mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
 
@@ -144,7 +145,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
                                 value2.update({key3: value3[q_ind]})                                
 
         qspec_ef=PulseProbeEFSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = qspec_ef.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
+        x_pts, avgi, avgq = qspec_ef.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, )        
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]
@@ -155,7 +156,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
         self.data=data
         return data
 
-    def analyze(self, data=None, fit=True, signs=[1,1,1], **kwargs):
+    def analyze(self, data=None, fit=False, signs=[1,1,1], **kwargs):
         if data is None:
             data=self.data
         if fit:
@@ -165,7 +166,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             data['fit_avgq'], data['fit_err_avgq'] = fitter.fitlor(xdata, signs[2]*data['avgq'][1:-1])
         return data
 
-    def display(self, data=None, fit=True, signs=[1,1,1], **kwargs):
+    def display(self, data=None, fit=False, signs=[1,1,1], **kwargs):
         if data is None:
             data=self.data 
 
@@ -174,7 +175,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
         else: 
             xpts = data['xpts'][1:-1]
 
-        plt.figure(figsize=(9, 11))
+        fig=plt.figure(figsize=(9, 11))
         plt.subplot(311, title=f"Qubit {self.cfg.expt.qubit} EF Spectroscopy (Gain {self.cfg.expt.gain})", ylabel="Amplitude [ADC units]")
         plt.plot(xpts, data["amps"][1:-1],'o-')
         if fit:
@@ -196,6 +197,9 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             # plt.axvline(3593.2, c='k', ls='--')
             print(f'Found peak in Q at [MHz] {data["fit_avgq"][2]}, HWHM {data["fit_avgq"][3]}')
 
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        
         plt.tight_layout()
         plt.show()
 
@@ -299,7 +303,7 @@ class PulseProbeEFPowerSweepSpectroscopyExperiment(Experiment):
             avgq_gain -= np.average(avgq_gain)
 
 
-        plt.figure(figsize=(10,12))
+        fig=plt.figure(figsize=(10,12))
         plt.subplot(211, title="Pulse Probe EF Spectroscopy Power Sweep", ylabel="Pulse Gain [adc level]")
         plt.imshow(
             np.flip(avgi, 0),
@@ -317,6 +321,9 @@ class PulseProbeEFPowerSweepSpectroscopyExperiment(Experiment):
             aspect='auto')
         plt.clim(vmin=None, vmax=None)
         plt.colorbar(label='Phases-Avg [radians]')
+
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         
         plt.show()    
 

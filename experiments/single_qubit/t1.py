@@ -53,9 +53,11 @@ class T1Program(RAveragerProgram):
             mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
             mux_freqs = [0]*4
-            mux_freqs[cfg.expt.qubit] = cfg.device.readout.frequency
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency
             mux_gains = [0]*4
-            mux_gains[cfg.expt.qubit] = cfg.device.readout.gain
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain
+
+            
         self.declare_gen(ch=self.res_ch, nqz=cfg.hw.soc.dacs.readout.nyquist, mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
 
         # declare qubit dacs
@@ -139,7 +141,7 @@ class T1Experiment(Experiment):
                                 value2.update({key3: value3[q_ind]})                                
 
         t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
+        x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]
@@ -184,17 +186,25 @@ class T1Experiment(Experiment):
             print('t1_amps is better, saving t1_amps to results cfg file')
             new_t1 = t1_fit_amps
 
-
+        fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.expfunc)
+        r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.expfunc, fit_pars)
+        print(r2)
+        par_errs = np.sqrt(np.diag(fit_err))
+        print(par_errs)
+        data['best_fit']=fit_pars
+        
         data['new_t1']=new_t1
+
+
 
         return data
 
     def display(self, data=None, fit=True, **kwargs):
         if data is None:
             data=self.data 
-
-        plt.figure(figsize=(10, 5))
-        plt.subplot(111,title="$T_1$", ylabel="Amps [ADC units]")
+        qubit = self.cfg.expt.qubit
+        fig=plt.figure(figsize=(10, 5))
+        plt.subplot(111,title=f"$T_1$ Q{qubit}", ylabel="Amps [ADC units]")
         plt.plot(data["xpts"][:-1], data["amps"][:-1],'o-')
         if fit:
             p = data['fit_amps']
@@ -204,9 +214,9 @@ class T1Experiment(Experiment):
             plt.legend()
             print(f'Fit T1 amps [us]: {data["fit_amps"][2]}')
             data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
-
+        
         plt.figure(figsize=(10,10))
-        plt.subplot(211, title="$T_1$", ylabel="I [ADC units]")
+        plt.subplot(211, title=f"$T_1$ Q{qubit}", ylabel="I [ADC units]")
         plt.plot(data["xpts"][:-1], data["avgi"][:-1],'o-')
         if fit:
             p = data['fit_avgi']
@@ -227,7 +237,8 @@ class T1Experiment(Experiment):
             print(f'Fit T1 avgq [us]: {data["fit_avgq"][2]}')
             data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][2][2])/data['fit_avgq'][2]
 
-
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         plt.show()
         
     def save_data(self, data=None):
@@ -366,7 +377,7 @@ class T1_2D(Experiment):
         for i in tqdm(sweeppts):
             t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
         
-            xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False, debug=debug)
+            xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
         
             avgi = avgi[0][0]
             avgq = avgq[0][0]

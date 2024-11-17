@@ -46,9 +46,9 @@ class ACStarkShiftProgram(RAveragerProgram):
             mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
             mux_freqs = [0]*4
-            mux_freqs[cfg.expt.qubit] = cfg.device.readout.frequency
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency
             mux_gains = [0]*4
-            mux_gains[cfg.expt.qubit] = cfg.device.readout.gain
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain
         self.declare_gen(ch=self.res_ch, nqz=cfg.hw.soc.dacs.readout.nyquist, mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
 
         # declare qubit dacs
@@ -127,8 +127,8 @@ class ACStarkShiftPulseProbeExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='ACStarkShiftPulseProbe', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='ACStarkShiftPulseProbe', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
         q_ind = self.cfg.expt.qubit
@@ -153,7 +153,7 @@ class ACStarkShiftPulseProbeExperiment(Experiment):
             self.cfg.expt.pump_gain = gain
             acspec = ACStarkShiftProgram(soccfg=self.soccfg, cfg=self.cfg)
         
-            freqpts, avgi, avgq = acspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False, debug=debug)
+            freqpts, avgi, avgq = acspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
         
             avgi = avgi[0][0]
             avgq = avgq[0][0]

@@ -34,7 +34,7 @@ def recursive_get(d, keys):
 def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4):
     cfg=load(file_name)
     if not np.isnan(value):     
-        if isinstance(value, np.float64):
+        if not isinstance(value, int):
             value=round(value, sig)
         if isinstance(field, tuple): # for setting nested fields
             v=recursive_get(cfg['device']['qubit'], field)
@@ -96,6 +96,7 @@ def init_config(file_name, num_qubits, type='full', aliases='Qick001'):
     device['readout']['trig_offset']= [150]*num_qubits
     device['readout']['relax_delay']= [1000]*num_qubits
     device['readout']['chi']= [0]*num_qubits
+    device['readout']['fidelity']= [0]*num_qubits
 
     soc = {'adcs':{'readout':{'ch':[0]*num_qubits}}, 'dacs':{'qubit':{'ch': [0]*num_qubits, 'nyquist':[1]*num_qubits, 'type':['full']*num_qubits}, 'readout':{'ch': [0]*num_qubits, 'nyquist':[2]*num_qubits, 'type':[type]*num_qubits}}}
 

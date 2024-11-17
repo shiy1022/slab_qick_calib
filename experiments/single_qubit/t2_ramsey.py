@@ -66,8 +66,10 @@ class RamseyProgram(RAveragerProgram):
             assert self.res_chs[qTest] == 6
             mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
-            mux_freqs = cfg.device.readout.frequency
-            mux_gains = cfg.device.readout.gain
+            mux_freqs = [0]*4
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency[qTest]
+            mux_gains = [0]*4
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain[qTest]
             ro_ch=self.adc_chs[qTest]
         self.declare_gen(ch=self.res_chs[qTest], nqz=cfg.hw.soc.dacs.readout.nyquist[qTest], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
         self.declare_readout(ch=self.adc_chs[qTest], length=self.readout_lengths_adc[qTest], freq=cfg.device.readout.frequency[qTest], gen_ch=self.res_chs[qTest])
@@ -273,16 +275,22 @@ class RamseyExperiment(Experiment):
             data['fit_err_avgq'] = pCov_avgq
             data['fit_err_amps'] = pCov_amps
 
-            if isinstance(p_avgi, (list, np.ndarray)): data['f_adjust_ramsey_avgi'] = sorted((self.cfg.expt.ramsey_freq - p_avgi[1], -self.cfg.expt.ramsey_freq - p_avgi[1]), key=abs)
-            if isinstance(p_avgq, (list, np.ndarray)): data['f_adjust_ramsey_avgq'] = sorted((self.cfg.expt.ramsey_freq - p_avgq[1], -self.cfg.expt.ramsey_freq - p_avgq[1]), key=abs)
-            if isinstance(p_amps, (list, np.ndarray)): data['f_adjust_ramsey_amps'] = sorted((self.cfg.expt.ramsey_freq - p_amps[1], -self.cfg.expt.ramsey_freq - p_amps[1]), key=abs)
+            if isinstance(p_avgi, (list, np.ndarray)): 
+                data['f_adjust_ramsey_avgi'] = sorted((self.cfg.expt.ramsey_freq - p_avgi[1], -self.cfg.expt.ramsey_freq - p_avgi[1]), key=abs)
+            if isinstance(p_avgq, (list, np.ndarray)): 
+                data['f_adjust_ramsey_avgq'] = sorted((self.cfg.expt.ramsey_freq - p_avgq[1], -self.cfg.expt.ramsey_freq - p_avgq[1]), key=abs)
+            if isinstance(p_amps, (list, np.ndarray)): 
+                data['f_adjust_ramsey_amps'] = sorted((self.cfg.expt.ramsey_freq - p_amps[1], -self.cfg.expt.ramsey_freq - p_amps[1]), key=abs)
 
             if fit_twofreq:
                 data['f_adjust_ramsey_avgi2'] = sorted((self.cfg.expt.ramsey_freq - p_avgi[7], -self.cfg.expt.ramsey_freq - p_avgi[6]), key=abs)
                 data['f_adjust_ramsey_avgq2'] = sorted((self.cfg.expt.ramsey_freq - p_avgq[7], -self.cfg.expt.ramsey_freq - p_avgq[6]), key=abs)
                 data['f_adjust_ramsey_amps2'] = sorted((self.cfg.expt.ramsey_freq - p_amps[7], -self.cfg.expt.ramsey_freq - p_amps[6]), key=abs)
 
-            t2r_fit, t2r_fit_err, t2r_adjust = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
+            t2r_fit, t2r_fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
+            r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, t2r_fit)
+            print(r2)
+            
 
             old_qubit_freq = self.cfg.device.qubit.f_ge[self.cfg.expt.qubits[0]]
             if t2r_adjust[0] < np.abs(t2r_adjust[1]):
@@ -319,7 +327,7 @@ class RamseyExperiment(Experiment):
         if fit_twofreq: fitfunc = fitter.twofreq_decaysin
         else: fitfunc = fitter.decaysin
 
-        plt.figure(figsize=(10, 5))
+        fig=plt.figure(figsize=(10, 5))
         plt.subplot(111,title=f"{title} (Ramsey Freq: {self.cfg.expt.ramsey_freq} MHz)",
                     xlabel="Wait Time [us]", ylabel="Amplitude [ADC level]")
         plt.plot(data["xpts"][:-1], data["amps"][:-1],'o-')
@@ -393,6 +401,8 @@ class RamseyExperiment(Experiment):
                 pinit = data['init_guess_q']
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *pinit), label='Initial Guess')
 
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
         print('Suggested new pi pulse frequency from fit {:3.4f}:\n'.format(data['new_freq']))
         plt.tight_layout()

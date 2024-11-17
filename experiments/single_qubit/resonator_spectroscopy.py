@@ -23,6 +23,7 @@ class ResonatorSpectroscopyProgram(AveragerProgram):
         self.cfg.update(self.cfg.expt)
         # copy over parameters for the acquire method
         self.cfg.reps = cfg.expt.reps
+        self.cfg.rounds = cfg.expt.rounds
         
         super().__init__(soccfg, self.cfg)
 
@@ -170,12 +171,11 @@ class ResonatorSpectroscopyExperiment(Experiment):
 
         return data
 
-    def analyze(self, data=None, fit=True, findpeaks=False, verbose=True, coarse_scan = False, hanger=True, **kwargs):
+    def analyze(self, data=None, fit=True, findpeaks=False, verbose=False, coarse_scan = False, hanger=True, **kwargs):
         if data is None:
             data=self.data
             
-        if fit:           
-            
+        if fit:                       
             if 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
                 xdata = self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'][1:-1]
             else:
@@ -184,13 +184,16 @@ class ResonatorSpectroscopyExperiment(Experiment):
             ydata = data['amps'][1:-1]
             fitparams = [max(ydata), -(max(ydata)-min(ydata)), xdata[np.argmin(ydata)], 0.1 ]
             if hanger: 
-                data['fit'], data['fit_err'], data['init'] = fitter.fithanger(xdata, ydata)                
+                data['fit'], data['fit_err'], data['init'] = fitter.fithanger(xdata, ydata)
+                r2 = fitter.get_r2(xdata, ydata, fitter.hangerS21func_sloped, data['fit']) 
+#                if r2<0.5: 
+#                    data['fit'] = [np.nan]*len(data['fit'])               
                 if isinstance(data['fit'], (list, np.ndarray)):
-                    f0, Qi, Qe, phi, scale, a0, slope = data['fit']
+                    f0, Qi, Qe, phi, scale, slope = data['fit']
                 if 'lo' in self.cfg.hw:
                     print(float(self.cfg.hw.lo.readout.frequency)*1e-6)
                     print(f0)
-                data['kappa']=f0*(1/Qi+1/Qe)
+                data['kappa']=f0*(1/Qi+1/Qe)*1e-4
                 if verbose:
                     print(f'\nFreq with minimum transmission: {xdata[np.argmin(ydata)]}')
                     print(f'Freq with maximum transmission: {xdata[np.argmax(ydata)]}')
@@ -201,6 +204,8 @@ class ResonatorSpectroscopyExperiment(Experiment):
                     print(f'\tQ0: {1/(1/Qi+1/Qe)}')
                     print(f'\tkappa [MHz]: {f0*(1/Qi+1/Qe)}')
                     print(f'\tphi [radians]: {phi}')
+                if 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
+                    data['fit'][0]=data['fit'][0]-self.cfg.hw.soc.dacs.readout.mixer_freq
             else: 
                 print(fitparams)
                 data["lorentz_fit"]=fitter.fitlor(xdata, ydata, fitparams=fitparams)
@@ -226,21 +231,24 @@ class ResonatorSpectroscopyExperiment(Experiment):
     def display(self, data=None, fit=True, findpeaks=False, coarse_scan = False, hanger=True, debug=True, **kwargs):
         if data is None:
             data=self.data 
-
+        
         if 'lo' in self.cfg.hw:
             xpts = float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband[self.qubit]*(self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1])       
-        elif 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
+        elif 'mixer_freq' in self.cfg.hw.soc.dacs.readout and fit:
             xpts = self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'][1:-1]      
+            data['fit'][0]=data['fit'][0]+self.cfg.hw.soc.dacs.readout.mixer_freq
         else:
             xpts = data['xpts'][1:-1]
-
+        qubit = self.cfg.expt.qubit
         fig=plt.figure(figsize=(12,16))
-        plt.subplot(311, title=f"Resonator  Spectroscopy at Gain {self.cfg.expt.gain}",  ylabel="Amps [ADC units]")
+        plt.subplot(311, title=f"Resonator  Spectroscopy Q{qubit} at Gain {self.cfg.expt.gain}",  ylabel="Amps [ADC units]")
+        
         plt.plot(xpts, data['amps'][1:-1],'o-')
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
                     plt.plot(xpts, fitter.hangerS21func_sloped(xpts, *data["fit"]))
+                    
                 if debug: 
                     plt.plot(xpts, fitter.hangerS21func_sloped(xpts, *data["init"]))
             elif not any(np.isnan(data["lorentz_fit"])):
@@ -259,8 +267,9 @@ class ResonatorSpectroscopyExperiment(Experiment):
             for i in range(num_peaks):
                 peak = peak_indicies[i]
                 plt.axvline(xpts[peak], linestyle='--', color='0.2')
-           
- 
+        
+        if 'mixer_freq' in self.cfg.hw.soc.dacs.readout and fit:
+            data['fit'][0]=data['fit'][0]-self.cfg.hw.soc.dacs.readout.mixer_freq
         plt.subplot(312, xlabel="Readout Frequency [MHz]", ylabel="I [ADC units]")
         plt.plot(xpts, data["avgi"][1:-1],'o-')
 

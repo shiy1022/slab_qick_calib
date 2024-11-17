@@ -109,8 +109,10 @@ class AmplitudeRabiProgram(RAveragerProgram):
             assert self.res_chs[qTest] == 6
             mask = [0,1,2,3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
-            mux_freqs = cfg.device.readout.frequency[0:4]
-            mux_gains = cfg.device.readout.gain[0:4]
+            mux_freqs = [0]*4
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency[qTest]
+            mux_gains = [0]*4
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain[qTest]
             ro_ch=self.adc_chs[qTest]
         self.declare_gen(ch=self.res_chs[qTest], nqz=cfg.hw.soc.dacs.readout.nyquist[qTest], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
         self.declare_readout(ch=self.adc_chs[qTest], length=self.readout_lengths_adc[qTest], freq=cfg.device.readout.frequency[qTest], gen_ch=self.res_chs[qTest])
@@ -149,7 +151,7 @@ class AmplitudeRabiProgram(RAveragerProgram):
             self.f_pi_test_reg = self.freq2reg(self.cfg.expt.f_pi_test, gen_ch=self.qubit_chs[qTest])
         
         # add qubit and readout pulses to respective channels
-        print(cfg.expt.pulse_type.lower(), flush=True)
+        #print(cfg.expt.pulse_type.lower(), flush=True)
         if cfg.expt.pulse_type.lower() == "gauss" and self.pi_test_sigma > 0:
             self.add_gauss(ch=self.qubit_chs[qTest], name="pi_test", sigma=self.pi_test_sigma, length=self.pi_test_sigma*4)
         elif cfg.expt.pulse_type.lower() == 'adiabatic' and self.pi_test_sigma > 0:
@@ -305,15 +307,11 @@ class AmplitudeRabiExperiment(Experiment):
             else: 
                 print('here', self.cfg.device.qubit.pulses.pi_ge.sigma[qTest])
                 self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]
-        #print('qTest sigma = ', self.cfg.expt.sigma_test)
 
         amprabi = AmplitudeRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
-        # print(amprabi)
         # from qick.helpers import progs2json
-        # print(progs2json([amprabi.dump_prog()]))
         
         xpts, avgi, avgq = amprabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)
-        # print(amprabi)
 
         # shots_i = amprabi.di_buf[adc_ch].reshape((self.cfg.expt.expts, self.cfg.expt.reps)) / amprabi.readout_length_adc
         # shots_i = np.average(shots_i, axis=1)
@@ -355,11 +353,25 @@ class AmplitudeRabiExperiment(Experiment):
             data['fit_avgi'] = p_avgi   
             data['fit_avgq'] = p_avgq
             data['fit_amps'] = p_amps
-            data['fit_err_avgi'] = pCov_avgi   
-            data['fit_err_avgq'] = pCov_avgq
-            data['fit_err_amps'] = pCov_amps
+            data['fit_err_avgi'] = pCov_avgi
+            data['fit_err_avgq'] =  pCov_avgq
+            data['fit_err_amps'] =  pCov_amps
 
-            p = data['fit_avgi']     
+            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.sinfunc)
+            r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.sinfunc, fit_pars)
+            print(r2)
+            
+            data['best_fit']=fit_pars
+            
+            i_best = i_best.encode("ascii", "ignore")
+            data['i_best']=i_best
+            print('Best fit:', i_best)
+
+            data['fit_err_avgi'] = np.sqrt(np.diag(pCov_avgi))
+            data['fit_err_avgq'] = np.sqrt(np.diag(pCov_avgq))
+            data['fit_err_amps'] = np.sqrt(np.diag(pCov_amps))
+
+            p = data['best_fit']     
             if p[2] > 180: p[2] = p[2] - 360
             elif p[2] < -180: p[2] = p[2] + 360
             if p[2] < 0: 
@@ -383,8 +395,16 @@ class AmplitudeRabiExperiment(Experiment):
             if qZZ == 1: qSort = qTest
         else: qTest = self.cfg.expt.qubits[0]
 
-        plt.figure(figsize=(10, 6))
-        title = f"Amplitude Rabi on Q{qTest} (Pulse Length {self.cfg.expt.sigma_test}{(', ZZ Q'+str(qZZ)) if self.checkZZ else ''})"
+        fig=plt.figure(figsize=(6, 4))
+
+        title = f"Amplitude Rabi on Q{qTest} (Pulse Length {self.cfg.expt.sigma_test}"
+        if self.checkZZ:
+            title=title + ', ZZ Q'+str(qZZ)
+        elif self.cfg.expt.checkEF: 
+            title=title + ', EF)'
+        else:
+            title=title + ')'
+        
         plt.subplot(111, title=title, xlabel="Gain [DAC units]", ylabel="Amplitude [ADC units]")
         plt.plot(data["xpts"][1:-1], data["amps"][1:-1],'o-')
         if fit:
@@ -399,8 +419,11 @@ class AmplitudeRabiExperiment(Experiment):
             print(f'\tPi/2 gain from amps data [dac units]: {int(pi2_gain)}')
             plt.axvline(pi_gain, color='0.2', linestyle='--')
             plt.axvline(pi2_gain, color='0.2', linestyle='--')
+        fig.tight_layout()
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
-        plt.figure(figsize=(10,10))
+        fig=plt.figure(figsize=(8,10))
         plt.subplot(211, title=title, ylabel="I [ADC units]")
         plt.plot(data["xpts"][1:-1], data["avgi"][1:-1],'o-')
         # plt.axhline(390)
@@ -434,6 +457,8 @@ class AmplitudeRabiExperiment(Experiment):
             plt.axvline(pi_gain, color='0.2', linestyle='--')
             plt.axvline(pi2_gain, color='0.2', linestyle='--')
 
+        
+        
         plt.show()
 
     def save_data(self, data=None):
@@ -535,7 +560,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
         avgi = data['avgi']
         avgq = data['avgq']
 
-        plt.figure(figsize=(10,8))
+        fig=plt.figure(figsize=(10,8))
         plt.subplot(211, title="Amplitude Rabi", ylabel="Frequency [MHz]")
         plt.imshow(
             np.flip(avgi, 0),
@@ -563,6 +588,8 @@ class AmplitudeRabiChevronExperiment(Experiment):
 
         plt.plot(y_sweep, data['amps'][:,-1])
         plt.title(f'Gain {x_sweep[-1]}')
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         plt.show()
 
         

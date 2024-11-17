@@ -50,9 +50,9 @@ class PulseProbeSpectroscopyProgram(RAveragerProgram):
             mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
             mux_freqs = [0]*4
-            mux_freqs[cfg.expt.qubit] = cfg.device.readout.frequency
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency
             mux_gains = [0]*4
-            mux_gains[cfg.expt.qubit] = cfg.device.readout.gain
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain
             ro_ch=self.adc_ch
         self.declare_gen(ch=self.res_ch, nqz=cfg.hw.soc.dacs.readout.nyquist, mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
 
@@ -242,12 +242,13 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
     def acquire(self, progress=False):
         xpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])    
         if 'log' in self.cfg.expt and self.cfg.expt.log==True:
-            rat = 7/8
-            gainpts = rat**(np.arange(self.cfg.expt["expts_gain"]))
-            rep_list = np.round(self.cfg.expt["reps"] * (1/rat**2)**np.arange(self.cfg.expt["expts_gain"]))            
+            rat = self.cfg.expt['rat']
+            max_gain=32768
+            gainpts = max_gain*rat**(np.arange(self.cfg.expt["expts_gain"]))
+            gainpts = [int(g) for g in gainpts]
         else:
             gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
-            rep_list = self.cfg.expt["reps"] * np.ones(self.cfg.expt["expts_gain"])
+        rep_list = self.cfg.expt["reps"] * np.ones(self.cfg.expt["expts_gain"])
         pts = np.arange(self.cfg.expt["expts_gain"])
         q_ind = self.cfg.expt.qubit
         for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
@@ -260,28 +261,28 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
                             if isinstance(value3, list):
                                 value2.update({key3: value3[q_ind]})                                
 
+        self.cfg.expt.start = self.cfg.expt.start_f
+        self.cfg.expt.step = self.cfg.expt.step_f
+        self.cfg.expt.expts = self.cfg.expt.expts_f
         data={"xpts":[], "gainpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
         for i in tqdm(pts, disable=not progress):
             self.cfg.expt.gain = gainpts[i]
             self.cfg.expt.reps = int(rep_list[i])
-            data["avgi"].append([])
-            data["avgq"].append([])
-            data["amps"].append([])
-            data["phases"].append([])
+            # data["avgi"].append([])
+            # data["avgq"].append([])
+            # data["amps"].append([])
+            # data["phases"].append([])
 
-            for f in tqdm(xpts, disable=True):
-                self.cfg.expt.frequency = f
-                rspec = PulseProbeSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
-                self.prog = rspec
-                avgi, avgq = rspec.acquire(self.im[self.cfg.aliases.soc], load_pulses=True, progress=False)
-                avgi = avgi[0][0]
-                avgq = avgq[0][0]
-                amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
-                phase = np.angle(avgi+1j*avgq) # Calculating the phase
-                data["avgi"][-1].append(avgi)
-                data["avgq"][-1].append(avgq)
-                data["amps"][-1].append(amp)
-                data["phases"][-1].append(phase)
+            qspec = PulseProbeSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
+            xpts, avgi, avgq = qspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)                        
+            avgi = avgi[0][0]
+            avgq = avgq[0][0]
+            amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
+            phase = np.angle(avgi+1j*avgq) # Calculating the phase
+            data["avgi"].append(avgi)
+            data["avgq"].append(avgq)
+            data["amps"].append(amp)
+            data["phases"].append(phase)
         
         data["xpts"] = xpts
         data["gainpts"] = gainpts
@@ -318,9 +319,8 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
         outer_sweep = data['gainpts']
 
         amps = data['amps']
-        for i in range(len(amps)):
-            amps[i,:] =amps[i,:]/np.median(amps[i,:])
-        
+    
+
         y_sweep = outer_sweep
         x_sweep = inner_sweep
 
@@ -330,18 +330,10 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
         # THIS IS CORRECT EXTENT LIMITS FOR 2D PLOTS
         fig=plt.figure(figsize=(10,8))
         plt.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
-        
-        if fit:
-            fit_highpow, fit_lowpow = data['fit']
-            highgain, lowgain = data['fit_gains']
-            plt.axvline(fit_highpow[2], linewidth=0.5, color='0.2')
-            plt.axvline(fit_lowpow[2], linewidth=0.5, color='0.2')
-            plt.plot(x_sweep, [highgain]*len(x_sweep), linewidth=0.5, color='0.2')
-            plt.plot(x_sweep, [lowgain]*len(x_sweep), linewidth=0.5, color='0.2')
-            
-        plt.title(f"Resonator Spectroscopy Power Sweep")
-        plt.xlabel("Resonator Frequency [MHz]")
-        plt.ylabel("Resonator Gain [DAC level]")
+       
+        plt.title(f"Qubit Spectroscopy Power Sweep")
+        plt.xlabel("Qubit Frequency [MHz]")
+        plt.ylabel("Qubit Gain [DAC level]")
         # plt.clim(vmin=-0.2, vmax=0.2)
         #plt.clim(vmin=-10, vmax=5)
         plt.colorbar(label='Amps/Avg [ADC level]')

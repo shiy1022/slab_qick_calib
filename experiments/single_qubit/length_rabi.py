@@ -66,9 +66,9 @@ class LengthRabiProgram(AveragerProgram):
             mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
             mux_freqs = [0]*4
-            mux_freqs[qTest] = cfg.device.readout.frequency[qTest]
+            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency[qTest]
             mux_gains = [0]*4
-            mux_gains[qTest] = cfg.device.readout.gain[qTest]
+            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain[qTest]
             ro_ch=self.adc_chs[qTest]
         self.declare_gen(ch=self.res_chs[qTest], nqz=cfg.hw.soc.dacs.readout.nyquist[qTest], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
         self.declare_readout(ch=self.adc_chs[qTest], length=self.readout_lengths_adc[qTest], freq=cfg.device.readout.frequency[qTest], gen_ch=self.res_chs[qTest])
@@ -193,8 +193,8 @@ class LengthRabiExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='LengthRabi', config_file=None, progress=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(self, soccfg=None, path='', prefix='LengthRabi', config_file=None, progress=None, im=None):
+        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
 
     def acquire(self, progress=False, debug=False):
         # expand entries in config that are length 1 to fill all qubits
@@ -217,7 +217,7 @@ class LengthRabiExperiment(Experiment):
             self.cfg.expt.length_placeholder = float(length)
             lengthrabi = LengthRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
             self.prog = lengthrabi
-            avgi, avgq = lengthrabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False, debug=debug)        
+            avgi, avgq = lengthrabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
             avgi = avgi[0][0]
             avgq = avgq[0][0]
             amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
