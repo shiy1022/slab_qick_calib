@@ -290,13 +290,16 @@ class RamseyExperiment(Experiment):
             t2r_fit, t2r_fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
             r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, t2r_fit)
             print(r2)
-            
 
-            old_qubit_freq = self.cfg.device.qubit.f_ge[self.cfg.expt.qubits[0]]
+            if self.cfg.expt.checkEF: 
+                f_pi_test = self.cfg.device.qubit.f_ef[self.cfg.expt.qubits[0]]
+            else:
+                f_pi_test = self.cfg.device.qubit.f_ge[self.cfg.expt.qubits[0]]
+            
             if t2r_adjust[0] < np.abs(t2r_adjust[1]):
-                new_freq = old_qubit_freq + t2r_adjust[0]
+                new_freq = f_pi_test + t2r_adjust[0]
             else:       
-                new_freq = old_qubit_freq + t2r_adjust[1]
+                new_freq = f_pi_test + t2r_adjust[1]
             data['new_freq']=new_freq
         return data
 

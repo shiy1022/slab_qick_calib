@@ -185,6 +185,8 @@ class T1Experiment(Experiment):
         else: 
             print('t1_amps is better, saving t1_amps to results cfg file')
             new_t1 = t1_fit_amps
+        
+
 
         fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.expfunc)
         r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.expfunc, fit_pars)
@@ -192,8 +194,13 @@ class T1Experiment(Experiment):
         par_errs = np.sqrt(np.diag(fit_err))
         print(par_errs)
         data['best_fit']=fit_pars
+        data['new_t1']=fit_pars[2]
+        print('Best fit:', i_best)
+        i_best = i_best.encode("ascii", "ignore")
+        data['i_best']=i_best
         
-        data['new_t1']=new_t1
+        
+        
 
 
 

@@ -228,7 +228,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data['coarse_peaks'] = xdata[coarse_peaks[0]]
         return data
 
-    def display(self, data=None, fit=True, findpeaks=False, coarse_scan = False, hanger=True, debug=True, **kwargs):
+    def display(self, data=None, fit=True, findpeaks=False, coarse_scan = False, hanger=True, debug=False, **kwargs):
         if data is None:
             data=self.data 
         

@@ -362,10 +362,10 @@ class AmplitudeRabiExperiment(Experiment):
             print(r2)
             
             data['best_fit']=fit_pars
-            
+            print('Best fit:', i_best)
+
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
-            print('Best fit:', i_best)
 
             data['fit_err_avgi'] = np.sqrt(np.diag(pCov_avgi))
             data['fit_err_avgq'] = np.sqrt(np.diag(pCov_avgq))

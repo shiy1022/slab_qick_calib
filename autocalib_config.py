@@ -212,7 +212,7 @@ def make_chi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=3, npts=
     
     return prog
 
-def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=500, reps=None, rounds=None, gain=None, coarse=False, ef=False):    
+def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None, reps=None, rounds=None, gain=None, coarse=False, ef=False):    
 # This one may need a bunch of options. 
 # coarse: wide span, medium gain, centered at ge freq
 # ef: coarse: medium span, extra high gain, centered at the ef frequency  
@@ -221,11 +221,17 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=500, 
     if coarse and span is None:
         span=800 
         prefix = f"qubit_spectroscopy_coarse_qubit{qubit_i}"
+        if npts is None: 
+            npts = 500
     elif span is None:
         span=3
         prefix = f"qubit_spectroscopy_fine_qubit{qubit_i}"
+        if npts is None:
+            npts = 200
     else:
         prefix = f"qubit_spectroscopy_qubit{qubit_i}"
+        if npts is None:
+            npts = 500
 
     if coarse is True and gain is None:
         gain=10000
@@ -413,7 +419,7 @@ def make_amprabi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, sigma=Non
     if gain is None:
         gain = prog.cfg.device.qubit.pulses.pi_ge.gain[qubit_i]*4
         gain = int(safe_gain(gain))
-    span = 2*gain
+    span = gain
     if reps is None:
         reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base)
     if rounds is None:
@@ -485,7 +491,7 @@ def make_amprabi_chevron(soc, expt_path, cfg_file, qubit_i, im=None, span_gain=3
     # amprabichev.cfg.device.readout.relax_delay = 50 # Wait time between experiments [us]
     return prog
 
-def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 200, reps = None, rounds=None, step=None, ramsey_freq=0.1):
+def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 200, reps = None, rounds=None, step=None, ramsey_freq=0.1, checkEF=False):
     prog = meas.RamseyExperiment(
         soccfg=soc,
         path=expt_path,
@@ -510,16 +516,15 @@ def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 200, r
         expts=npts,
         ramsey_freq=ramsey_freq, # [MHz]
         reps=reps,
-        rounds=rounds, # set this = 1 (computer asking for 20 rounds --> faster if I don't have to communicate between computer and board)
+        rounds=rounds, 
         qubits=[qubit_i],
         qubit=qubit_i,
         checkZZ=False,
-        checkEF=False,
+        checkEF=checkEF,
         qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
     )
     if go:
         prog.go(analyze=True, display=True, progress=True, save=True)
-
 
     return prog
 
@@ -557,7 +562,7 @@ def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 201, r
         prog.go(analyze=True, display=True, progress=True, save=True)
     return prog
 
-def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=100, reps=None, rounds=None, fine=True):
+def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=100, reps=None, rounds=None, fine=False):
 
     span = span 
     npts = npts
