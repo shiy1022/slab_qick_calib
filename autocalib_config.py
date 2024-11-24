@@ -38,7 +38,7 @@ def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True):
     
     return tof
 
-def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000, gain=0.2):
+def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000, gain=0.2, rounds=1):
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
     path=expt_path,
@@ -48,7 +48,7 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, sp
     )
 
     rspec.cfg.expt = dict(
-        start = start, #Lowest resontaor frequency
+        start = start, #Lowest resonator frequency
         step=span/npts, # min step ~1 Hz
         expts=npts, # Number experiments stepping from start
         reps= reps, # Number averages per point 
@@ -56,10 +56,15 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, sp
         pulse_f=False, # add ef pi pulse prior to measurement
         qubit=qubit_i,
         gain=gain,
-        qubit_chan=rspec.cfg.hw.soc.adcs.readout.ch[qubit_i],
+        rounds=rounds,
+        qubit_chan=rspec.cfg.hw.soc.adcs.readout.ch[qubit_i]
     )
 
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
+    rspec.go(analyze=False, display=False, progress=True, save=True)
+
+    rspec.analyze(fit=False, findpeaks = True)
+    rspec.display(fit=False, findpeaks = True)
     return rspec
 
 def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=200, reps=None, rounds=None, gain=None, smart=False):
@@ -136,7 +141,7 @@ def make_rspec_2d(cfg_dict, qubit_i=0, go=True, center=None, span=5, npts=200, r
 
     return rspec
 
-def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5, npts_f=250, span_gain=27000, start_gain=5000, npts_gain=10, reps=None, smart=False, log=True, rat=0.8):
+def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5, npts_f=200, span_gain=27000, start_gain=5000, npts_gain=10, reps=None, rounds=None, smart=False, log=True, rng=200):
 
     prog = meas.ResonatorPowerSweepSpectroscopyExperiment(
         soccfg=soc,
@@ -146,10 +151,12 @@ def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5
         im=im
     )
 
+    
     if reps is None:
-        reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base_spec)
+        reps = prog.cfg.device.readout.reps[qubit_i]*reps_base_spec/10000
     if rounds is None:
         rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base_spec)
+
 
     prog.cfg.expt = dict(
         start_f = res_freq-span_f/2, # resonator frequency to be mixed up [MHz]
@@ -164,10 +171,11 @@ def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5
         pulse_f=False, # add ef pi pulse before measurement
         qubit=qubit_i,  
         log=log,
-        rat=rat,
+        rng=rng,
         rounds=rounds,
         qubit_chan=prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
     ) 
+    
 
     prog.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]    
     prog.cfg.device.readout.readout_length = 5
@@ -212,7 +220,7 @@ def make_chi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=3, npts=
     
     return prog
 
-def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None, reps=None, rounds=None, gain=None, coarse=False, ef=False):    
+def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None, reps=None, rounds=None, gain=None, coarse=False, ef=False, len=50):    
 # This one may need a bunch of options. 
 # coarse: wide span, medium gain, centered at ge freq
 # ef: coarse: medium span, extra high gain, centered at the ef frequency  
@@ -267,7 +275,7 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None,
         expts = npts, # Number experiments stepping from start
         reps = reps, # Number averages per point
         rounds = rounds, #Number of start to finish sweeps to average over 
-        length = 50, # qubit probe constant pulse length [us]
+        length = len, # qubit probe constant pulse length [us]
         gain = gain, #qubit pulse gain  
         pulse_type = 'const', 
         #pulse_type = 'gauss',  
@@ -278,7 +286,7 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None,
     prog.cfg.device.readout.relax_delay = 10 # Wait time between experiments [us]
     return prog
 
-def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=500, reps=None, rounds=None, wide=True, expts_gain=10, rat=0.6):
+def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=500, reps=None, rounds=None, wide=True, expts_gain=10, rng=200, len=50):
     prefix = f"qubit_spectroscopy_power_qubit{qubit_i}"
     prog = meas.PulseProbePowerSweepSpectroscopyExperiment(
     soccfg=soc,
@@ -291,7 +299,7 @@ def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts
     if wide: 
         freq = prog.cfg.device.qubit.f_ge[qubit_i]-150
         if span is None:
-            span=500
+            span=800
     else:
         freq = prog.cfg.device.qubit.f_ge[qubit_i]
         if span is None:
@@ -301,6 +309,7 @@ def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts
         reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base_spec)
     if rounds is None:
         rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base_spec/2)
+        rounds = np.max([rounds,1])
 
     prog.cfg.expt = dict(
         start_f= freq-span/2, # qubit frequency to be mixed up [MHz]
@@ -308,14 +317,14 @@ def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts
         expts_f = npts, # Number experiments stepping from start
         reps = reps, # Number averages per point
         rounds = rounds, #Number of start to finish sweeps to average over 
-        gain_pts=10,
-        length = 50, # qubit probe constant pulse length [us]
+        gain_pts=expts_gain,
+        length = len, # qubit probe constant pulse length [us]
         pulse_type = 'const', 
         #pulse_type = 'gauss',  
         expts_gain=expts_gain,
         qubit = qubit_i,
         log=True,
-        rat=rat,
+        rng=rng,
         qubit_chan=prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
     ) 
 

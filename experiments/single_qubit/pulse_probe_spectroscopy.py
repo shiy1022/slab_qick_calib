@@ -242,7 +242,10 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
     def acquire(self, progress=False):
         xpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])    
         if 'log' in self.cfg.expt and self.cfg.expt.log==True:
-            rat = self.cfg.expt['rat']
+
+            rng = self.cfg.expt.rng
+            rat = rng**(-1/(self.cfg.expt["expts_gain"]-1))
+
             max_gain=32768
             gainpts = max_gain*rat**(np.arange(self.cfg.expt["expts_gain"]))
             gainpts = [int(g) for g in gainpts]
@@ -319,19 +322,18 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
         outer_sweep = data['gainpts']
 
         amps = data['amps']
-    
+
 
         y_sweep = outer_sweep
         x_sweep = inner_sweep
 
-        if 'log' in self.cfg.expt and self.cfg.expt.log:
-            y_sweep = np.log10(y_sweep)
-
         # THIS IS CORRECT EXTENT LIMITS FOR 2D PLOTS
         fig=plt.figure(figsize=(10,8))
         plt.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
-       
-        plt.title(f"Qubit Spectroscopy Power Sweep")
+        if 'log' in self.cfg.expt and self.cfg.expt.log:
+            plt.yscale('log')
+        qubit = self.cfg.expt.qubit
+        plt.title(f"Qubit Spectroscopy Power Sweep Q{qubit}")
         plt.xlabel("Qubit Frequency [MHz]")
         plt.ylabel("Qubit Gain [DAC level]")
         # plt.clim(vmin=-0.2, vmax=0.2)

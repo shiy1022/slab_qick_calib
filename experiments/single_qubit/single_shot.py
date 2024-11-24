@@ -9,7 +9,7 @@ from tqdm import tqdm_notebook as tqdm
 
 blue="#4053d3"
 red ="#b51d14"
-
+int_rgain=True
 def hist(data, plot=True, span=None, verbose=True):
 
     """
@@ -226,7 +226,6 @@ class HistogramProgram(AveragerProgram):
         self.declare_gen(ch=self.res_chs[qTest], nqz=cfg.hw.soc.dacs.readout.nyquist[qTest], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
         self.declare_readout(ch=self.adc_chs[qTest], length=self.readout_lengths_adc[qTest], freq=cfg.device.readout.frequency[qTest], gen_ch=self.res_chs[qTest])
 
-
         self.declare_gen(ch=self.qubit_chs[qTest], nqz=cfg.hw.soc.dacs.qubit.nyquist[qTest])
 
         self.pi_sigma = self.us2cycles(cfg.device.qubit.pulses.pi_ge.sigma[qTest], gen_ch=self.qubit_chs[qTest])
@@ -268,10 +267,9 @@ class HistogramProgram(AveragerProgram):
 
         # Phase reset all channels
         #print("using phase reset")
-        for ch in self.gen_chs.keys():
-            # print(self.gen_chs.keys())
-            if not self.res_ch_types[qTest] == 'mux4':#self.gen_chs[ch]['mux_freqs'] is None: # doesn't work for the mux channels # is None or ch in self.res_chs:
-               self.setup_and_pulse(ch=ch, style='const', freq=self.f_res_reg[qTest], phase=0, gain=0, length=self.us2cycles(0.1), phrst=1)
+        # for ch in self.gen_chs.keys():
+        #     if not self.res_ch_types[qTest] == 'mux4':#self.gen_chs[ch]['mux_freqs'] is None: # doesn't work for the mux channels # is None or ch in self.res_chs:
+        #        self.setup_and_pulse(ch=ch, style='const', freq=self.f_res_reg[qTest], phase=0, gain=0, length=self.us2cycles(0.1), phrst=1)
             #self.sync_all()
 
         if self.res_ch_types[qTest] == 'mux4':
@@ -310,7 +308,6 @@ class HistogramProgram(AveragerProgram):
         shots_i0 = self.di_buf[0] / self.readout_lengths_adc[qTest]
         shots_q0 = self.dq_buf[0] / self.readout_lengths_adc[qTest]
         return shots_i0, shots_q0
-        # return shots_i0[:5000], shots_q0[:5000]
 
 
 class HistogramExperiment(Experiment):
@@ -341,7 +338,8 @@ class HistogramExperiment(Experiment):
         data=dict()
 
         # Ground state shots
-        cfg = AttrDict(deepcopy(self.cfg))
+        cfg2 =deepcopy(dict(self.cfg))
+        cfg = AttrDict(cfg2)
         cfg.expt.pulse_e = False
         cfg.expt.pulse_f = False
         histpro = HistogramProgram(soccfg=self.soccfg, cfg=cfg)
@@ -468,7 +466,8 @@ class SingleShotOptExperiment(Experiment):
                     shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file, im=self.im)
                     shot.cfg = self.cfg
                     shot.cfg.device.readout.frequency = float(f)
-                    shot.cfg.device.readout.gain = gain
+                    if int_rgain: 
+                        shot.cfg.device.readout.gain = int(gain)
                     shot.cfg.device.readout.readout_length = float(l) 
                     check_e = True
                     
@@ -518,15 +517,45 @@ class SingleShotOptExperiment(Experiment):
             data=self.data 
         
         fid = data['fid']
+        
         fpts = data['fpts'] # outer sweep, index 0
         gainpts = data['gainpts'] # middle sweep, index 1
         lenpts = data['lenpts'] # inner sweep, index 2
-
-        # lenpts = [data['lenpts'][0]]
-        for g_ind, gain in enumerate(gainpts):
-            for l_ind, l in enumerate(lenpts):
-                plt.plot(fpts, 100*fid[:,g_ind, l_ind], 'o-', label=f'gain: {gain}, len [us]: {l}')
-        plt.xlabel('Frequency [MHz]')
+        # if len(fpts)>1 and gainpts>1 and lenpts>1: 
+        #     sweep3d = True
+        # elif fpts>1 and gainpts>1 or fpts>1 and lenpts>1 or gainpts>1 and lenpts>1:
+        #     sweep2d = True
+        #     sweep3d = False
+        # else:
+        #     sweep2d= False
+        #     sweep3d = False
+        
+        if len(fpts)>1: 
+            xval = fpts
+            xlabel='Frequency [MHz]'
+            var1 = gainpts
+            var2 = lenpts
+            for v1_ind, v1 in enumerate(var1):
+                for v2_ind, v2 in enumerate(var2):
+                    plt.plot(xval, 100*fid[:,v1_ind, v2_ind], 'o-', label=f'{v1:1.0f}, {v2:.2f}')
+        elif len(gainpts)>1:
+            xval = gainpts
+            xlabel='Gain [DAC units]'
+            var1 = fpts
+            var2 = lenpts
+            for v1_ind, v1 in enumerate(var1):
+                for v2_ind, v2 in enumerate(var2):
+                    plt.plot(xval, 100*fid[v1_ind,:, v2_ind], 'o-', label=f'{v1:.2f}, {v2:.2f}')
+        else:
+            xval = lenpts
+            xlabel='Readout length [us]'
+            var1 = fpts
+            var2 = gainpts
+            for v1_ind, v1 in enumerate(var1):
+                for v2_ind, v2 in enumerate(var2):
+                    plt.plot(xval, 100*fid[v1_ind, v2_ind,:], 'o-', label=f'{v2:1.0f},  {v1:.2f}')
+            
+        plt.xlabel(xlabel)
         plt.ylabel(f'Fidelity [%]')
         plt.legend()
         plt.show()

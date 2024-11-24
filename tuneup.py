@@ -17,6 +17,8 @@ def check_readout(soc, expt_path, cfg_file, qubit_i, im=None, span=8, npts=201, 
             xpts = chi.cfg.hw.soc.dacs.readout.mixer_freq + chi.data['xpts']
             rspec.data['fit'][0] + chi.cfg.hw.soc.dacs.readout.mixer_freq
             chi.data['fit'][0] + chi.cfg.hw.soc.dacs.readout.mixer_freq
+    else:
+        xpts = chi.data['xpts']
     fig, ax = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
     ax[0].plot(xpts, rspec.data['amps'], label='No Pulse')
     ax[2].plot(xpts, rspec.data['avgi'])

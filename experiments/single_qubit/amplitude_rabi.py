@@ -386,7 +386,6 @@ class AmplitudeRabiExperiment(Experiment):
         if data is None:
             data=self.data 
 
-
         if self.cfg.expt.checkZZ: # [x, 1] means test Q1 with ZZ from Qx; [1, x] means test Qx with ZZ from Q1, sort by Qx in both cases
             assert len(self.qubits) == 2
             assert 1 in self.qubits
@@ -416,7 +415,7 @@ class AmplitudeRabiExperiment(Experiment):
             else: pi_gain= (3/2 - p[2]/180)/2/p[1]
             pi2_gain = pi_gain/2
             print(f'Pi gain from amps data [dac units]: {int(pi_gain)}')
-            print(f'\tPi/2 gain from amps data [dac units]: {int(pi2_gain)}')
+            #print(f'\tPi/2 gain from amps data [dac units]: {int(pi2_gain)}')
             plt.axvline(pi_gain, color='0.2', linestyle='--')
             plt.axvline(pi2_gain, color='0.2', linestyle='--')
         fig.tight_layout()
@@ -426,10 +425,6 @@ class AmplitudeRabiExperiment(Experiment):
         fig=plt.figure(figsize=(8,10))
         plt.subplot(211, title=title, ylabel="I [ADC units]")
         plt.plot(data["xpts"][1:-1], data["avgi"][1:-1],'o-')
-        # plt.axhline(390)
-        # plt.axhline(473)
-        # plt.axvline(2114)
-        # plt.axvline(3150)
         if fit:
             p = data['fit_avgi']
             plt.plot(data["xpts"][0:-1], fitter.sinfunc(data["xpts"][0:-1], *p))
@@ -439,7 +434,7 @@ class AmplitudeRabiExperiment(Experiment):
             else: pi_gain= (3/2 - p[2]/180)/2/p[1]
             pi2_gain = pi_gain/2
             print(f'Pi gain from avgi data [dac units]: {int(pi_gain)}')
-            print(f'\tPi/2 gain from avgi data [dac units]: {int(pi2_gain)}')
+            #print(f'\tPi/2 gain from avgi data [dac units]: {int(pi2_gain)}')
             plt.axvline(pi_gain, color='0.2', linestyle='--')
             plt.axvline(pi2_gain, color='0.2', linestyle='--')
         plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Q [ADC units]")
@@ -453,12 +448,10 @@ class AmplitudeRabiExperiment(Experiment):
             else: pi_gain= (3/2 - p[2]/180)/2/p[1]
             pi2_gain = pi_gain/2
             print(f'Pi gain from avgq data [dac units]: {int(pi_gain)}')
-            print(f'\tPi/2 gain from avgq data [dac units]: {int(pi2_gain)}')
+            #print(f'\tPi/2 gain from avgq data [dac units]: {int(pi2_gain)}')
             plt.axvline(pi_gain, color='0.2', linestyle='--')
             plt.axvline(pi2_gain, color='0.2', linestyle='--')
-
-        
-        
+        fig.tight_layout()
         plt.show()
 
     def save_data(self, data=None):
