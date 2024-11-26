@@ -212,10 +212,11 @@ class ResonatorSpectroscopyExperiment(Experiment):
                 print('From Fit:')
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
-               
-        slope, intercept = np.polyfit(data['xpts'], np.unwrap(data['phases']), 1)        
-        phs_fix = np.unwrap(data["phases"][1:-1])-slope*data["xpts"][1:-1]
-        data['phase_fix'] = phs_fix-np.mean(phs_fix)
+        phs_data = np.unwrap(data["phases"][1:-1])
+        phs_fix=data['phases'][1:-1]
+        #slope, intercept = np.polyfit(data['xpts'][1:-1], phs_data, 1)        
+        #phs_fix = phs_data-slope*data["xpts"][1:-1]-intercept
+        data['phase_fix'] = phs_fix
         if findpeaks: 
             xdata = data["xpts"][1:-1]
             ydata = data['amps'][1:-1]
@@ -264,7 +265,6 @@ class ResonatorSpectroscopyExperiment(Experiment):
             else:
                 print("Lorentzian fit contains NaN values, skipping plot.")
 
-
         if findpeaks:
             num_peaks = len(data['coarse_peaks_index'])
             print('Number of peaks:', num_peaks)
@@ -276,9 +276,8 @@ class ResonatorSpectroscopyExperiment(Experiment):
         if 'mixer_freq' in self.cfg.hw.soc.dacs.readout and fit:
             data['fit'][0]=data['fit'][0]-self.cfg.hw.soc.dacs.readout.mixer_freq
         plt.subplot(212, xlabel="Readout Frequency [MHz]", ylabel="Phase [radians]")
-        slope, intercept = np.polyfit(data['xpts'], np.unwrap(data['phases']), 1)
-        phs_fix = np.unwrap(data["phases"][1:-1])-slope*xpts
-        plt.plot(xpts, phs_fix-np.mean(phs_fix),'o-')
+        
+        plt.plot(xpts, data['phase_fix'],'o-')
 
         plt.show()
         fig.tight_layout()

@@ -192,7 +192,7 @@ class T1Experiment(Experiment):
         r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.expfunc, fit_pars)
         print(r2)
         par_errs = np.sqrt(np.diag(fit_err))
-        print(par_errs)
+        #print(par_errs)
         data['best_fit']=fit_pars
         data['new_t1']=fit_pars[2]
         print('Best fit:', i_best)
@@ -210,7 +210,7 @@ class T1Experiment(Experiment):
         if data is None:
             data=self.data 
         qubit = self.cfg.expt.qubit
-        fig=plt.figure(figsize=(10, 5))
+        fig=plt.figure(figsize=(8, 4))
         plt.subplot(111,title=f"$T_1$ Q{qubit}", ylabel="Amps [ADC units]")
         plt.plot(data["xpts"][:-1], data["amps"][:-1],'o-')
         if fit:
@@ -222,7 +222,7 @@ class T1Experiment(Experiment):
             print(f'Fit T1 amps [us]: {data["fit_amps"][2]}')
             data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
         
-        plt.figure(figsize=(10,10))
+        plt.figure(figsize=(8,8))
         plt.subplot(211, title=f"$T_1$ Q{qubit}", ylabel="I [ADC units]")
         plt.plot(data["xpts"][:-1], data["avgi"][:-1],'o-')
         if fit:
@@ -245,6 +245,7 @@ class T1Experiment(Experiment):
             data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][2][2])/data['fit_avgq'][2]
 
         imname = self.fname.split("\\")[-1]
+        fig.tight_layout()
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         plt.show()
         

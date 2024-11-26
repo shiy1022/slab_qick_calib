@@ -78,7 +78,6 @@ def hist(data, plot=True, span=None, verbose=True):
     xe, ye = np.median(Ie_new), np.median(Qe_new)
     if plot_f: xf, yf = np.median(If_new), np.median(Qf_new)
     if verbose:
-        print('hi')
         print('Rotated:')
         print(f'Ig {xg} +/- {np.std(Ig)} \t Qg {yg} +/- {np.std(Qg)} \t Amp g {np.abs(xg+1j*yg)}')
         print(f'Ie {xe} +/- {np.std(Ie)} \t Qe {ye} +/- {np.std(Qe)} \t Amp e {np.abs(xe+1j*ye)}')
@@ -343,8 +342,7 @@ class HistogramExperiment(Experiment):
         cfg.expt.pulse_e = False
         cfg.expt.pulse_f = False
         histpro = HistogramProgram(soccfg=self.soccfg, cfg=cfg)
-        print(self.im[self.cfg.aliases.soc])
-        avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress)
+        avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress);
         data['Ig'], data['Qg'] = histpro.collect_shots()
 
         # Excited state shots
@@ -401,8 +399,10 @@ class HistogramExperiment(Experiment):
         if self.cfg.expt.check_f:
             print(f'threshold gf: {thresholds[1]}')
             print(f'threshold ef: {thresholds[2]}')
-
+        qubit = self.cfg.expt.qubits[0]
         imname = self.fname.split("\\")[-1]
+        fig.suptitle(f'Single Shot Histogram Analysis Q{qubit}')
+        fig.tight_layout()
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
     def save_data(self, data=None):
@@ -472,7 +472,7 @@ class SingleShotOptExperiment(Experiment):
                     check_e = True
                     
                     shot.cfg.expt = dict(reps=self.cfg.expt.reps, check_e=check_e, check_f=check_f, qubit=self.cfg.expt.qubit, save_data=self.cfg.expt.save_data, qubits=self.cfg.expt.qubits, qubit_chan = self.cfg.expt.qubit_chan)
-                    shot.go(analyze=False, display=False, progress=progress, save=False)
+                    shot.go(analyze=False, display=False, progress=progress, save=False);
                     Ig[-1][-1].append(shot.data['Ig']); Ie[-1][-1].append(shot.data['Ie']); 
                     Qg[-1][-1].append(shot.data['Qg']); Qe[-1][-1].append(shot.data['Qe'])
                     if check_f: If[-1][-1].append(shot.data['If']); Qf[-1][-1].append(shot.data['Qf'])
@@ -509,6 +509,9 @@ class SingleShotOptExperiment(Experiment):
         print(lenpts)
         print(f'Max fidelity {100*fid[imax]} %')
         print(f'Set params: \n angle (deg) {-angle[imax]} \n threshold {threshold[imax]} \n freq [Mhz] {fpts[imax[0]]} \n Gain [DAC units] {gainpts[imax[1]]} \n readout length [us] {lenpts[imax[2]]}')
+        self.data['freq'] = fpts[imax[0]]
+        self.data['gain'] = gainpts[imax[1]]
+        self.data['length'] = lenpts[imax[2]]
 
         return imax
 
@@ -517,7 +520,7 @@ class SingleShotOptExperiment(Experiment):
             data=self.data 
         
         fid = data['fid']
-        
+    
         fpts = data['fpts'] # outer sweep, index 0
         gainpts = data['gainpts'] # middle sweep, index 1
         lenpts = data['lenpts'] # inner sweep, index 2
@@ -529,7 +532,7 @@ class SingleShotOptExperiment(Experiment):
         # else:
         #     sweep2d= False
         #     sweep3d = False
-        
+        fig = plt.figure(figsize=(9,5.5))
         if len(fpts)>1: 
             xval = fpts
             xlabel='Frequency [MHz]'
@@ -558,6 +561,8 @@ class SingleShotOptExperiment(Experiment):
         plt.xlabel(xlabel)
         plt.ylabel(f'Fidelity [%]')
         plt.legend()
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         plt.show()
 
     def save_data(self, data=None):

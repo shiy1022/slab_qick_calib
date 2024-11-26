@@ -283,7 +283,7 @@ class RamseyEchoExperiment(Experiment):
         if data is None:
             data=self.data
 
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(8, 5))
         plt.subplot(111,title=f"Ramsey Echo (Ramsey Freq: {self.cfg.expt.ramsey_freq} MHz)",
                     xlabel="Wait Time [us]", ylabel="Amplitude [ADC level]")
         plt.plot(data["xpts"][:-1], data["amps"][:-1],'o-')
@@ -306,7 +306,7 @@ class RamseyEchoExperiment(Experiment):
         plt.show()
 
         qubit = self.cfg.expt.qubit
-        fig=plt.figure(figsize=(10,9))
+        fig=plt.figure(figsize=(8,7))
         plt.subplot(211, 
             title=f"Ramsey Echo Q{qubit} (Ramsey Freq: {self.cfg.expt.ramsey_freq} MHz)",
             ylabel="I [ADC level]")
@@ -321,12 +321,12 @@ class RamseyEchoExperiment(Experiment):
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[3]), color='0.2', linestyle='--')
             plt.legend()
             print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
-            print(f'Fit frequency from I [MHz]: {p[1]} +/- {np.sqrt(pCov[1][1])}')
+            print(f'Fit frequency from I [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
             if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
             # print('Suggested new qubit frequency from fit I [MHz]:\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][0]}\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][1]}')
-            print(f'T2 Echo from fit I [us]: {p[3]}')
+            print(f'T2 Echo from fit I [us]: {p[3]:.3}')
         if debug: 
             pinit = data['init_guess_amps']
             print(pinit)
@@ -343,15 +343,16 @@ class RamseyEchoExperiment(Experiment):
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[3]), color='0.2', linestyle='--')
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[3]), color='0.2', linestyle='--')
             plt.legend()
-            print(f'Fit frequency from Q [MHz]: {p[1]} +/- {np.sqrt(pCov[1][1])}')
+            print(f'Fit frequency from Q [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
             if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
             # print('Suggested new qubit frequencies from fit Q [MHz]:\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgq"][0]}\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgq"][1]}')
-            print(f'T2 Echo from fit Q [us]: {p[3]}')
+            print(f'T2 Echo from fit Q [us]: {p[3]:.3}')
         plt.tight_layout()
 
         imname = self.fname.split("\\")[-1]
+        fig.tight_layout()
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         plt.show()
 

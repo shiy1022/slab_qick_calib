@@ -8,7 +8,7 @@ from tqdm import tqdm_notebook as tqdm
 
 import experiments.fitting as fitter
 
-class RamseyProgram(RAveragerProgram):
+class RamseyStarkProgram(RAveragerProgram):
     def __init__(self, soccfg, cfg):
         self.cfg = AttrDict(cfg)
         self.cfg.update(self.cfg.expt)
@@ -18,6 +18,18 @@ class RamseyProgram(RAveragerProgram):
         self.cfg.rounds = cfg.expt.rounds
         
         super().__init__(soccfg, self.cfg)
+
+
+    def reset_ts(self):
+        """
+        Reset the soft accumulated dac and adc timestamps.
+        This is usually automatically done in sync_all(). However, when the pulse_length/trigger_time is controlled by 
+        FPGA registers, the soft counted timestamp will not work, and we have to call this manually.
+        :return: 
+        """
+        # Timestamps, for keeping track of pulse and readout end times.
+        self._dac_ts = [0] * len(self._dac_ts)
+        self._adc_ts = [0] * len(self._adc_ts)
 
     def initialize(self):
         cfg = AttrDict(self.cfg)
@@ -87,10 +99,12 @@ class RamseyProgram(RAveragerProgram):
         # declare registers for phase incrementing
         self.r_wait = 3
         self.r_phase2 = 4
+        self.r_mode2 = 5
         if self.qubit_ch_types[qTest] == 'int4':
             self.r_phase = self.sreg(self.qubit_chs[qTest], "freq")
             self.r_phase3 = 5 # for storing the left shifted value
         else: self.r_phase = self.sreg(self.qubit_chs[qTest], "phase")
+        self.r_mode=self.sreg(self.qubit_chs[qTest], "mode")  # length register is packed in the last 16 bits of mode register
 
         # define pisigma_ge as the ge pulse for the qubit that we are calibrating the pulse on
         self.pisigma_ge = self.us2cycles(cfg.device.qubit.pulses.pi_ge.sigma[qTest], gen_ch=self.qubit_chs[qTest]) # default pi_ge value
@@ -123,8 +137,7 @@ class RamseyProgram(RAveragerProgram):
         if self.acStark: 
             self.stark_freq = self.freq2reg(cfg.expt.stark_freq, gen_ch=self.qubit_chs[qTest])
             self.stark_gain = self.cfg.expt.stark_gain # gain of the pulse we are trying to calibrate
-        print(self.f_pi_test_reg)
-        print(self.f_ge_reg[qTest])
+
         # add qubit pulses to respective channels
         self.add_gauss(ch=self.qubit_chs[qTest], name="pi2_test", sigma=self.pi2sigma, length=self.pi2sigma*4)
         if self.checkZZ:
@@ -141,7 +154,9 @@ class RamseyProgram(RAveragerProgram):
         # initialize wait registers
         self.safe_regwi(self.q_rps[qTest], self.r_wait, self.us2cycles(cfg.expt.start))
         self.safe_regwi(self.q_rps[qTest], self.r_phase2, 0) 
-
+        self.safe_regwi(self.q_rps[qTest], self.r_mode2, self.us2cycles(cfg.expt.start, gen_ch=self.qubit_chs[qTest])) 
+        #print(self.us2cycles(cfg.expt.start, gen_ch=self.qubit_chs[qTest]))
+        #print(self.us2cycles(cfg.expt.start))
         self.sync_all(200)
 
     def body(self):
@@ -168,22 +183,24 @@ class RamseyProgram(RAveragerProgram):
         # play pi/2 pulse with the freq that we want to calibrate
         self.setup_and_pulse(ch=self.qubit_chs[qTest], style="arb", freq=self.f_pi_test_reg, phase=0, gain=self.gain_pi_test, waveform="pi2_test")
 
-        # wait advanced wait time
         self.sync_all()
         if self.acStark:
-            self.stark_time = self.us2cycles(self.r_wait, gen_ch=self.qubit_chs[qTest])
+            #self.stark_time = self.us2cycles(self.r_wait, gen_ch=self.qubit_chs[qTest])
             self.set_pulse_registers(
                     ch=self.qubit_chs[qTest],
                     style="const",
                     freq=self.stark_freq,
                     phase=0,
                     gain=self.stark_gain, # gain set by update
-                    length=self.stark_time)
+                    length=self.us2cycles(50))
+            self.mathi(self.q_rps[qTest], self.r_mode, self.r_mode2, '+', 0)
                 #self.mathi(self.q_rps[qTest], self.r_gain, self.r_gain2, "+", 0)
             self.pulse(ch=self.qubit_chs[qTest])
 
             #self.setup_and_pulse(ch=self.qubit_chs[qTest], style="arb", freq=self.stark_freq, phase=0, gain=self.stark_gain, waveform="stark_test")
         self.sync(self.q_rps[qTest], self.r_wait)
+        
+        #self.reset_ts()
 
         self.set_pulse_registers(
                     ch=self.qubit_chs[qTest],
@@ -223,8 +240,14 @@ class RamseyProgram(RAveragerProgram):
         self.mathi(self.q_rps[qTest], self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update the time between two π/2 pulses
         self.mathi(self.q_rps[qTest], self.r_phase2, self.r_phase2, '+', phase_step) # advance the phase of the LO for the second π/2 pulse
 
+        #step_reg_tproc = self.us2cycles(self.cfg.expt.step) # note that the waiting happens on tproc
+        step_reg_gen = self.us2cycles(self.cfg.expt.step, gen_ch=self.qubit_chs[qTest]) # but the pulse length is controlled in generator
+        # update length of the pulse and the waiting time after the pulse
+        self.mathi(self.q_rps[qTest], self.r_mode2, self.r_mode2, '+', step_reg_gen)
+        #self.mathi(self.q_rps[qTest], self.res_r_length2, self.res_r_length2, '+', step_reg_tproc)
 
-class RamseyExperiment(Experiment):
+
+class RamseyStarkExperiment(Experiment):
     """
     Ramsey experiment
     Experimental Config:
@@ -257,8 +280,8 @@ class RamseyExperiment(Experiment):
                 elif not(isinstance(value, list)):
                     subcfg.update({key: [value]*num_qubits_sample})
 
-        ramsey = RamseyProgram(soccfg=self.soccfg, cfg=self.cfg)
-        print(ramsey)
+        ramsey = RamseyStarkProgram(soccfg=self.soccfg, cfg=self.cfg)
+        #print(ramsey)
         
         x_pts, avgi, avgq = ramsey.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
  
@@ -440,6 +463,244 @@ class RamseyExperiment(Experiment):
         plt.tight_layout()
         plt.show()
 
+    def save_data(self, data=None):
+        print(f'Saving {self.fname}')
+        super().save_data(data=data)
+        return self.fname
+    
+
+class RamseyStarkFreqExperiment(Experiment):
+    """
+    Stark Power Rabi Experiment
+    Experimental Config:
+    expt = dict(
+        start_f: start qubit frequency (MHz), 
+        step_f: frequency step (MHz), 
+        expts_f: number of experiments in frequency,
+        start_gain: qubit gain [dac level]
+        step_gain: gain step [dac level]
+        expts_gain: number steps
+        reps: number averages per expt
+        rounds: number repetitions of experiment sweep
+        sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
+        pulse_type: 'gauss' or 'const'
+    )
+    """
+
+    def __init__(self, soccfg=None, path='', prefix='RamseyStarkFreq', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+
+    def acquire(self, progress=False, debug=False):
+        # expand entries in config that are length 1 to fill all qubits
+        num_qubits_sample = len(self.cfg.device.qubit.f_ge)
+        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
+            for key, value in subcfg.items() :
+                if isinstance(value, dict):
+                    for key2, value2 in value.items():
+                        for key3, value3 in value2.items():
+                            if not(isinstance(value3, list)):
+                                value2.update({key3: [value3]*num_qubits_sample})                                
+                elif not(isinstance(value, list)):
+                    subcfg.update({key: [value]*num_qubits_sample})
+
+        if self.cfg.expt.checkZZ:
+            assert len(self.cfg.expt.qubits) == 2
+            qZZ, qTest = self.cfg.expt.qubits
+            assert qZZ != 1
+            assert qTest == 1
+        else: qTest = self.cfg.expt.qubits[0]
+
+        freqpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
+        data={"xpts":[], "freqpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
+        adc_ch = self.cfg.hw.soc.adcs.readout.ch
+
+        for freq in tqdm(freqpts):
+            self.cfg.expt.stark_freq = freq
+            rstark = RamseyStarkProgram(soccfg=self.soccfg, cfg=self.cfg)
+        
+            xpts, avgi, avgq = rstark.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
+        
+            avgi = avgi[0][0]
+            avgq = avgq[0][0]
+            amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
+            phases = np.angle(avgi+1j*avgq) # Calculating the phase        
+
+            data["avgi"].append(avgi)
+            data["avgq"].append(avgq)
+            data["amps"].append(amps)
+            data["phases"].append(phases)
+        
+        data['xpts'] = xpts
+        data['freqpts'] = freqpts
+        for k, a in data.items():
+            data[k] = np.array(a)
+        self.data=data
+        return data
+
+    def analyze(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data
+        pass
+
+    def display(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data 
+        
+        x_sweep = data['xpts']
+        y_sweep = data['freqpts']
+        avgi = data['avgi']
+        avgq = data['avgq']
+
+        fig=plt.figure(figsize=(10,8))
+        plt.subplot(211, title="Frequency Stark Ramsey", ylabel="Frequency [MHz]")
+        plt.imshow(
+            np.flip(avgi, 0),
+            cmap='viridis',
+            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+            aspect='auto')
+        plt.colorbar(label='I [ADC level]')
+        plt.clim(vmin=None, vmax=None)
+        # plt.axvline(1684.92, color='k')
+        # plt.axvline(1684.85, color='r')
+
+        plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Frequency [MHz]")
+        plt.imshow(
+            np.flip(avgq, 0),
+            cmap='viridis',
+            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+            aspect='auto')
+        plt.colorbar(label='Q [ADC level]')
+        plt.clim(vmin=None, vmax=None)
+        
+        if fit: pass
+
+        plt.tight_layout()
+        plt.show()
+        
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        plt.show()
+
+        
+    def save_data(self, data=None):
+        print(f'Saving {self.fname}')
+        super().save_data(data=data)
+        return self.fname
+    
+class RamseyStarkPowerExperiment(Experiment):
+    """
+    Stark Power Rabi Experiment
+    Experimental Config:
+    expt = dict(
+        start_f: start qubit frequency (MHz), 
+        step_f: frequency step (MHz), 
+        expts_f: number of experiments in frequency,
+        start_gain: qubit gain [dac level]
+        step_gain: gain step [dac level]
+        expts_gain: number steps
+        reps: number averages per expt
+        rounds: number repetitions of experiment sweep
+        sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
+        pulse_type: 'gauss' or 'const'
+    )
+    """
+
+    def __init__(self, soccfg=None, path='', prefix='RamseyStarkFreq', config_file=None, progress=None, im=None):
+        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+
+    def acquire(self, progress=False, debug=False):
+        # expand entries in config that are length 1 to fill all qubits
+        num_qubits_sample = len(self.cfg.device.qubit.f_ge)
+        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
+            for key, value in subcfg.items() :
+                if isinstance(value, dict):
+                    for key2, value2 in value.items():
+                        for key3, value3 in value2.items():
+                            if not(isinstance(value3, list)):
+                                value2.update({key3: [value3]*num_qubits_sample})                                
+                elif not(isinstance(value, list)):
+                    subcfg.update({key: [value]*num_qubits_sample})
+
+        if self.cfg.expt.checkZZ:
+            assert len(self.cfg.expt.qubits) == 2
+            qZZ, qTest = self.cfg.expt.qubits
+            assert qZZ != 1
+            assert qTest == 1
+        else: qTest = self.cfg.expt.qubits[0]
+
+        gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
+        gainpts = gainpts.astype(int)
+        data={"xpts":[], "freqpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
+        adc_ch = self.cfg.hw.soc.adcs.readout.ch
+
+        for gain in tqdm(gainpts):
+            self.cfg.expt.stark_gain = gain
+            rstark = RamseyStarkProgram(soccfg=self.soccfg, cfg=self.cfg)
+        
+            xpts, avgi, avgq = rstark.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
+        
+            avgi = avgi[0][0]
+            avgq = avgq[0][0]
+            amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
+            phases = np.angle(avgi+1j*avgq) # Calculating the phase        
+
+            data["avgi"].append(avgi)
+            data["avgq"].append(avgq)
+            data["amps"].append(amps)
+            data["phases"].append(phases)
+        
+        data['xpts'] = xpts
+        data['gainpts'] = gainpts
+        for k, a in data.items():
+            data[k] = np.array(a)
+        self.data=data
+        return data
+
+    def analyze(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data
+        pass
+
+    def display(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data 
+        
+        x_sweep = data['xpts']
+        y_sweep = data['gainpts']
+        avgi = data['avgi']
+        avgq = data['avgq']
+
+        fig=plt.figure(figsize=(10,8))
+        plt.subplot(211, title="Gain Stark Ramsey", ylabel="Gain [DAC]")
+        plt.imshow(
+            np.flip(avgi, 0),
+            cmap='viridis',
+            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+            aspect='auto')
+        plt.colorbar(label='I [ADC level]')
+        plt.clim(vmin=None, vmax=None)
+        # plt.axvline(1684.92, color='k')
+        # plt.axvline(1684.85, color='r')
+
+        plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Frequency [MHz]")
+        plt.imshow(
+            np.flip(avgq, 0),
+            cmap='viridis',
+            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
+            aspect='auto')
+        plt.colorbar(label='Q [ADC level]')
+        plt.clim(vmin=None, vmax=None)
+        
+        if fit: pass
+
+        plt.tight_layout()
+        plt.show()
+        
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        plt.show()
+
+        
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
         super().save_data(data=data)

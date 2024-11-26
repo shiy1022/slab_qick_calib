@@ -156,7 +156,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
         self.data=data
         return data
 
-    def analyze(self, data=None, fit=False, signs=[1,1,1], **kwargs):
+    def analyze(self, data=None, fit=True, signs=[1,1,1], **kwargs):
         if data is None:
             data=self.data
         if fit:
@@ -164,9 +164,16 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             data['fit_amps'], data['fit_err_amps'] = fitter.fitlor(xdata, signs[0]*data['amps'][1:-1])
             data['fit_avgi'], data['fit_err_avgi'] = fitter.fitlor(xdata, signs[1]*data['avgi'][1:-1])
             data['fit_avgq'], data['fit_err_avgq'] = fitter.fitlor(xdata, signs[2]*data['avgq'][1:-1])
+
+            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.lorfunc)
+            data['best_fit']=fit_pars
+            print('Best fit:', i_best)
+
+            i_best = i_best.encode("ascii", "ignore")
+            data['i_best']=i_best
         return data
 
-    def display(self, data=None, fit=False, signs=[1,1,1], **kwargs):
+    def display(self, data=None, fit=True, signs=[1,1,1], **kwargs):
         if data is None:
             data=self.data 
 

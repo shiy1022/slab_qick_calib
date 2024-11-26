@@ -19,16 +19,14 @@ def check_readout(soc, expt_path, cfg_file, qubit_i, im=None, span=8, npts=201, 
             chi.data['fit'][0] + chi.cfg.hw.soc.dacs.readout.mixer_freq
     else:
         xpts = chi.data['xpts']
-    fig, ax = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
+    fig, ax = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
     ax[0].plot(xpts, rspec.data['amps'], label='No Pulse')
-    ax[2].plot(xpts, rspec.data['avgi'])
-    ax[3].plot(xpts, rspec.data['avgq'])
+    ax[2].plot(xpts[1:-1], rspec.data['phase_fix'])
 
     ax[0].set_title(f'Chi Measurement Q{qubit_i}')
 
     ax[0].plot(xpts, chi.data['amps'], label='e pulse')
-    ax[2].plot(xpts, chi.data['avgi'], label='e pulse')
-    ax[3].plot(xpts, chi.data['avgq'], label='e pulse')
+    ax[2].plot(xpts[1:-1], chi.data['phase_fix'], label='e pulse')
 
     ax[1].plot(xpts, rspec.data['amps']-chi.data['amps'])
     arg=np.argmax(np.abs(rspec.data['amps'])-np.abs(chi.data['amps']))
@@ -36,8 +34,7 @@ def check_readout(soc, expt_path, cfg_file, qubit_i, im=None, span=8, npts=201, 
     chi_val = xpts[arg2]-xpts[arg]
     if check_f:
         ax[0].plot(chif.data['xpts'], chif.data['amps'], label='f pulse')
-        ax[2].plot(chif.data['xpts'], chif.data['avgi'], label='f pulse')
-        ax[3].plot(chif.data['xpts'], chif.data['avgq'], label='f pulse')
+        ax[2].plot(chif.data['xpts'][1:-1], chif.data['phase_fix'], label='f pulse')
     
     #ax[0].plot(xpts, fitter.hangerS21func_sloped(xpts, *rspec.data["fit"]),'k')
     #ax[0].plot(xpts, fitter.hangerS21func_sloped(xpts, *chi.data["fit"]),'k')
@@ -55,8 +52,7 @@ def check_readout(soc, expt_path, cfg_file, qubit_i, im=None, span=8, npts=201, 
 
     if check_f:
         ax[0].plot(chif.data['xpts'], chif.data['amps'], label='f pulse')
-        ax[2].plot(chif.data['xpts'], chif.data['avgi'], label='f pulse')
-        ax[3].plot(chif.data['xpts'], chif.data['avgq'], label='f pulse')
+        ax[2].plot(chif.data['xpts'][1:-1], chif.data['phase_fix'], label='f pulse')
 
     ax[0].plot(xpts, fitter.hangerS21func_sloped(xpts, *rspec.data["fit"]),'k')
     ax[0].plot(xpts, fitter.hangerS21func_sloped(xpts, *chi.data["fit"]),'k')

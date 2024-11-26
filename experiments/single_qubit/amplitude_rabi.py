@@ -360,7 +360,6 @@ class AmplitudeRabiExperiment(Experiment):
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.sinfunc)
             r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.sinfunc, fit_pars)
             print(r2)
-            
             data['best_fit']=fit_pars
             print('Best fit:', i_best)
 
@@ -422,7 +421,7 @@ class AmplitudeRabiExperiment(Experiment):
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
-        fig=plt.figure(figsize=(8,10))
+        fig=plt.figure(figsize=(9,7))
         plt.subplot(211, title=title, ylabel="I [ADC units]")
         plt.plot(data["xpts"][1:-1], data["avgi"][1:-1],'o-')
         if fit:
@@ -565,7 +564,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
         # plt.axvline(1684.92, color='k')
         # plt.axvline(1684.85, color='r')
 
-        plt.subplot(212, xlabel="Gain [dac units]", ylabel="Frequency [MHz]")
+        plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Frequency [MHz]")
         plt.imshow(
             np.flip(avgq, 0),
             cmap='viridis',
@@ -578,9 +577,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
 
         plt.tight_layout()
         plt.show()
-
-        plt.plot(y_sweep, data['amps'][:,-1])
-        plt.title(f'Gain {x_sweep[-1]}')
+        
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         plt.show()

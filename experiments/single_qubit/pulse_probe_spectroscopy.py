@@ -173,6 +173,13 @@ class PulseProbeSpectroscopyExperiment(Experiment):
             data['fit_amps'], data['fit_err_amps'] = fitter.fitlor(xdata, signs[0]*data['amps'][1:-1])
             data['fit_avgi'], data['fit_err_avgi'] = fitter.fitlor(xdata, signs[1]*data['avgi'][1:-1])
             data['fit_avgq'], data['fit_err_avgq'] = fitter.fitlor(xdata, signs[2]*data['avgq'][1:-1])
+
+            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.lorfunc)
+            data['best_fit']=fit_pars
+            print('Best fit:', i_best)
+
+            i_best = i_best.encode("ascii", "ignore")
+            data['i_best']=i_best
         return data
 
     def display(self, data=None, fit=True, signs=[1,1,1], coarse=False, **kwargs):
@@ -193,13 +200,13 @@ class PulseProbeSpectroscopyExperiment(Experiment):
                 print(f'Found peak in amps at [MHz] {data["coarse_peaks_x"][i]}')
         if fit:
             plt.plot(xpts, signs[0]*fitter.lorfunc(data["xpts"][1:-1], *data["fit_amps"]))
-            print(f'Found peak in amps at [MHz] {data["fit_amps"][2]}, HWHM {data["fit_amps"][3]}')
+            print(f'Found peak in amps at [MHz] {data["fit_amps"][2]:.4f}, HWHM {data["fit_amps"][3]:.4f}')
 
         plt.subplot(312, ylabel="I [ADC units]")
         plt.plot(xpts, data["avgi"][1:-1],'o-')
         if fit:
             plt.plot(xpts, signs[1]*fitter.lorfunc(data["xpts"][1:-1], *data["fit_avgi"]))
-            print(f'Found peak in I at [MHz] {data["fit_avgi"][2]}, HWHM {data["fit_avgi"][3]}')
+            print(f'Found peak in I at [MHz] {data["fit_avgi"][2]:.4f}, HWHM {data["fit_avgi"][3]:.4f}')
         plt.subplot(313, xlabel="Pulse Frequency (MHz)", ylabel="Q [ADC units]")
         plt.plot(xpts, data["avgq"][1:-1],'o-')
         # plt.axvline(3476, c='k', ls='--')
@@ -208,7 +215,7 @@ class PulseProbeSpectroscopyExperiment(Experiment):
         if fit:
             plt.plot(xpts, signs[2]*fitter.lorfunc(data["xpts"][1:-1], *data["fit_avgq"]))
             # plt.axvline(3593.2, c='k', ls='--')
-            print(f'Found peak in Q at [MHz] {data["fit_avgq"][2]}, HWHM {data["fit_avgq"][3]}')
+            print(f'Found peak in Q at [MHz] {data["fit_avgq"][2]:.4f}, HWHM {data["fit_avgq"][3]:.4f}')
 
         plt.tight_layout()
         plt.show()
@@ -277,7 +284,7 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
             # data["phases"].append([])
 
             qspec = PulseProbeSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
-            xpts, avgi, avgq = qspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)                        
+            xpts, avgi, avgq = qspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)                        
             avgi = avgi[0][0]
             avgq = avgq[0][0]
             amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
@@ -300,17 +307,18 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
         if data is None:
             data=self.data
         
-        # Lorentzian fit at highgain [DAC units] and lowgain [DAC units]
+        par_list =[]
+        # Lorentzian fit at 
         if fit:
-            if highgain == None: highgain = data['gainpts'][-1]
-            if lowgain == None: lowgain = data['gainpts'][0]
-            i_highgain = np.argmin(np.abs(data['gainpts']-highgain))
-            i_lowgain = np.argmin(np.abs(data['gainpts']-lowgain))
-            fit_highpow=fitter.fitlor(data["xpts"], data["amps"][i_highgain])
-            fit_lowpow=fitter.fitlor(data["xpts"], data["amps"][i_lowgain])
-            data['fit'] = [fit_highpow, fit_lowpow]
-            data['fit_gains'] = [highgain, lowgain]
-            data['lamb_shift'] = fit_highpow[2] - fit_lowpow[2]
+            for i in range(len(data['gainpts'])):
+                try:
+                    fit_pars, fit_errs=fitter.fitlor(data["xpts"], data["amps"][i])
+                    par_list.append(fit_pars)
+                except:
+                    par_list.append([np.nan, np.nan, np.nan, np.nan])
+            freqs = [par[2] for par in par_list]
+            data['freqs']=freqs
+            
         
         return data
 
