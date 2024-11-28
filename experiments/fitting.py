@@ -35,7 +35,7 @@ def get_best_fit(data, fitfunc=None, prefixes=['fit'], check_measures=('amps', '
             r2 = 1- ss_res_checks / ss_tot_checks
             par_error_norm=[]
             for fit, fit_err_check in zip(fits, fit_errs):
-                par_error_norm.append(np.mean(np.sqrt(np.abs(np.diag(fit_err_check)))/fit))
+                par_error_norm.append(np.mean(np.sqrt(np.abs(np.diag(fit_err_check)))/np.abs(fit)))
 
             par_error_norm=np.abs(par_error_norm)
             # override r2 value if fit is bad
@@ -71,6 +71,20 @@ def get_r2(xdata,ydata, fitfunc, fit_params):
     # R^2 value
     r2 = 1- ss_res / ss_tot
     return r2
+
+def fix_phase(p): 
+    if p[2] > 180: 
+        p[2] = p[2] - 360
+    elif p[2] < -180: 
+        p[2] = p[2] + 360
+    if p[2] < 0: 
+        pi_gain = (1/2 - p[2]/180)/2/p[1]
+    else: 
+        pi_gain= (3/2 - p[2]/180)/2/p[1]
+    return pi_gain
+
+  
+        
 # ====================================================== #
 
 def expfunc(x, *p):

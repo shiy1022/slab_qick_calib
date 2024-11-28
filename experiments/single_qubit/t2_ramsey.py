@@ -123,8 +123,8 @@ class RamseyProgram(RAveragerProgram):
         if self.acStark: 
             self.stark_freq = self.freq2reg(cfg.expt.stark_freq, gen_ch=self.qubit_chs[qTest])
             self.stark_gain = self.cfg.expt.stark_gain # gain of the pulse we are trying to calibrate
-        print(self.f_pi_test_reg)
-        print(self.f_ge_reg[qTest])
+        #print(self.f_pi_test_reg)
+        #print(self.f_ge_reg[qTest])
         # add qubit pulses to respective channels
         self.add_gauss(ch=self.qubit_chs[qTest], name="pi2_test", sigma=self.pi2sigma, length=self.pi2sigma*4)
         if self.checkZZ:
@@ -258,7 +258,7 @@ class RamseyExperiment(Experiment):
                     subcfg.update({key: [value]*num_qubits_sample})
 
         ramsey = RamseyProgram(soccfg=self.soccfg, cfg=self.cfg)
-        print(ramsey)
+        #print(ramsey)
         
         x_pts, avgi, avgq = ramsey.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
  
@@ -317,7 +317,15 @@ class RamseyExperiment(Experiment):
 
             t2r_fit, t2r_fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
             r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, t2r_fit)
-            print(r2)
+            print('R2:', r2)
+            data['r2']=r2
+            print('fit_err:', np.mean(np.abs(t2r_fit_err/t2r_fit)))
+            data['fit_err']=t2r_fit_err
+
+            data['best_fit'] = data[i_best]
+            i_best = i_best.encode("ascii", "ignore")
+            data['i_best']=i_best
+            print(f'Best fit: {i_best}')
 
             if self.cfg.expt.checkEF: 
                 f_pi_test = self.cfg.device.qubit.f_ef[self.cfg.expt.qubits[0]]
@@ -329,6 +337,7 @@ class RamseyExperiment(Experiment):
             else:       
                 new_freq = f_pi_test + t2r_adjust[1]
             data['new_freq']=new_freq
+            
         return data
 
     def display(self, data=None, fit=True, fit_twofreq=False,debug=False, **kwargs):
@@ -368,15 +377,17 @@ class RamseyExperiment(Experiment):
             if isinstance(p, (list, np.ndarray)): 
                 pCov = data['fit_err_amps']
                 captionStr = f'$T_2$ Ramsey fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+                captionStr += '\n'
+                captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *p), label=captionStr)
                 x0 = -(p[2]+180)/360/p[1]
                 plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.legend()
                 print(f'Current pi pulse frequency: {f_pi_test}')
-                print(f"Fit frequency from amps [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}")
+                #print(f"Fit frequency from amps [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}")
                 if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
-                print(f'T2 Ramsey from fit amps [us]: {p[3]:.3}')
+                #print(f'T2 Ramsey from fit amps [us]: {p[3]:.3}')
         if debug: 
             pinit = data['init_guess_amps']
             print(pinit)
@@ -391,19 +402,21 @@ class RamseyExperiment(Experiment):
             if isinstance(p, (list, np.ndarray)): 
                 pCov = data['fit_err_avgi']
                 captionStr = f'$T_2$ Ramsey fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+                captionStr += '\n'
+                captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *p), label=captionStr)
                 x0 = -(p[2]+180)/360/p[1]
                 plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.legend()
-                print(f'Fit frequency from I [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
+                #print(f'Fit frequency from I [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
                 if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
 
                 if fit_twofreq:
                     print('Beating frequency from fit I [MHz]:\n',
                           f'\t{f_pi_test + data["f_adjust_ramsey_avgi2"][0]}\n',
                           f'\t{f_pi_test + data["f_adjust_ramsey_avgi2"][1]}')
-                print(f'T2 Ramsey from fit I [us]: {p[3]:.3}')
+                #print(f'T2 Ramsey from fit I [us]: {p[3]:.3}')
         if debug: 
             pinit = data['init_guess_i']
             plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *pinit), label='Initial Guess')
@@ -416,28 +429,30 @@ class RamseyExperiment(Experiment):
             if isinstance(p, (list, np.ndarray)): 
                 pCov = data['fit_err_avgq']
                 captionStr = f'$T_2$ Ramsey fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+                captionStr += '\n'
+                captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *p), label=captionStr)
                 x0 = -(p[2]+180)/360/p[1]
                 plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.plot(data["xpts"][:-1], fitter.expfunc2(data['xpts'][:-1], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
                 plt.legend()
-                print(f'Fit frequency from Q [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
+                #print(f'Fit frequency from Q [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
                 if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
                 if fit_twofreq:
                     print('Beating frequency from fit Q [MHz]:\n',
                           f'\t{f_pi_test + data["f_adjust_ramsey_avgq2"][0]}\n',
                           f'\t{f_pi_test + data["f_adjust_ramsey_avgq2"][1]}')
-                print(f'T2 Ramsey from fit Q [us]: {p[3]}')
+                #print(f'T2 Ramsey from fit Q [us]: {p[3]}')
             if debug: 
                 pinit = data['init_guess_q']
                 plt.plot(data["xpts"][:-1], fitfunc(data["xpts"][:-1], *pinit), label='Initial Guess')
 
         imname = self.fname.split("\\")[-1]
-        fig.tight_layout()
+        #fig.tight_layout()
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
         print('New pi pulse frequency {:3.4f}:\n'.format(data['new_freq']))
-        plt.tight_layout()
+        #plt.tight_layout()
         plt.show()
 
     def save_data(self, data=None):

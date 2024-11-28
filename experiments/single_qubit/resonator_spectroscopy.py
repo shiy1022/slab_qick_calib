@@ -213,9 +213,9 @@ class ResonatorSpectroscopyExperiment(Experiment):
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
         phs_data = np.unwrap(data["phases"][1:-1])
-        phs_fix=data['phases'][1:-1]
-        #slope, intercept = np.polyfit(data['xpts'][1:-1], phs_data, 1)        
-        #phs_fix = phs_data-slope*data["xpts"][1:-1]-intercept
+        #phs_fix=data['phases'][1:-1]
+        slope, intercept = np.polyfit(data['xpts'][1:-1], phs_data, 1)        
+        phs_fix = phs_data-slope*data["xpts"][1:-1]-intercept
         data['phase_fix'] = phs_fix
         if findpeaks: 
             xdata = data["xpts"][1:-1]
@@ -252,7 +252,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
         fig=plt.figure(figsize=(10,7))
         plt.subplot(211, title=f"Resonator  Spectroscopy Q{qubit} at Gain {self.cfg.expt.gain}",  ylabel="Amps [ADC units]")
         
-        plt.plot(xpts, data['amps'][1:-1],'o-')
+        plt.plot(xpts, data['amps'][1:-1],'.-')
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
@@ -407,10 +407,9 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         #     y_sweep = np.log10(y_sweep)
 
         # THIS IS CORRECT EXTENT LIMITS FOR 2D PLOTS
-        fig=plt.figure(figsize=(10,8))
+        fig, ax =plt.subplots(1,1,figsize=(10,8))
         plt.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
         if 'log' in self.cfg.expt and self.cfg.expt.log:
-
             plt.yscale('log')
         if fit:
             fit_highpow, fit_lowpow = data['fit']
@@ -426,6 +425,9 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         plt.title(f"Resonator Spectroscopy Power Sweep Q{qubit}")
         plt.xlabel("Resonator Frequency [MHz]")
         plt.ylabel("Resonator Gain [DAC level]")
+
+        ax.tick_params(top=True, labeltop=False, bottom=True, labelbottom=True, right=True, labelright=False)
+
         # plt.clim(vmin=-0.2, vmax=0.2)
         #plt.clim(vmin=-10, vmax=5)
         plt.colorbar(label='Amps/Avg [ADC level]')

@@ -318,6 +318,7 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
                     par_list.append([np.nan, np.nan, np.nan, np.nan])
             freqs = [par[2] for par in par_list]
             data['freqs']=freqs
+            print(data['freqs'])
             
         
         return data

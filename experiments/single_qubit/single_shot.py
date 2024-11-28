@@ -265,11 +265,11 @@ class HistogramProgram(AveragerProgram):
             ro_ch = self.adc_chs[qTest]
 
         # Phase reset all channels
-        #print("using phase reset")
+        # print("using phase reset")
         # for ch in self.gen_chs.keys():
         #     if not self.res_ch_types[qTest] == 'mux4':#self.gen_chs[ch]['mux_freqs'] is None: # doesn't work for the mux channels # is None or ch in self.res_chs:
         #        self.setup_and_pulse(ch=ch, style='const', freq=self.f_res_reg[qTest], phase=0, gain=0, length=self.us2cycles(0.1), phrst=1)
-            #self.sync_all()
+        #     self.sync_all()
 
         if self.res_ch_types[qTest] == 'mux4':
             self.set_pulse_registers(ch=self.res_chs[qTest], style="const", length=self.readout_lengths_dac[qTest], mask=mask)

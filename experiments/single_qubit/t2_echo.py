@@ -271,7 +271,10 @@ class RamseyEchoExperiment(Experiment):
 
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.decaysin)
             r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.decaysin, fit_pars)
-            print(r2)
+            data['r2']=r2
+            print('R2:', r2)
+            print('fit_err:', np.mean(np.abs(fit_err/fit_pars)))
+            data['fit_err']=fit_err
             data['best_fit']=fit_pars
             print('Best fit is ' + i_best)
             # data['f_ge_adjust_ramsey_avgi'] = sorted((self.cfg.expt.ramsey_freq - p_avgi[1], -self.cfg.expt.ramsey_freq - p_avgi[1]), key=abs)
@@ -291,6 +294,8 @@ class RamseyEchoExperiment(Experiment):
             p = data['fit_amps']
             pCov = data['fit_err_amps']
             captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+            captionStr += '\n'
+            captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
             plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *p), label=captionStr)
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[5], p[3]), color='0.2', linestyle='--')
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[5], p[3]), color='0.2', linestyle='--')
@@ -315,18 +320,19 @@ class RamseyEchoExperiment(Experiment):
             p = data['fit_avgi']
             pCov = data['fit_err_avgi']
             captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+            captionStr += '\n'
+            captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
             plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *p), label=captionStr)
             x0 = -(p[2]+180)/360/p[1]
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[3]), color='0.2', linestyle='--')
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[3]), color='0.2', linestyle='--')
             plt.legend()
-            print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
-            print(f'Fit frequency from I [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
+            #print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
+            #print(f'Fit frequency from I [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
             if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
             # print('Suggested new qubit frequency from fit I [MHz]:\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][0]}\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][1]}')
-            print(f'T2 Echo from fit I [us]: {p[3]:.3}')
         if debug: 
             pinit = data['init_guess_amps']
             print(pinit)
@@ -338,23 +344,25 @@ class RamseyEchoExperiment(Experiment):
             p = data['fit_avgq']
             pCov = data['fit_err_avgq']
             captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
+            captionStr += '\n'
+            captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
             plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *p), label=captionStr)
             x0 = -(p[2]+180)/360/p[1]
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[3]), color='0.2', linestyle='--')
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[3]), color='0.2', linestyle='--')
             plt.legend()
-            print(f'Fit frequency from Q [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
+            #print(f'Fit frequency from Q [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
             if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
             # print('Suggested new qubit frequencies from fit Q [MHz]:\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgq"][0]}\n',
             #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgq"][1]}')
-            print(f'T2 Echo from fit Q [us]: {p[3]:.3}')
-        plt.tight_layout()
+        #plt.tight_layout()
 
+
+        plt.show()
         imname = self.fname.split("\\")[-1]
         fig.tight_layout()
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-        plt.show()
 
     def save_data(self, data=None):
         print(f'Saving {self.fname}')

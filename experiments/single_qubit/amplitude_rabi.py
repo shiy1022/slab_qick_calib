@@ -64,6 +64,7 @@ class AmplitudeRabiProgram(RAveragerProgram):
         self.cfg.update(cfg.expt)
         self.checkZZ = self.cfg.expt.checkZZ
         self.checkEF = self.cfg.expt.checkEF
+        self.checkCC = self.cfg.expt.checkCC
         if self.checkEF:
             if 'pulse_ge' not in self.cfg.expt: self.pulse_ge = True
             else: self.pulse_ge = self.cfg.expt.pulse_ge
@@ -77,6 +78,9 @@ class AmplitudeRabiProgram(RAveragerProgram):
             qZZ, qTest = self.qubits
             qSort = qZZ # qubit by which to index for parameters on qTest
             if qZZ == 1: qSort = qTest
+        elif self.checkCC:
+            qTest = self.qubits[0]
+            qMeas = self.qubits[1]
         else: qTest = self.qubits[0]
 
         self.adc_chs = cfg.hw.soc.adcs.readout.ch
@@ -114,8 +118,14 @@ class AmplitudeRabiProgram(RAveragerProgram):
             mux_gains = [0]*4
             mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain[qTest]
             ro_ch=self.adc_chs[qTest]
-        self.declare_gen(ch=self.res_chs[qTest], nqz=cfg.hw.soc.dacs.readout.nyquist[qTest], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
-        self.declare_readout(ch=self.adc_chs[qTest], length=self.readout_lengths_adc[qTest], freq=cfg.device.readout.frequency[qTest], gen_ch=self.res_chs[qTest])
+        
+        if not self.checkCC:
+            self.declare_gen(ch=self.res_chs[qTest], nqz=cfg.hw.soc.dacs.readout.nyquist[qTest], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
+            self.declare_readout(ch=self.adc_chs[qTest], length=self.readout_lengths_adc[qTest], freq=cfg.device.readout.frequency[qTest], gen_ch=self.res_chs[qTest])
+        else:
+            self.declare_gen(ch=self.res_chs[qMeas], nqz=cfg.hw.soc.dacs.readout.nyquist[qMeas], mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
+            self.declare_readout(ch=self.adc_chs[qMeas], length=self.readout_lengths_adc[qMeas], freq=cfg.device.readout.frequency[qMeas], gen_ch=self.res_chs[qMeas])
+
 
         # declare qubit dacs
         for q in self.qubits:
@@ -173,9 +183,15 @@ class AmplitudeRabiProgram(RAveragerProgram):
         if self.res_ch_types[qTest] == 'mux4':
             self.set_pulse_registers(ch=self.res_chs[qTest], style="const", length=self.readout_lengths_dac[qTest], mask=mask)
         else: 
-            self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], 
+            if not self.checkCC:
+                self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], 
                                      gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], 
                                      phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
+            else:
+                self.set_pulse_registers(ch=self.res_chs[qMeas], style="const", freq=self.f_res_reg[qMeas], 
+                                     gain=cfg.device.readout.gain[qMeas], length=self.readout_lengths_dac[qMeas], 
+                                     phase=self.deg2reg(-self.cfg.device.readout.phase[qMeas], gen_ch = self.res_chs[qMeas]))
+
 
         # initialize registers
         if self.qubit_ch_types[qTest] == 'int4':
@@ -359,9 +375,11 @@ class AmplitudeRabiExperiment(Experiment):
 
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.sinfunc)
             r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.sinfunc, fit_pars)
-            print(r2)
+            print('R2:', r2)
             data['best_fit']=fit_pars
             print('Best fit:', i_best)
+            print('fit_err:', np.mean(np.abs(fit_err/fit_pars)))
+            data['fit_err']=fit_err
 
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
@@ -392,66 +410,47 @@ class AmplitudeRabiExperiment(Experiment):
             qSort = qZZ # qubit by which to index for parameters on qTest
             if qZZ == 1: qSort = qTest
         else: qTest = self.cfg.expt.qubits[0]
+        if self.cfg.expt.checkCC:
+            qMeas = self.cfg.expt.qubits[1]
 
-        fig=plt.figure(figsize=(6, 4))
+        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
 
         title = f"Amplitude Rabi on Q{qTest} (Pulse Length {self.cfg.expt.sigma_test}"
         if self.checkZZ:
             title=title + ', ZZ Q'+str(qZZ)
         elif self.cfg.expt.checkEF: 
             title=title + ', EF)'
+        elif self.cfg.expt.checkCC:
+            title=title + ', CC Meas Q' +str(qMeas)
         else:
             title=title + ')'
-        
-        plt.subplot(111, title=title, xlabel="Gain [DAC units]", ylabel="Amplitude [ADC units]")
-        plt.plot(data["xpts"][1:-1], data["amps"][1:-1],'o-')
-        if fit:
-            p = data['fit_amps']
-            plt.plot(data["xpts"][1:-1], fitter.sinfunc(data["xpts"][1:-1], *p))
-            if p[2] > 180: p[2] = p[2] - 360
-            elif p[2] < -180: p[2] = p[2] + 360
-            if p[2] < 0: pi_gain = (1/2 - p[2]/180)/2/p[1]
-            else: pi_gain= (3/2 - p[2]/180)/2/p[1]
-            pi2_gain = pi_gain/2
-            print(f'Pi gain from amps data [dac units]: {int(pi_gain)}')
-            #print(f'\tPi/2 gain from amps data [dac units]: {int(pi2_gain)}')
-            plt.axvline(pi_gain, color='0.2', linestyle='--')
-            plt.axvline(pi2_gain, color='0.2', linestyle='--')
-        fig.tight_layout()
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        fig.suptitle(title)
 
-        fig=plt.figure(figsize=(9,7))
-        plt.subplot(211, title=title, ylabel="I [ADC units]")
-        plt.plot(data["xpts"][1:-1], data["avgi"][1:-1],'o-')
-        if fit:
-            p = data['fit_avgi']
-            plt.plot(data["xpts"][0:-1], fitter.sinfunc(data["xpts"][0:-1], *p))
-            if p[2] > 180: p[2] = p[2] - 360
-            elif p[2] < -180: p[2] = p[2] + 360
-            if p[2] < 0: pi_gain = (1/2 - p[2]/180)/2/p[1]
-            else: pi_gain= (3/2 - p[2]/180)/2/p[1]
-            pi2_gain = pi_gain/2
-            print(f'Pi gain from avgi data [dac units]: {int(pi_gain)}')
-            #print(f'\tPi/2 gain from avgi data [dac units]: {int(pi2_gain)}')
-            plt.axvline(pi_gain, color='0.2', linestyle='--')
-            plt.axvline(pi2_gain, color='0.2', linestyle='--')
-        plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Q [ADC units]")
-        plt.plot(data["xpts"][1:-1], data["avgq"][1:-1],'o-')
-        if fit:
-            p = data['fit_avgq']
-            plt.plot(data["xpts"][0:-1], fitter.sinfunc(data["xpts"][0:-1], *p))
-            if p[2] > 180: p[2] = p[2] - 360
-            elif p[2] < -180: p[2] = p[2] + 360
-            if p[2] < 0: pi_gain = (1/2 - p[2]/180)/2/p[1]
-            else: pi_gain= (3/2 - p[2]/180)/2/p[1]
-            pi2_gain = pi_gain/2
-            print(f'Pi gain from avgq data [dac units]: {int(pi_gain)}')
-            #print(f'\tPi/2 gain from avgq data [dac units]: {int(pi2_gain)}')
-            plt.axvline(pi_gain, color='0.2', linestyle='--')
-            plt.axvline(pi2_gain, color='0.2', linestyle='--')
-        fig.tight_layout()
+        xlabel = "Gain [DAC units]"
+        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+        ydata_lab = ['amps', 'avgi', 'avgq']
+        for i, ydata in enumerate(ydata_lab):
+            ax[i].plot(data["xpts"], data[ydata],'o-')
+
+            if fit:
+                p = data['fit_'+ydata]
+                pi_gain = fitter.fix_phase(p)
+                pi2_gain = pi_gain/2
+                if pi_gain is not np.nan: 
+                    caption = f'Pi gain [dac units]: {pi_gain:.0f}'
+                ax[i].plot(data["xpts"], fitter.sinfunc(data["xpts"], *p), label=caption)
+    
+                ax[i].axvline(pi_gain, color='0.2', linestyle='--')
+                ax[i].axvline(pi2_gain, color='0.2', linestyle='--')
+                ax[i].set_ylabel(ylabels[i])
+                ax[i].set_xlabel(xlabel)
+                ax[i].legend(loc='lower right')
+      
         plt.show()
+
+        imname = self.fname.split("\\")[-1]
+        fig.tight_layout()
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
@@ -575,7 +574,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
         
         if fit: pass
 
-        plt.tight_layout()
+        #plt.tight_layout()
         plt.show()
         
         imname = self.fname.split("\\")[-1]

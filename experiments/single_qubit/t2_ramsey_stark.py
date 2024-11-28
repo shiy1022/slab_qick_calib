@@ -408,7 +408,7 @@ class RamseyStarkExperiment(Experiment):
         plt.subplot(211, 
             title=f"{title} (Ramsey Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)",
             ylabel="I [ADC level]")
-        plt.plot(data["xpts"][:-1], data["avgi"][:-1],'o-')
+        plt.plot(data["xpts"][:-1], data["avgi"][:-1],'-')
         if fit:
             p = data['fit_avgi']
             if isinstance(p, (list, np.ndarray)): 

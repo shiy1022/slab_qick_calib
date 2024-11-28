@@ -31,11 +31,24 @@ def save(cfg, file_name):
 def recursive_get(d, keys):
     return reduce(lambda c, k: c.get(k, {}), keys, d)
 
-def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4):
+def in_rng(val, rng_vals):
+    if val < rng_vals[0]:
+        print('Val is out of range, setting to min')
+        return rng_vals[0]
+    elif val > rng_vals[1]:
+        print('Val is out of range, setting to max')
+        return rng_vals[1]
+    else:
+        return val
+    
+
+def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
     cfg=load(file_name)
     if not np.isnan(value):     
         if not isinstance(value, int):
             value=round(value, sig)
+        if rng_vals is not None:
+            value = in_rng(value, rng_vals)
         if isinstance(field, tuple): # for setting nested fields
             v=recursive_get(cfg['device']['qubit'], field)
             old_value=v[qubit_i]
@@ -52,9 +65,11 @@ def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4):
 
     return cfg 
 
-def update_readout(file_name, field, value, qubit_i, verbose=True, sig=4):
+def update_readout(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
     cfg=load(file_name)
-    if not np.isnan(value):        
+    if not np.isnan(value):
+        if rng_vals is not None:
+            value = in_rng(value, rng_vals)        
         value=round(value, sig)
         old_value = cfg['device']['readout'][field][qubit_i]
         cfg['device']['readout'][field][qubit_i] = value

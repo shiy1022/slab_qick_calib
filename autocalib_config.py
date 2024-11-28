@@ -140,7 +140,7 @@ def make_rspec_2d(cfg_dict, qubit_i=0, go=True, center=None, span=5, npts=200, r
 
     return rspec
 
-def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=5, npts_f=200, span_gain=27000, start_gain=5000, npts_gain=10, reps=None, rounds=None, smart=False, log=True, rng=200):
+def make_rpowspec(soc, expt_path, cfg_file, qubit_i, res_freq, im=None, span_f=15, npts_f=200, span_gain=27000, start_gain=5000, npts_gain=10, reps=None, rounds=None, smart=False, log=True, rng=200):
 
     prog = meas.ResonatorPowerSweepSpectroscopyExperiment(
         soccfg=soc,
@@ -285,7 +285,7 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None,
     prog.cfg.device.readout.relax_delay = 10 # Wait time between experiments [us]
     return prog
 
-def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=500, reps=None, rounds=None, wide=True, expts_gain=10, rng=200, len=50):
+def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=500, reps=None, rounds=None, wide=True, expts_gain=7, rng=100, len=50):
     prefix = f"qubit_spectroscopy_power_qubit{qubit_i}"
     prog = meas.PulseProbePowerSweepSpectroscopyExperiment(
     soccfg=soc,
@@ -421,7 +421,7 @@ def make_lengthrabi(soc, expt_path, cfg_file, qubit_i, im=None, npts = 100, reps
 
     return prog
 
-def make_amprabi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, sigma=None, npts = 100, reps = None, rounds=None, gain=None):
+def make_amprabi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, sigma=None, npts = 100, reps = None, rounds=None, gain=None, checkZZ=False):
     #auto_cfg.device.qubit.pulses.pi_ge.gain[qubit_i]
     prog = meas.AmplitudeRabiExperiment(
         soccfg=soc,
@@ -448,8 +448,9 @@ def make_amprabi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, sigma=Non
         reps=reps,
         rounds=rounds,
         sigma_test= sigma,
-        checkZZ=False,
+        checkZZ=checkZZ,
         checkEF=False, 
+        checkCC=False,
         qubits=[qubit_i],
         pulse_type='gauss',
         # pulse_type='const',
@@ -460,7 +461,93 @@ def make_amprabi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, sigma=Non
     if go: 
         prog.go(analyze=True, display=True, progress=True, save=True)
     
+    return prog
 
+def make_amprabi_zz(soc, expt_path, cfg_file, qubits, im=None, go=False, sigma=None, npts = 100, reps = None, rounds=None, gain=None, checkZZ=False):
+    #auto_cfg.device.qubit.pulses.pi_ge.gain[qubit_i]
+    qubit_i=qubits[0]
+    qubit_j=qubits[1]
+    prog = meas.AmplitudeRabiExperiment(
+        soccfg=soc,
+        path=expt_path,
+        prefix=f"amp_rabi_ZZ_qubit{qubit_i}{qubit_j}",
+        config_file=cfg_file,
+        im=im
+        )
+
+    if sigma is None: 
+        sigma=prog.cfg.device.qubit.pulses.pi_ge.sigma[qubit_i] # gaussian sigma for pulse length - overrides config [us]
+    if gain is None:
+        gain = prog.cfg.device.qubit.pulses.pi_ge.gain[qubit_i]*4
+        gain = int(safe_gain(gain))
+    span = gain
+    if reps is None:
+        reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base)
+    if rounds is None:
+        rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
+    prog.cfg.expt = dict(     
+        start=0,
+        step=int(span/npts), # [dac level]
+        expts=npts,
+        reps=reps,
+        rounds=rounds,
+        sigma_test= sigma,
+        checkZZ=checkZZ,
+        checkEF=False, 
+        checkCC=False,
+        qubits=qubits,
+        pulse_type='gauss',
+        # pulse_type='const',
+        num_pulses = 1, #number of pulses to play, must be an odd number in order to achieve a pi rotation at pi length/ num_pulses,
+        qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
+    )
+
+    if go: 
+        prog.go(analyze=True, display=True, progress=True, save=True)
+    
+    return prog
+
+def make_amprabi_cc(soc, expt_path, cfg_file, qubits, im=None, go=False, sigma=None, npts = 100, reps = None, rounds=None, gain=None):
+    #auto_cfg.device.qubit.pulses.pi_ge.gain[qubit_i]
+    prog = meas.AmplitudeRabiExperiment(
+        soccfg=soc,
+        path=expt_path,
+        prefix=f"amp_rabi_qubit{qubits[0]}_drive{qubits[1]}read",
+        config_file=cfg_file,
+        im=im
+        )
+    qubit_i=qubits[0]
+    qubit_j=qubits[1]
+    if sigma is None: 
+        sigma=prog.cfg.device.qubit.pulses.pi_ge.sigma[qubit_i] # gaussian sigma for pulse length - overrides config [us]
+    if gain is None:
+        gain = prog.cfg.device.qubit.pulses.pi_ge.gain[qubit_i]*4
+        gain = int(safe_gain(gain))
+    span = gain
+    if reps is None:
+        reps = int(prog.cfg.device.readout.reps[qubit_j]*reps_base)
+    if rounds is None:
+        rounds = int(prog.cfg.device.readout.rounds[qubit_j]*rounds_base)
+    prog.cfg.expt = dict(     
+        start=0,
+        step=int(span/npts), # [dac level]
+        expts=npts,
+        reps=reps,
+        rounds=rounds,
+        sigma_test= sigma,
+        checkZZ=False,
+        checkEF=False, 
+        checkCC=True,
+        qubits=qubits,
+        pulse_type='gauss',
+        # pulse_type='const',
+        num_pulses = 1, #number of pulses to play, must be an odd number in order to achieve a pi rotation at pi length/ num_pulses,
+        qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_j],
+    )
+
+    if go: 
+        prog.go(analyze=True, display=True, progress=True, save=True)
+    
     return prog
 
 def make_amprabi_chevron(soc, expt_path, cfg_file, qubit_i, im=None, span_gain=30000, npts_gain=75, start_gain=1000, span_f=20, npts_f=40, reps=None, rounds=None, sigma=0.2, go=True):
@@ -527,7 +614,7 @@ def make_t2r(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 100, r
         ramsey_freq = np.pi/2/prog.cfg.device.qubit.T2r[qubit_i]
 
     prog.cfg.expt = dict(
-        start=20, # wait time tau [us]
+        start=0, # wait time tau [us]
         #step=soc.cycles2us(10), # [us] make sure nyquist freq = 0.5 * (1/step) > ramsey (signal) freq!
         step= step, # [us]
         expts=npts,
@@ -681,7 +768,7 @@ def make_t2r_stark_amp(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npt
 
     return prog
 
-def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 100, reps = None, rounds=None, ramsey_freq=2.0, step=None):
+def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 100, reps = None, rounds=None, ramsey_freq=0.05, step=None):
 
     prog = meas.RamseyEchoExperiment(
         soccfg=soc,
@@ -699,7 +786,7 @@ def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 100, r
     if rounds is None:
         rounds = int(2*prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
     prog.cfg.expt = dict(
-        start=1, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
+        start=0.1, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
         step=step, #step,
         expts=npts,
         ramsey_freq=ramsey_freq, # frequency by which to advance phase [MHz]
@@ -715,7 +802,7 @@ def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 100, r
         prog.go(analyze=True, display=True, progress=True, save=True)
     return prog
 
-def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=100, reps=None, rounds=None, fine=False):
+def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=60, reps=None, rounds=None, fine=False):
 
     span = span 
     npts = npts
