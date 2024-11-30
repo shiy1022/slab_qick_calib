@@ -8,6 +8,7 @@ from tqdm import tqdm_notebook as tqdm
 
 import scipy as sp
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 import experiments.fitting as fitter
 
@@ -303,7 +304,8 @@ class AmplitudeRabiExperiment(Experiment):
 
         # print('FUNKY WARNING')
         # qZZ, qTest = self.cfg.expt.qubits
-
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         self.checkZZ = self.cfg.expt.checkZZ
         self.qubits = self.cfg.expt.qubits
         if self.checkZZ: # [x, 1] means test Q1 with ZZ from Qx; [1, x] means test Qx with ZZ from Q1, sort by Qx in both cases
@@ -335,16 +337,13 @@ class AmplitudeRabiExperiment(Experiment):
         # shots_q = amprabi.dq_buf[adc_ch] / amprabi.readout_length_adc
         # print(np.std(shots_i), np.std(shots_q))
         
-        # print('WARNING DOING SOMETHING FUNKY')
-        # avgi = avgi[qTest][0]
-        # avgq = avgq[qTest][0]
         avgi = avgi[0][0]
         avgq = avgq[0][0]
         amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
         phases = np.angle(avgi+1j*avgq) # Calculating the phase        
         
-        # data={'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases}
-        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases}
+        current_time = current_time.encode('ascii','replace')
+        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}        
         self.data=data
         return data
 
@@ -355,46 +354,30 @@ class AmplitudeRabiExperiment(Experiment):
         if fit:
             # fitparams=[amp, freq (non-angular), phase (deg), decay time, amp offset]
             # Remove the first and last point from fit in case weird edge measurements
-            xdata = data['xpts']
             fitparams=None
 
-            ydata = data["amps"]
             # print(abs(xdata[np.argwhere(ydata==max(ydata))[0,0]] - xdata[np.argwhere(ydata==min(ydata))[0,0]]))
             # fitparams=[max(ydata)-min(ydata), 1/2 / abs(xdata[np.argwhere(ydata==max(ydata))[0,0]] - xdata[np.argwhere(ydata==min(ydata))[0,0]]), None, None, None]
             # fitparams=[max(ydata)-min(ydata), 1/2 / (max(xdata) - min(xdata)), 0, None, None]
+            fitterfunc = fitter.fitsin
+            fitfunc=fitter.sinfunc
+            ydata_lab = ['amps', 'avgi', 'avgq']
+            for i, ydata in enumerate(ydata_lab):
+                data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'], data[ydata], fitparams=fitparams)
 
-            p_avgi, pCov_avgi = fitter.fitsin(data['xpts'][:-1], data["avgi"][:-1], fitparams=fitparams)
-            p_avgq, pCov_avgq = fitter.fitsin(data['xpts'][:-1], data["avgq"][:-1], fitparams=fitparams)
-            p_amps, pCov_amps = fitter.fitsin(data['xpts'][:-1], data["amps"][:-1], fitparams=fitparams)
-            data['fit_avgi'] = p_avgi   
-            data['fit_avgq'] = p_avgq
-            data['fit_amps'] = p_amps
-            data['fit_err_avgi'] = pCov_avgi
-            data['fit_err_avgq'] =  pCov_avgq
-            data['fit_err_amps'] =  pCov_amps
-
-            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.sinfunc)
-            r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.sinfunc, fit_pars)
+            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
+            r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
             print('R2:', r2)
+            data['r2']=r2
             data['best_fit']=fit_pars
             print('Best fit:', i_best)
-            print('fit_err:', np.mean(np.abs(fit_err/fit_pars)))
-            data['fit_err']=fit_err
+            data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
+            print('fit_err:', data['fit_err'])
 
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
 
-            data['fit_err_avgi'] = np.sqrt(np.diag(pCov_avgi))
-            data['fit_err_avgq'] = np.sqrt(np.diag(pCov_avgq))
-            data['fit_err_amps'] = np.sqrt(np.diag(pCov_amps))
-
-            p = data['best_fit']     
-            if p[2] > 180: p[2] = p[2] - 360
-            elif p[2] < -180: p[2] = p[2] + 360
-            if p[2] < 0: 
-                pi_length = (1/2 - p[2]/180)/2/p[1]
-            else: 
-                pi_length= (3/2 - p[2]/180)/2/p[1]
+            pi_length = fitter.fix_phase(data['best_fit'])
             data['pi_length']=pi_length
 
         return data
@@ -413,17 +396,18 @@ class AmplitudeRabiExperiment(Experiment):
         if self.cfg.expt.checkCC:
             qMeas = self.cfg.expt.qubits[1]
 
-        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
 
         title = f"Amplitude Rabi on Q{qTest} (Pulse Length {self.cfg.expt.sigma_test}"
         if self.checkZZ:
-            title=title + ', ZZ Q'+str(qZZ)
+            title=title + ', ZZ Q'+str(qZZ)+')'
         elif self.cfg.expt.checkEF: 
             title=title + ', EF)'
         elif self.cfg.expt.checkCC:
-            title=title + ', CC Meas Q' +str(qMeas)
+            title=title + ', CC Meas Q' +str(qMeas)+')'
         else:
             title=title + ')'
+
+        fig, ax=plt.subplots(3, 1, figsize=(9, 11))
         fig.suptitle(title)
 
         xlabel = "Gain [DAC units]"
@@ -542,7 +526,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
             data=self.data
         pass
 
-    def display(self, data=None, fit=True, **kwargs):
+    def display(self, data=None, fit=True,  **kwargs):
         if data is None:
             data=self.data 
         

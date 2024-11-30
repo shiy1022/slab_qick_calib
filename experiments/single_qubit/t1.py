@@ -141,7 +141,7 @@ class T1Experiment(Experiment):
                                 value2.update({key3: value3[q_ind]})                                
 
         t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
+        xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]
@@ -149,8 +149,7 @@ class T1Experiment(Experiment):
         phases = np.angle(avgi+1j*avgq) # Calculating the phase        
         
         current_time = current_time.encode('ascii','replace')
-
-        data={'xpts': x_pts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}
+        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}
         self.data=data
         return data
 
@@ -160,29 +159,25 @@ class T1Experiment(Experiment):
             
         # fitparams=[y-offset, amp, x-offset, decay rate]
         # Remove the last point from fit in case weird edge measurements
-        data['fit_amps'], data['fit_err_amps'] = fitter.fitexp(data['xpts'][:-1], data['amps'][:-1], fitparams=None)
-        data['fit_avgi'], data['fit_err_avgi'] = fitter.fitexp(data['xpts'][:-1], data['avgi'][:-1], fitparams=None)
-        data['fit_avgq'], data['fit_err_avgq'] = fitter.fitexp(data['xpts'][:-1], data['avgq'][:-1], fitparams=None)
+        fitfunc = fitter.expfunc
+        fitterfunc=fitter.fitexp
+        ydata_lab = ['amps', 'avgi', 'avgq']
+        for i, ydata in enumerate(ydata_lab):
+            data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'], data[ydata], fitparams=None)
 
-        
-
-        fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.expfunc)
-        r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.expfunc, fit_pars)
+        fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
+        r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
         print('R2:', r2)
         data['r2']=r2
-        print('fit_err:', np.mean(np.abs(fit_err/fit_pars)))
-        data['fit_err']=fit_err
-        #print(par_errs)
+
+        data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
+        print('fit_err:', data['fit_err'])
+        
         data['best_fit']=fit_pars
         data['new_t1']=fit_pars[2]
         print('Best fit:', i_best)
         i_best = i_best.encode("ascii", "ignore")
         data['i_best']=i_best
-        
-        
-        
-
-
 
         return data
 
@@ -190,38 +185,27 @@ class T1Experiment(Experiment):
         if data is None:
             data=self.data 
         qubit = self.cfg.expt.qubit
-        fig=plt.figure(figsize=(8, 4))
-        plt.subplot(111,title=f"$T_1$ Q{qubit}", ylabel="Amps [ADC units]")
-        plt.plot(data["xpts"][:-1], data["amps"][:-1],'o-')
-        if fit:
-            p = data['fit_amps']
-            pCov = data['fit_err_amps']
-            captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_amps"]), label=captionStr)
-            plt.legend()
-            #print(f'Fit T1 amps [us]: {data["fit_amps"][2]}')
-            data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
         
-        plt.figure(figsize=(8,8))
-        plt.subplot(211, title=f"$T_1$ Q{qubit}", ylabel="I [ADC units]")
-        plt.plot(data["xpts"][:-1], data["avgi"][:-1],'o-')
-        if fit:
-            p = data['fit_avgi']
-            pCov = data['fit_err_avgi']
-            captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgi"]), label=captionStr)
-            plt.legend()
-            #print(f'Fit T1 avgi [us]: {data["fit_avgi"][2]}')
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][2][2])/data['fit_avgi'][2]
-        plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC units]")
-        plt.plot(data["xpts"][:-1], data["avgq"][:-1],'o-')
-        if fit:
-            p = data['fit_avgq']
-            pCov = data['fit_err_avgq']
-            captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgq"]), label=captionStr)
-            plt.legend()
-            #print(f'Fit T1 avgq [us]: {data["fit_avgq"][2]}')
+        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
+        xlabel = "Wait Time (us)"
+        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+        fig.suptitle(f'T1 Q{qubit}')
+        ydata_lab = ['amps', 'avgi', 'avgq']
+        for i, ydata in enumerate(ydata_lab):
+            ax[i].plot(data["xpts"], data[ydata],'o-')
+        
+            if fit:
+                p = data['fit_'+ydata]
+                pCov = data['fit_err_amps']
+                captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
+                ax[i].plot(data["xpts"], fitter.expfunc(data["xpts"], *p), label=captionStr)
+                ax[i].set_ylabel(ylabels[i])
+                ax[i].set_xlabel(xlabel)
+                ax[i].legend(loc='upper right')
+
+        if fit: 
+            data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
+            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][2][2])/data['fit_avgi'][2] 
             data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][2][2])/data['fit_avgq'][2]
 
         imname = self.fname.split("\\")[-1]

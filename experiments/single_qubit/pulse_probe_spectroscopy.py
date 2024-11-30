@@ -188,6 +188,8 @@ class PulseProbeSpectroscopyExperiment(Experiment):
 
         if 'mixer_freq' in self.cfg.hw.soc.dacs.qubit:
             xpts = self.cfg.hw.soc.dacs.qubit.mixer_freq + data['xpts'][1:-1]
+        elif 'lo_freq' in self.cfg.hw.soc.dacs.qubit:
+            xpts = self.cfg.hw.soc.dacs.qubit.lo_freq + data['xpts'][1:-1]
         else: 
             xpts = data['xpts'][1:-1]
 

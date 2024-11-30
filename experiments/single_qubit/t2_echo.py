@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
 from qick.helpers import gauss
+from datetime import datetime
 
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
@@ -232,133 +233,103 @@ class RamseyEchoExperiment(Experiment):
                             if isinstance(value3, list):
                                 value2.update({key3: value3[q_ind]})                                
 
-        echo = RamseyEchoProgram(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = echo.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        prog = RamseyEchoProgram(soccfg=self.soccfg, cfg=self.cfg)
+        xpts, avgi, avgq = prog.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]
         amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
         phases = np.angle(avgi+1j*avgq) # Calculating the phase        
 
-        data={'xpts': x_pts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases}
+        current_time = current_time.encode('ascii','replace')
+        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}
         self.data=data
         return data
 
     def analyze(self, data=None, fit=True, debug=False, **kwargs):
         if data is None:
             data=self.data
-
         if fit:
-            # fitparams=[amp, freq (non-angular), phase (deg), decay time, amp offset, decay time offset]
-            # Remove the first and last point from fit in case weird edge measurements
-            if debug: 
-                p_avgi, pCov_avgi, init_guess_i = fitter.fitdecaysin(data['xpts'][:-1], data["avgi"][:-1], fitparams=None, debug=True)
-                p_avgq, pCov_avgq, init_guess_q = fitter.fitdecaysin(data['xpts'][:-1], data["avgq"][:-1], fitparams=None, debug=True)
-                p_amps, pCov_amps, init_guess_amps = fitter.fitdecaysin(data['xpts'][:-1], data["amps"][:-1], fitparams=None, debug=True)
-                data['init_guess_i'] = p_avgi   
-                data['init_guess_q'] = p_avgq
-                data['init_guess_amps'] = p_amps
-            else:
-                p_avgi, pCov_avgi = fitter.fitdecaysin(data['xpts'][:-1], data["avgi"][:-1], fitparams=None)
-                p_avgq, pCov_avgq = fitter.fitdecaysin(data['xpts'][:-1], data["avgq"][:-1], fitparams=None)
-                p_amps, pCov_amps = fitter.fitdecaysin(data['xpts'][:-1], data["amps"][:-1], fitparams=None)
-            data['fit_avgi'] = p_avgi   
-            data['fit_avgq'] = p_avgq
-            data['fit_amps'] = p_amps
-            data['fit_err_avgi'] = pCov_avgi   
-            data['fit_err_avgq'] = pCov_avgq
-            data['fit_err_amps'] = pCov_amps
+            fitparams = None
+            
+            fitfunc = fitter.fitdecaysin
 
-            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.decaysin)
-            r2 = fitter.get_r2(data['xpts'],data[i_best], fitter.decaysin, fit_pars)
-            data['r2']=r2
+            ydata_lab = ['amps', 'avgi', 'avgq']
+            for i, ydata in enumerate(ydata_lab):
+                data['fit_' + ydata], data['fit_err_' + ydata], data['init_guess_'+ydata] = fitfunc(data['xpts'], data[ydata], fitparams=fitparams, debug=debug)
+                if isinstance(data['fit_'+ydata], (list, np.ndarray)): 
+                    data['f_adjust_ramsey_'+ydata] = sorted((self.cfg.expt.ramsey_freq - data['fit_'+ydata][1], -self.cfg.expt.ramsey_freq - data['fit_'+ydata][1]), key=abs)              
+                        
+            fit_pars, fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
+
+            r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, fit_pars)
             print('R2:', r2)
-            print('fit_err:', np.mean(np.abs(fit_err/fit_pars)))
-            data['fit_err']=fit_err
-            data['best_fit']=fit_pars
-            print('Best fit is ' + i_best)
-            # data['f_ge_adjust_ramsey_avgi'] = sorted((self.cfg.expt.ramsey_freq - p_avgi[1], -self.cfg.expt.ramsey_freq - p_avgi[1]), key=abs)
-            # data['f_ge_adjust_ramsey_avgq'] = sorted((self.cfg.expt.ramsey_freq - p_avgq[1], -self.cfg.expt.ramsey_freq - p_avgq[1]), key=abs)
-            # data['f_ge_adjust_ramsey_amps'] = sorted((self.cfg.expt.ramsey_freq - p_amps[1], -self.cfg.expt.ramsey_freq - p_amps[1]), key=abs)
+            data['r2']=r2
+
+            data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
+            print('fit_err:', data['fit_err'])
+            data['best_fit'] = data['fit_'+i_best]
+
+            i_best = i_best.encode("ascii", "ignore")
+            data['i_best']=fit_pars
+            
+            print(f'Best fit: {i_best}')
+            f_pi_test = self.cfg.device.qubit.f_ge
+
+            if t2r_adjust[0] < np.abs(t2r_adjust[1]):
+                new_freq = f_pi_test + t2r_adjust[0]
+            else:       
+                new_freq = f_pi_test + t2r_adjust[1]
+            data['new_freq']=new_freq
+
         return data
 
     def display(self, data=None, fit=True, debug=False, **kwargs):
         if data is None:
             data=self.data
+        qubit = self.cfg.expt.qubit
+        title=f"Ramsey Echo Q{qubit} (Ramsey Freq: {self.cfg.expt.ramsey_freq} MHz)",
 
-        plt.figure(figsize=(8, 5))
-        plt.subplot(111,title=f"Ramsey Echo (Ramsey Freq: {self.cfg.expt.ramsey_freq} MHz)",
-                    xlabel="Wait Time [us]", ylabel="Amplitude [ADC level]")
-        plt.plot(data["xpts"][:-1], data["amps"][:-1],'o-')
-        if fit:
-            p = data['fit_amps']
-            pCov = data['fit_err_amps']
-            captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            captionStr += '\n'
-            captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *p), label=captionStr)
+        print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
+        fitfunc=fitter.decaysin
+
+        fig, ax=plt.subplots(3, 1, figsize=(9, 11))
+        xlabel = "Wait Time (us)"
+        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+        fig.suptitle(title)
+        ydata_lab = ['amps', 'avgi', 'avgq']
+        fitfunc=fitter.decaysin
+        for i, ydata in enumerate(ydata_lab):
+            ax[i].plot(data["xpts"], data[ydata],'o-')
+        
+            if fit:
+                p = data['fit_'+ydata]
+                pCov = data['fit_err_amps']
+                captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
+                captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
+                ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
+
+                # Plot the decaying exponential
+                x0 = -(p[2]+180)/360/p[1]
+                ax[i].plot(data["xpts"], fitter.expfunc2(data['xpts'], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
+                ax[i].plot(data["xpts"], fitter.expfunc2(data['xpts'], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
+
+                ax[i].set_ylabel(ylabels[i])
+                ax[i].set_xlabel(xlabel)
+                ax[i].legend(loc='upper right')
+                if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
+         
+            if debug: 
+                pinit = data['init_guess_'+ydata]
+                print(pinit)
+                plt.plot(data["xpts"], fitfunc(data["xpts"], *pinit), label='Initial Guess')
+
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[5], p[3]), color='0.2', linestyle='--')
             #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[5], p[3]), color='0.2', linestyle='--')
-            plt.legend()
-            # print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
-            # print(f"Fit frequency from amps [MHz]: {p[1]} +/- {np.sqrt(pCov[1][1])}")
             # if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
-            # print(f'Suggested new qubit frequencies from fit amps [MHz]:\n',
-            #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_amps"][0]}\n',
-            #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_amps"][1]}')
-            # print(f'T2 Echo from fit amps [us]: {p[3]}')
-        plt.tight_layout()
-        plt.show()
-
-        qubit = self.cfg.expt.qubit
-        fig=plt.figure(figsize=(8,7))
-        plt.subplot(211, 
-            title=f"Ramsey Echo Q{qubit} (Ramsey Freq: {self.cfg.expt.ramsey_freq} MHz)",
-            ylabel="I [ADC level]")
-        plt.plot(data["xpts"][:-1], data["avgi"][:-1],'o-')
-        if fit:
-            p = data['fit_avgi']
-            pCov = data['fit_err_avgi']
-            captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            captionStr += '\n'
-            captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *p), label=captionStr)
-            x0 = -(p[2]+180)/360/p[1]
-            #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[3]), color='0.2', linestyle='--')
-            #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[3]), color='0.2', linestyle='--')
-            plt.legend()
-            #print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
-            #print(f'Fit frequency from I [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
-            if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
-            # print('Suggested new qubit frequency from fit I [MHz]:\n',
-            #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][0]}\n',
-            #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgi"][1]}')
-        if debug: 
-            pinit = data['init_guess_amps']
-            print(pinit)
-            plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *pinit), label='Initial Guess')
-
-        plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC level]")
-        plt.plot(data["xpts"][:-1], data["avgq"][:-1],'o-')
-        if fit:
-            p = data['fit_avgq']
-            pCov = data['fit_err_avgq']
-            captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            captionStr += '\n'
-            captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.decaysin(data["xpts"][:-1], *p), label=captionStr)
-            x0 = -(p[2]+180)/360/p[1]
-            #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[3]), color='0.2', linestyle='--')
-            #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[3]), color='0.2', linestyle='--')
-            plt.legend()
-            #print(f'Fit frequency from Q [MHz]: {p[1]:.3} +/- {np.sqrt(pCov[1][1]):.3}')
-            if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
-            # print('Suggested new qubit frequencies from fit Q [MHz]:\n',
-            #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgq"][0]}\n',
-            #       f'\t{self.cfg.device.qubit.f_ge + data["f_ge_adjust_ramsey_avgq"][1]}')
-        #plt.tight_layout()
-
-
+            
         plt.show()
         imname = self.fname.split("\\")[-1]
         fig.tight_layout()

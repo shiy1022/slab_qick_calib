@@ -214,10 +214,8 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
             print('Warning: fit failed!')
             pOpt = [np.nan]*len(pOpt)
         # return 0, 0
-    if debug:
-        return pOpt, pCov, fitparams
-    else:
-        return pOpt, pCov
+    return pOpt, pCov, fitparams
+    
 
 # ====================================================== #
 

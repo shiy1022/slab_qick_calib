@@ -151,12 +151,12 @@ class RamseyStarkProgram(RAveragerProgram):
         else: 
             self.set_pulse_registers(ch=self.res_chs[qTest], style="const", freq=self.f_res_reg[qTest], gain=cfg.device.readout.gain[qTest], length=self.readout_lengths_dac[qTest], phase=self.deg2reg(-self.cfg.device.readout.phase[qTest], gen_ch = self.res_chs[qTest]))
 
-        # initialize wait registers
+        # initialize wait register
         self.safe_regwi(self.q_rps[qTest], self.r_wait, self.us2cycles(cfg.expt.start))
         self.safe_regwi(self.q_rps[qTest], self.r_phase2, 0) 
         self.safe_regwi(self.q_rps[qTest], self.r_mode2, self.us2cycles(cfg.expt.start, gen_ch=self.qubit_chs[qTest])) 
-        #print(self.us2cycles(cfg.expt.start, gen_ch=self.qubit_chs[qTest]))
-        #print(self.us2cycles(cfg.expt.start))
+        print(self.us2cycles(cfg.expt.start, gen_ch=self.qubit_chs[qTest]))
+        print(self.us2cycles(cfg.expt.start))
         self.sync_all(200)
 
     def body(self):
@@ -192,13 +192,13 @@ class RamseyStarkProgram(RAveragerProgram):
                     freq=self.stark_freq,
                     phase=0,
                     gain=self.stark_gain, # gain set by update
-                    length=self.us2cycles(50))
+                    length=25)
             self.mathi(self.q_rps[qTest], self.r_mode, self.r_mode2, '+', 0)
                 #self.mathi(self.q_rps[qTest], self.r_gain, self.r_gain2, "+", 0)
             self.pulse(ch=self.qubit_chs[qTest])
 
             #self.setup_and_pulse(ch=self.qubit_chs[qTest], style="arb", freq=self.stark_freq, phase=0, gain=self.stark_gain, waveform="stark_test")
-        self.sync(self.q_rps[qTest], self.r_wait)
+        
         
         #self.reset_ts()
 
@@ -207,7 +207,7 @@ class RamseyStarkProgram(RAveragerProgram):
                     style="arb",
                     freq=self.f_pi_test_reg,
                     phase=0,
-                    gain=self.gain_ge_init, # gain set by update
+                    gain=self.gain_ge_init, 
                     waveform='pi2_test')
         # play pi/2 pulse with advanced phase (all regs except phase are already set by previous pulse)
         if self.qubit_ch_types[qTest] == 'int4':
@@ -218,6 +218,7 @@ class RamseyStarkProgram(RAveragerProgram):
         #self.setup_and_pulse(ch=self.qubit_chs[qTest], style="arb", freq=self.f_pi_test_reg, phase=0, gain=self.gain_pi_test, waveform="pi2_test")
         else: self.mathi(self.q_rps[qTest], self.r_phase, self.r_phase2, "+", 0)
         self.pulse(ch=self.qubit_chs[qTest])
+        self.sync(self.q_rps[qTest], self.r_wait)
 
         if self.checkEF: # map excited back to qubit ground state for measurement
             self.setup_and_pulse(ch=self.qubit_chs[qTest], style="arb", freq=self.f_ge_init_reg, phase=0, gain=self.gain_ge_init, waveform="pi_qubit_ge")
@@ -281,7 +282,7 @@ class RamseyStarkExperiment(Experiment):
                     subcfg.update({key: [value]*num_qubits_sample})
 
         ramsey = RamseyStarkProgram(soccfg=self.soccfg, cfg=self.cfg)
-        #print(ramsey)
+        print(ramsey)
         
         x_pts, avgi, avgq = ramsey.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
  
@@ -315,9 +316,9 @@ class RamseyStarkExperiment(Experiment):
                 data['init_guess_q']=init_guess_q
                 data['init_guess_amps']=init_guess_amps
             else:
-                p_avgi, pCov_avgi = fitfunc(data['xpts'][:-1], data["avgi"][:-1], fitparams=fitparams)
-                p_avgq, pCov_avgq = fitfunc(data['xpts'][:-1], data["avgq"][:-1], fitparams=fitparams)
-                p_amps, pCov_amps = fitfunc(data['xpts'][:-1], data["amps"][:-1], fitparams=fitparams)
+                p_avgi, pCov_avgi,init = fitfunc(data['xpts'][:-1], data["avgi"][:-1], fitparams=fitparams)
+                p_avgq, pCov_avgq, init = fitfunc(data['xpts'][:-1], data["avgq"][:-1], fitparams=fitparams)
+                p_amps, pCov_amps, init = fitfunc(data['xpts'][:-1], data["amps"][:-1], fitparams=fitparams)
             
             data['fit_avgi'] = p_avgi   
             data['fit_avgq'] = p_avgq

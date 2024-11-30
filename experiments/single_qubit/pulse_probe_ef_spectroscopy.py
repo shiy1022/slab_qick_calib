@@ -22,6 +22,7 @@ class PulseProbeEFSpectroscopyProgram(RAveragerProgram):
     def initialize(self):
         cfg=AttrDict(self.cfg)
         self.cfg.update(cfg.expt)
+        self.checkEF = cfg.expt.checkEF
 
         self.adc_ch = cfg.hw.soc.adcs.readout.ch
         self.res_ch = cfg.hw.soc.dacs.readout.ch
@@ -32,7 +33,8 @@ class PulseProbeEFSpectroscopyProgram(RAveragerProgram):
         self.q_rp=self.ch_page(self.qubit_ch) # get register page for qubit_ch
         self.r_freq=self.sreg(self.qubit_ch, "freq") # get frequency register for qubit_ch 
         self.r_freq2 = 4
-        self.f_ge_reg = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_ch)
+        if self.checkEF:
+            self.f_ge_reg = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_ch)
         self.f_start = self.freq2reg(cfg.expt.start, gen_ch=self.qubit_ch)
         self.f_step = self.freq2reg(cfg.expt.step, gen_ch=self.qubit_ch)
         self.f_res_reg = self.freq2reg(cfg.device.readout.frequency, gen_ch=self.res_ch, ro_ch=self.adc_ch)
@@ -75,7 +77,8 @@ class PulseProbeEFSpectroscopyProgram(RAveragerProgram):
         self.safe_regwi(self.q_rp, self.r_freq2, self.f_start) # send start frequency to r_freq2
 
         # add pre-defined qubit and readout pulses to respective channels
-        self.add_gauss(ch=self.qubit_ch, name="pi_qubit", sigma=self.pi_sigma, length=self.pi_sigma*4)
+        if self.checkEF:
+            self.add_gauss(ch=self.qubit_ch, name="pi_qubit", sigma=self.pi_sigma, length=self.pi_sigma*4)
 
         if self.res_ch_type == 'mux4':
             self.set_pulse_registers(ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask)
@@ -87,7 +90,8 @@ class PulseProbeEFSpectroscopyProgram(RAveragerProgram):
         cfg=AttrDict(self.cfg)
 
         # init to qubit excited state
-        self.setup_and_pulse(ch=self.qubit_ch, style="arb", freq=self.f_ge_reg, phase=0, gain=cfg.device.qubit.pulses.pi_ge.gain, waveform="pi_qubit")
+        if self.checkEF: 
+            self.setup_and_pulse(ch=self.qubit_ch, style="arb", freq=self.f_ge_reg, phase=0, gain=cfg.device.qubit.pulses.pi_ge.gain, waveform="pi_qubit")
 
         # setup and play ef probe pulse
         self.set_pulse_registers(
@@ -100,8 +104,9 @@ class PulseProbeEFSpectroscopyProgram(RAveragerProgram):
         self.mathi(self.q_rp, self.r_freq, self.r_freq2, "+", 0)
         self.pulse(ch=self.qubit_ch)
 
-        # go back to ground state if in e to distinguish between e and f
-        self.setup_and_pulse(ch=self.qubit_ch, style="arb", freq=self.f_ge_reg, phase=0, gain=cfg.device.qubit.pulses.pi_ge.gain, waveform="pi_qubit")
+        if self.checkEF: 
+            # go back to ground state if in e to distinguish between e and f
+            self.setup_and_pulse(ch=self.qubit_ch, style="arb", freq=self.f_ge_reg, phase=0, gain=cfg.device.qubit.pulses.pi_ge.gain, waveform="pi_qubit")
 
         self.sync_all(self.us2cycles(0.05)) # align channels and wait 50ns
         self.measure(pulse_ch=self.res_ch, 
@@ -159,15 +164,23 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
     def analyze(self, data=None, fit=True, signs=[1,1,1], **kwargs):
         if data is None:
             data=self.data
+        
         if fit:
-            xdata = data['xpts'][1:-1]
-            data['fit_amps'], data['fit_err_amps'] = fitter.fitlor(xdata, signs[0]*data['amps'][1:-1])
-            data['fit_avgi'], data['fit_err_avgi'] = fitter.fitlor(xdata, signs[1]*data['avgi'][1:-1])
-            data['fit_avgq'], data['fit_err_avgq'] = fitter.fitlor(xdata, signs[2]*data['avgq'][1:-1])
-
+            fitterfunc = fitter.fitlor
+            fitfunc=fitter.lorfunc
+            ydata_lab = ['amps', 'avgi', 'avgq']
+            for i, ydata in enumerate(ydata_lab):
+                data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'], data[ydata])
+            #data['fit_amps'], data['fit_err_amps'] = fitter.fitlor(xdata, signs[0]*data['amps'][1:-1])
+            
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.lorfunc)
+            r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
+            print('R2:', r2)
+            data['r2']=r2
             data['best_fit']=fit_pars
             print('Best fit:', i_best)
+            data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
+            print('fit_err:', data['fit_err'])
 
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
@@ -178,31 +191,33 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             data=self.data 
 
         if 'mixer_freq' in self.cfg.hw.soc.dacs.qubit:
-            xpts = self.cfg.hw.soc.dacs.qubit.mixer_freq + data['xpts'][1:-1]
+            xpts = self.cfg.hw.soc.dacs.qubit.mixer_freq + data['xpts']
+        elif 'lo_freq' in self.cfg.hw.soc.dacs.qubit:
+            xpts = self.cfg.hw.soc.dacs.qubit.lo_freq + data['xpts'][1:-1]
         else: 
-            xpts = data['xpts'][1:-1]
-
-        fig=plt.figure(figsize=(9, 11))
-        plt.subplot(311, title=f"Qubit {self.cfg.expt.qubit} EF Spectroscopy (Gain {self.cfg.expt.gain})", ylabel="Amplitude [ADC units]")
-        plt.plot(xpts, data["amps"][1:-1],'o-')
-        if fit:
-            plt.plot(xpts, signs[0]*fitter.lorfunc(data["xpts"][1:-1], *data["fit_amps"]))
-            print(f'Found peak in amps at [MHz] {data["fit_amps"][2]}, HWHM {data["fit_amps"][3]}')
-
-        plt.subplot(312, ylabel="I [ADC units]")
-        plt.plot(xpts, data["avgi"][1:-1],'o-')
-        if fit:
-            plt.plot(xpts, signs[1]*fitter.lorfunc(data["xpts"][1:-1], *data["fit_avgi"]))
-            print(f'Found peak in I at [MHz] {data["fit_avgi"][2]}, HWHM {data["fit_avgi"][3]}')
-        plt.subplot(313, xlabel="Pulse Frequency (MHz)", ylabel="Q [ADC units]")
-        plt.plot(xpts, data["avgq"][1:-1],'o-')
-        # plt.axvline(3476, c='k', ls='--')
-        # plt.axvline(3376+50, c='k', ls='--')
-        # plt.axvline(3376, c='k', ls='--')
-        if fit:
-            plt.plot(xpts, signs[2]*fitter.lorfunc(data["xpts"][1:-1], *data["fit_avgq"]))
-            # plt.axvline(3593.2, c='k', ls='--')
-            print(f'Found peak in Q at [MHz] {data["fit_avgq"][2]}, HWHM {data["fit_avgq"][3]}')
+            xpts = data['xpts']
+        if self.cfg.expt.checkEF:
+            title=f"EF Spectroscopy Q{self.cfg.expt.qubit} (Gain {self.cfg.expt.gain})"
+        else:
+            title=f"Spectroscopy Q{self.cfg.expt.qubit} (Gain {self.cfg.expt.gain})"
+        fitfunc=fitter.lorfunc
+        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
+        xlabel = "Wait Time (us)"
+        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+        fig.suptitle(title)
+        ydata_lab = ['amps', 'avgi', 'avgq']
+        for i, ydata in enumerate(ydata_lab):
+            ax[i].plot(xpts, data[ydata],'o-')
+        
+            if fit:
+                p = data['fit_'+ydata]
+                pCov = data['fit_err_amps']
+                captionStr = f'Freq: fit [MHz]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3} \n'
+                captionStr += f'Kappa [MHz]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
+                ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
+                ax[i].set_ylabel(ylabels[i])
+                ax[i].set_xlabel(xlabel)
+                ax[i].legend()
 
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
@@ -216,6 +231,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
 
 
 class PulseProbeEFPowerSweepSpectroscopyExperiment(Experiment):
+    
     """
     Pulse probe EF power sweep spectroscopy experiment
     Experimental Config
@@ -282,18 +298,6 @@ class PulseProbeEFPowerSweepSpectroscopyExperiment(Experiment):
         if data is None:
             data=self.data
 
-        # Lorentzian fit at highgain [DAC units] and lowgain [DAC units]
-        # if fit:
-        #     if highgain == None: highgain = data['gainpts'][-1]
-        #     if lowgain == None: lowgain = data['gainpts'][0]
-        #     i_highgain = np.argmin(np.abs(data['gainpts']-highgain))
-        #     i_lowgain = np.argmin(np.abs(data['gainpts']-lowgain))
-        #     fit_highpow=dsfit.fitlor(data["fpts"], data["avgi"][i_highgain])
-        #     fit_lowpow=dsfit.fitlor(data["fpts"], data["avgi"][i_lowgain])
-        #     data['fit'] = [fit_highpow, fit_lowpow]
-        #     data['fit_gains'] = [highgain, lowgain]
-        #     data['lamb_shift'] = fit_highpow[2] - fit_lowpow[2]
-
         return data
 
     def display(self, data=None, fit=True, **kwargs):
@@ -334,18 +338,136 @@ class PulseProbeEFPowerSweepSpectroscopyExperiment(Experiment):
         
         plt.show()    
 
-        # if fit:
-        #     fit_highpow, fit_lowpow = data['fit']
-        #     highgain, lowgain = data['fit_gains']
-        #     plt.axvline(fit_highpow[2], linewidth=0.5, color='0.2')
-        #     plt.axvline(fit_lowpow[2], linewidth=0.5, color='0.2')
-        #     plt.plot(x_sweep, [highgain]*len(x_sweep), linewidth=0.5, color='0.2')
-        #     plt.plot(x_sweep, [lowgain]*len(x_sweep), linewidth=0.5, color='0.2')
-        #     print(f'High power peak [MHz]: {fit_highpow[2]}')
-        #     print(f'Low power peak [MHz]: {fit_lowpow[2]}')
-        #     print(f'Lamb shift [MHz]: {data["lamb_shift"]}')
-
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
+    
+class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
+    """
+    PulseProbe Spectroscopy Experiment
+    Experimental Config:
+        start_f: Qubit frequency [MHz]
+        step_f
+        expts_f: Number of experiments stepping from start
+        "start_gain": start frequency (dac units), 
+       "step_gain": frequency step (dac units), 
+       "expts_gain": number of experiments in gain sweep,
+        reps: Number of averages per point
+        rounds: Number of start to finish sweeps to average over
+        length: Qubit probe constant pulse length [us]
+    """
+
+    def __init__(self, soccfg=None, path='', prefix='PulseProbePowerSweepSpectroscopy', config_file=None, progress=None, im=None):
+        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
+
+    def acquire(self, progress=False):
+        xpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])    
+        if 'log' in self.cfg.expt and self.cfg.expt.log==True:
+
+            rng = self.cfg.expt.rng
+            rat = rng**(-1/(self.cfg.expt["expts_gain"]-1))
+
+            max_gain=32768
+            gainpts = max_gain*rat**(np.arange(self.cfg.expt["expts_gain"]))
+            gainpts = [int(g) for g in gainpts]
+        else:
+            gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
+        rep_list = self.cfg.expt["reps"] * np.ones(self.cfg.expt["expts_gain"])
+        pts = np.arange(self.cfg.expt["expts_gain"])
+        q_ind = self.cfg.expt.qubit
+        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
+            for key, value in subcfg.items() :
+                if isinstance(value, list):
+                    subcfg.update({key: value[q_ind]})
+                elif isinstance(value, dict):
+                    for key2, value2 in value.items():
+                        for key3, value3 in value2.items():
+                            if isinstance(value3, list):
+                                value2.update({key3: value3[q_ind]})                                
+
+        self.cfg.expt.start = self.cfg.expt.start_f
+        self.cfg.expt.step = self.cfg.expt.step_f
+        self.cfg.expt.expts = self.cfg.expt.expts_f
+        data={"xpts":[], "gainpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
+        for i in tqdm(pts, disable=not progress):
+            self.cfg.expt.gain = gainpts[i]
+            self.cfg.expt.reps = int(rep_list[i])
+            # data["avgi"].append([])
+            # data["avgq"].append([])
+            # data["amps"].append([])
+            # data["phases"].append([])
+
+            qspec = PulseProbeEFSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
+            xpts, avgi, avgq = qspec.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)                        
+            avgi = avgi[0][0]
+            avgq = avgq[0][0]
+            amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
+            phase = np.angle(avgi+1j*avgq) # Calculating the phase
+            data["avgi"].append(avgi)
+            data["avgq"].append(avgq)
+            data["amps"].append(amp)
+            data["phases"].append(phase)
+        
+        data["xpts"] = xpts
+        data["gainpts"] = gainpts
+        
+        for k, a in data.items():
+            data[k] = np.array(a)
+        
+        self.data = data
+        return data
+
+    def analyze(self, data=None, fit=True, highgain=None, lowgain=None, **kwargs):
+        if data is None:
+            data=self.data
+        
+        par_list =[]
+        # Lorentzian fit at 
+        if fit:
+            for i in range(len(data['gainpts'])):
+                try:
+                    fit_pars, fit_errs=fitter.fitlor(data["xpts"], data["amps"][i])
+                    par_list.append(fit_pars)
+                except:
+                    par_list.append([np.nan, np.nan, np.nan, np.nan])
+            freqs = [par[2] for par in par_list]
+            data['freqs']=freqs
+            print(data['freqs'])
+            
+        
+        return data
+
+    def display(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data=self.data 
+
+        if self.cfg.expt.checkEF:
+            title=f"EF Spectroscopy Power Sweep Q{self.cfg.expt.qubit}"
+        else:
+            title=f"Spectroscopy Power Sweep Q{self.cfg.expt.qubit}"
+
+        inner_sweep = data['xpts']
+        outer_sweep = data['gainpts']
+
+        amps = data['amps']
+
+        y_sweep = outer_sweep
+        x_sweep = inner_sweep
+
+        fig=plt.figure(figsize=(10,8))
+        plt.title(title)
+        plt.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
+        if 'log' in self.cfg.expt and self.cfg.expt.log:
+            plt.yscale('log')
+        plt.xlabel("Qubit Frequency [MHz]")
+        plt.ylabel("Qubit Gain [DAC level]")
+        
+        plt.colorbar(label='Amps/Avg [ADC level]')
+        plt.show()
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        
+    def save_data(self, data=None):
+        print(f'Saving {self.fname}')
+        super().save_data(data=data)

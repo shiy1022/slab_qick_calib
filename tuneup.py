@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import experiments.fitting as fitter
 import numpy as np
 
-def check_readout(soc, expt_path, cfg_file, qubit_i, im=None, span=8, npts=201, check_f=False):
-    chi = cfg.make_chi(soc, expt_path, cfg_file, qubit_i, im=im, span=span, npts=npts)
+def check_readout(soc, expt_path, cfg_file, qubit_i, im=None, span=8, npts=301, check_f=False):
+    chi = cfg.make_chi(soc, expt_path, cfg_file, qubit_i, im=im, span=span, npts=npts, rounds=5)
     chi.go(analyze=True, display=False, progress=True, save=True)
     if check_f: 
         chif = cfg.make_chi(soc, expt_path, cfg_file, qubit_i, im=im, span=span, npts=npts, check_f=True)
