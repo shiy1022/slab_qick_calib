@@ -178,8 +178,8 @@ class ResonatorSpectroscopyExperiment(Experiment):
         if fit:                       
             if 'mixer_freq' in self.cfg.hw.soc.dacs.readout:
                 xdata = self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'][1:-1]
-            elif 'lo_freq' in self.cfg.hw.soc.dacs.qubit:
-                xdata = self.cfg.hw.soc.dacs.qubit.lo_freq + data['xpts'][1:-1]
+            elif 'lo_freq' in self.cfg.hw.soc.dacs.readout:
+                xdata = self.cfg.hw.soc.dacs.readout.lo_freq + data['xpts'][1:-1]
             else:
                 xdata = data["xpts"][1:-1]
 
@@ -244,7 +244,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data['coarse_props']=props
         return data
 
-    def display(self, data=None, fit=True, findpeaks=False, hanger=True, debug=False, **kwargs):
+    def display(self, data=None, fit=True, findpeaks=False, hanger=True, debug=True, **kwargs):
         if data is None:
             data=self.data 
         
@@ -253,8 +253,10 @@ class ResonatorSpectroscopyExperiment(Experiment):
         elif 'mixer_freq' in self.cfg.hw.soc.dacs.readout and fit:
             xpts = self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'][1:-1]      
             data['fit'][0]=data['fit'][0]+self.cfg.hw.soc.dacs.readout.mixer_freq
-        elif 'lo_freq' in self.cfg.hw.soc.dacs.qubit and fit:
-            xpts = self.cfg.hw.soc.dacs.qubit.lo_freq + data['xpts'][1:-1]
+        elif 'lo_freq' in self.cfg.hw.soc.dacs.readout and fit:
+            xpts = self.cfg.hw.soc.dacs.readout.lo_freq + data['xpts'][1:-1]
+            data['fit'][0]=data['fit'][0]+self.cfg.hw.soc.dacs.readout.lo_freq
+            data['init'][0]=data['init'][0]+self.cfg.hw.soc.dacs.readout.lo_freq
         else:
             xpts = data['xpts'][1:-1]
         qubit = self.cfg.expt.qubit
@@ -284,8 +286,9 @@ class ResonatorSpectroscopyExperiment(Experiment):
         
         if 'mixer_freq' in self.cfg.hw.soc.dacs.readout and fit:
             data['fit'][0]=data['fit'][0]-self.cfg.hw.soc.dacs.readout.mixer_freq
-        elif 'lo_freq' in self.cfg.hw.soc.dacs.qubit and fit:
+        elif 'lo_freq' in self.cfg.hw.soc.dacs.readout and fit:
             data['fit'][0]=data['fit'][0]-self.cfg.hw.soc.dacs.readout.lo_freq
+            data['init'][0]=data['init'][0]-self.cfg.hw.soc.dacs.readout.lo_freq
            
         plt.subplot(212, xlabel="Readout Frequency [MHz]", ylabel="Phase [radians]")
         

@@ -248,7 +248,7 @@ class RamseyExperiment(Experiment):
         now = datetime.now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         ramsey = RamseyProgram(soccfg=self.soccfg, cfg=self.cfg)
-        print(ramsey)
+        #print(ramsey)
         
         xpts, avgi, avgq = ramsey.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
  

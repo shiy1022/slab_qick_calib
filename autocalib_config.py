@@ -37,7 +37,7 @@ def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True):
     
     return tof
 
-def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000, gain=0.2, rounds=1):
+def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000, gain=0.2, rounds=1, go=True):
     rspec = meas.ResonatorSpectroscopyExperiment(
     soccfg=soc,
     path=expt_path,
@@ -60,10 +60,11 @@ def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, sp
     )
 
     rspec.cfg.device.readout.relax_delay = 5 # Wait time between experiments [us]
-    rspec.go(analyze=False, display=False, progress=True, save=True)
+    if go: 
+        rspec.go(analyze=False, display=False, progress=True, save=True)
 
-    rspec.analyze(fit=False, findpeaks = True)
-    rspec.display(fit=False, findpeaks = True)
+        rspec.analyze(fit=False, findpeaks = True)
+        rspec.display(fit=False, findpeaks = True)
     return rspec
 
 def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=None, span=5, npts=200, reps=None, rounds=None, gain=None, smart=False):
@@ -741,7 +742,7 @@ def make_t2r_stark_amp(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npt
     prog = meas.RamseyStarkPower2Experiment(
         soccfg=soc,
         path=expt_path,
-        prefix=f"ramsey_stark_freq_qubit{qubit_i}",
+        prefix=f"ramsey_stark_amp_qubit{qubit_i}",
         config_file=cfg_file,
         im=im
     )
@@ -759,7 +760,7 @@ def make_t2r_stark_amp(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npt
         ramsey_freq = np.pi/2/prog.cfg.device.qubit.T2r[qubit_i]
 
     prog.cfg.expt = dict(
-        start=soc.cycles2us(1000), # wait time tau [us]
+        start=0.1, # wait time tau [us]
         step= step, # [us]
         expts=npts,
         ramsey_freq=ramsey_freq, # [MHz]
@@ -885,6 +886,45 @@ def make_t1_stark_amp(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts
         checkZZ=False,
         checkEF=False,
         length_scan = span, # length of the scan in us
+        qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
+    )
+    if go:
+        prog.go(analyze=True, display=True, progress=True, save=True)
+
+    return prog
+
+def make_t1_stark_amp_cont(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 200, reps = None, rounds=None,  freq=None, df=40, acStark=True, stop_gain=32768, start_gain=0, delay_time=None):
+    prog = meas.T1StarkPowerContExperiment(
+        soccfg=soc,
+        path=expt_path,
+        prefix=f"t1_stark_cont_qubit{qubit_i}",
+        config_file=cfg_file,
+        im=im
+    )
+
+    if delay_time is None: 
+        delay_time = prog.cfg.device.qubit.T1[qubit_i]
+    if reps is None:
+        reps = int(10*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+        repsE = int(2*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+    if rounds is None:
+        rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
+    if freq is None: 
+        freq = prog.cfg.device.qubit.f_ge[qubit_i]+df
+
+    prog.cfg.expt = dict(
+        expts=npts,
+        repsT1=reps,
+        repsE=repsE,
+        rounds=rounds, 
+        qubit=qubit_i,
+        start_gain=start_gain,
+        stop_gain=stop_gain,
+        stark_freq=freq,
+        acStark=acStark, 
+        checkZZ=False,
+        checkEF=False,
+        delay_time=delay_time,
         qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
     )
     if go:

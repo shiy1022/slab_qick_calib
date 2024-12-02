@@ -306,6 +306,7 @@ def hangerS21func(x, *p):
 
 def hangerS21func_sloped(x, *p):
     f0, Qi, Qe, phi, scale, slope = p
+    #return hangerS21func(x, f0, 1e4*Qi, 1e4*Qe, phi, scale)
     return hangerS21func(x, f0, 1e4*Qi, 1e4*Qe, phi, scale) + slope*(x-f0)
 
 def hangerphasefunc(x, *p):
