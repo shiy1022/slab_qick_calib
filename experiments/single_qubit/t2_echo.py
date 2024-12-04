@@ -286,20 +286,28 @@ class RamseyEchoExperiment(Experiment):
 
         return data
 
-    def display(self, data=None, fit=True, debug=False, **kwargs):
+    def display(self, data=None, fit=True, debug=False,plot_all=False, **kwargs):
         if data is None:
             data=self.data
         qubit = self.cfg.expt.qubit
-        title=f"Ramsey Echo Q{qubit} (Ramsey Freq: {self.cfg.expt.ramsey_freq} MHz)",
+        title=f"Ramsey Echo Q{qubit} (Ramsey Freq: {self.cfg.expt.ramsey_freq:.4} MHz)",
 
         print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
         fitfunc=fitter.decaysin
 
-        fig, ax=plt.subplots(3, 1, figsize=(9, 11))
+        if plot_all:
+            fig, ax=plt.subplots(3, 1, figsize=(9, 11))
+            fig.suptitle(title)
+            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+            ydata_lab = ['amps', 'avgi', 'avgq']
+        else:
+            fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
+            a.set_title(title)
+            ylabels = ["I [ADC units]"]
+            ydata_lab = ['avgi']
+            ax = [a]
+
         xlabel = "Wait Time (us)"
-        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-        fig.suptitle(title)
-        ydata_lab = ['amps', 'avgi', 'avgq']
         fitfunc=fitter.decaysin
         for i, ydata in enumerate(ydata_lab):
             ax[i].plot(data["xpts"], data[ydata],'o-')

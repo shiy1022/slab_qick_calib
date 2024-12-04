@@ -220,7 +220,7 @@ def make_chi(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=3, npts=
     
     return prog
 
-def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None, reps=None, rounds=None, gain=None, coarse=False, ef=False, len=50):    
+def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, go=True, span=None, npts=None, reps=None, rounds=None, gain=None, coarse=False, ef=False, len=50):    
 # This one may need a bunch of options. 
 # coarse: wide span, medium gain, centered at ge freq
 # ef: coarse: medium span, extra high gain, centered at the ef frequency  
@@ -232,7 +232,7 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None,
         if npts is None: 
             npts = 500
     elif span is None:
-        span=3
+        span=5
         prefix = f"qubit_spectroscopy_fine_qubit{qubit_i}"
         if npts is None:
             npts = 200
@@ -241,12 +241,6 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None,
         if npts is None:
             npts = 500
 
-    if coarse is True and gain is None:
-        gain=10000
-    elif gain is None:
-        gain=100
-    
-
     prog = meas.PulseProbeEFSpectroscopyExperiment(
     soccfg=soc,
     path = expt_path, 
@@ -254,8 +248,16 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None,
     config_file=cfg_file,
     im=im
     )
+
+    if coarse is True and gain is None:
+        gain=1500
+    elif gain is None:
+        gain=100*prog.cfg.device.readout.spec_gain[qubit_i]
+    
+
+    
     if reps is None:
-        reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base_spec)
+        reps = 2*int(prog.cfg.device.readout.reps[qubit_i]*reps_base_spec)
     if rounds is None:
         rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base_spec)
     if ef:
@@ -285,6 +287,10 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=None,
     ) 
 
     prog.cfg.device.readout.relax_delay = 10 # Wait time between experiments [us]
+
+    if go: 
+        prog.go(analyze=True, display=True, progress=True, save=True)
+
     return prog
 
 def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts=500, reps=None, rounds=None, wide=True, expts_gain=7, rng=100, len=50):
@@ -332,7 +338,8 @@ def make_qspec_power(soc, expt_path, cfg_file, qubit_i, im=None, span=None, npts
     prog.cfg.device.readout.relax_delay = 10 # Wait time between experiments [us]
     return prog
 
-def make_qspec_ef(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=None, reps=None, rounds=None, gain=None, coarse=False):
+def make_qspec_ef(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=None, npts=None, reps=None, rounds=None, gain=None, len=None, coarse=False, fine=True):
+
 
     if coarse and span is None:
         span=500 
@@ -343,17 +350,6 @@ def make_qspec_ef(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=Non
     else:
         prefix = f"qubit_spectroscopy_qubit_ef_{qubit_i}"
 
-    if coarse is True and gain is None:
-        gain=20000
-    elif gain is None:
-        gain=200
-    
-    if coarse is True and npts is None: 
-        npts = 500
-    elif npts is None:
-        npts = 100
-
-
     prog = meas.PulseProbeEFSpectroscopyExperiment(
         soccfg=soc,
         path=expt_path,
@@ -361,6 +357,24 @@ def make_qspec_ef(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=Non
         config_file=cfg_file,
         im=im
     )
+    
+
+    if coarse is True and gain is None:
+        gain=1500*prog.cfg.device.readout.spec_gain[qubit_i]
+    elif fine is True and gain is None:
+        gain=200*prog.cfg.device.readout.spec_gain[qubit_i]
+    else:
+        gain=500*prog.cfg.device.readout.spec_gain[qubit_i]
+    
+    if coarse is True and npts is None: 
+        npts = 500
+    elif npts is None:
+        npts = 100
+
+    if len is None: 
+        len=3*prog.cfg.device.qubit.T1[qubit_i]
+
+    
     if reps is None:
         if coarse is True:
             reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base_spec)
@@ -375,7 +389,7 @@ def make_qspec_ef(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=Non
         expts=npts, # Number of experiments stepping from start
         reps=reps, # Number of averages per point
         rounds=rounds, # Number of start to finish sweeps to average over
-        length=1, # ef probe constant pulse length [us]
+        length=10, # ef probe constant pulse length [us]
         gain=gain, # ef pulse gain
         pulse_type='gauss', # ef pulse type
         qubit=qubit_i,
@@ -793,12 +807,16 @@ def make_t2e(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 100, r
         )
     
     if step is None: 
-        span = 2*prog.cfg.device.qubit.T2e[qubit_i]
+        span = 3*prog.cfg.device.qubit.T2e[qubit_i]
         step = span/npts
     if reps is None:
         reps = int(2*prog.cfg.device.readout.reps[qubit_i]*reps_base)
     if rounds is None:
         rounds = int(2*prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
+
+    if ramsey_freq=='smart':
+        ramsey_freq = np.pi/2/prog.cfg.device.qubit.T2e[qubit_i]
+
     prog.cfg.expt = dict(
         start=0.1, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
         step=step, #step,
@@ -924,6 +942,85 @@ def make_t1_stark_amp_cont(soc, expt_path, cfg_file, qubit_i, im=None, go=False,
         acStark=acStark, 
         checkZZ=False,
         checkEF=False,
+        delay_time=delay_time,
+        qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
+    )
+    if go:
+        prog.go(analyze=True, display=True, progress=True, save=True)
+
+    return prog
+
+def make_t1_stark_amp_cont_time(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 200, reps = None, rounds=None,  freq=None, df=40, acStark=True, stop_gain=32768, start_gain=0, delay_time=None):
+    prog = meas.T1StarkPowerContTimeExperiment(
+        soccfg=soc,
+        path=expt_path,
+        prefix=f"t1_stark_cont_qubit{qubit_i}",
+        config_file=cfg_file,
+        im=im
+    )
+
+    if delay_time is None: 
+        delay_time = prog.cfg.device.qubit.T1[qubit_i]
+    if reps is None:
+        reps = int(10*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+        repsE = int(2*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+    if rounds is None:
+        rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
+    if freq is None: 
+        freq = prog.cfg.device.qubit.f_ge[qubit_i]+df
+
+    prog.cfg.expt = dict(
+        expts=npts,
+        repsT1=reps,
+        repsE=repsE,
+        rounds=rounds, 
+        qubit=qubit_i,
+        start_gain=start_gain,
+        stop_gain=stop_gain,
+        stark_freq=freq,
+        acStark=acStark, 
+        checkZZ=False,
+        checkEF=False,
+        delay_time=delay_time,
+        qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
+    )
+    if go:
+        prog.go(analyze=True, display=True, progress=True, save=True)
+
+    return prog
+
+def make_t1_stark_amp_cont_time(soc, expt_path, cfg_file, qubit_i, im=None, go=False, npts = 200, reps = None, rounds=None,  freq=None, df=40, acStark=True, stop_gain=32768, ntimes=1000, start_gain=0, delay_time=None):
+    prog = meas.T1StarkPowerContTimeExperiment(
+        soccfg=soc,
+        path=expt_path,
+        prefix=f"t1_stark_cont_time_qubit{qubit_i}",
+        config_file=cfg_file,
+        im=im
+    )
+
+    if delay_time is None: 
+        delay_time = prog.cfg.device.qubit.T1[qubit_i]
+    if reps is None:
+        reps = int(10*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+        repsE = int(2*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+    if rounds is None:
+        rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
+    if freq is None: 
+        freq = prog.cfg.device.qubit.f_ge[qubit_i]+df
+
+    prog.cfg.expt = dict(
+        expts=npts,
+        repsT1=reps,
+        repsE=repsE,
+        rounds=rounds, 
+        qubit=qubit_i,
+        start_gain=start_gain,
+        stop_gain=stop_gain,
+        stark_freq=freq,
+        acStark=acStark, 
+        checkZZ=False,
+        checkEF=False,
+        ntimes=ntimes,
         delay_time=delay_time,
         qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
     )
@@ -1193,7 +1290,7 @@ def make_amprabiEF(soc, expt_path, cfg_file, qubit_i, im=None, go=False, span=No
 
     if reps is None:
         if temp: 
-            reps = int(10*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+            reps = int(25*prog.cfg.device.readout.reps[qubit_i]*reps_base)
         else:
             reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base)
     if rounds is None:

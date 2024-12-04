@@ -524,6 +524,71 @@ class SingleShotOptExperiment(Experiment):
         fpts = data['fpts'] # outer sweep, index 0
         gainpts = data['gainpts'] # middle sweep, index 1
         lenpts = data['lenpts'] # inner sweep, index 2
+        ndims =0
+        npts = []
+        inds=[]
+        sweep_var = []
+        labs = ['Freq.', 'Gain', 'Len']
+        if len(fpts)>1: 
+            ndims+=1
+            sweep_var.append(['fpts'])
+            npts.append(len(fpts))
+            inds.append(0)
+        if len(gainpts)>1:
+            ndims+=1
+            sweep_var.append(['gainpts'])
+            npts.append(len(gainpts))
+            inds.append(1)
+        if len(lenpts)>1:
+            ndims+=1
+            sweep_var.append(['lenpts'])
+            npts.append(len(lenpts))
+            inds.append(2)
+        def smart_ax(n):
+            row = int(np.ceil(n/5))
+            if n<5: col = n
+            else: col = 5
+            return row, col
+        colors = ["#004488","#BB5566",  "#DDAA33"]
+
+        def return_dim(data, dim, i):
+            if dim == 0: return data[i,:,:]
+            elif dim == 1: return data[:,i,:]
+            elif dim == 2: return data[:,:,i]
+        m=0.5
+        if ndims==1: 
+            row,col = smart_ax(npts[0])
+            fig, ax = plt.subplot(row,col, figsize=(col*3, row*3))
+            ax = ax.flatten()
+            for i in range(npts[0]): 
+
+                ax[i].plot(return_dim(self.data['Ig'], inds[0],i) , return_dim(self.data['Qg'], inds[0],i),'.', color=colors[0],alpha=0.2, markersize=m)
+                ax[i].plot(return_dim(self.data['Ie'], inds[0],i) , return_dim(self.data['Qe'], inds[0],i),'.', color=colors[0],alpha=0.2, markersize=m)
+                ax[i].set_title(f'{labs[inds[0]]} {sweep_var[0][i]}')
+                
+                
+        elif ndims==2:
+            fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1]*3, npts[0]*3))
+            for i in range(npts[0]):
+                for j in range(npts[1]):
+                    ax[i,j].plot(['Ig'],['Qg'],'r.')
+                    ax[i,j].plot(['Qe'],['Ie'],'b.')
+                    if i == npts[0]-1:
+                        ax[i,j].set_xlabel(np.round(sweep_var[1][j],1))
+                    if j == 0:
+                        ax[i,j].set_ylabel(np.round(sweep_var[0][i]))
+            plt.figtext(0.5, 0.0, labs[inds[0]], horizontalalignment='center')
+            plt.figtext(0.0, 0.5, labs[inds[1]], verticalalignment='center', rotation='vertical')
+        else: 
+            for i in range(npts[2]):
+                fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1]*3, npts[0]*3))
+                for i in range(npts[0]):
+                    for j in range(npts[1]):
+                        ax[i,j].plot(['Ig'],['Qg'],'r.')
+                        ax[i,j].plot(['Qe'],['Ie'],'b.')
+        
+
+        fig.tight_layout()
         # if len(fpts)>1 and gainpts>1 and lenpts>1: 
         #     sweep3d = True
         # elif fpts>1 and gainpts>1 or fpts>1 and lenpts>1 or gainpts>1 and lenpts>1:
@@ -532,7 +597,9 @@ class SingleShotOptExperiment(Experiment):
         # else:
         #     sweep2d= False
         #     sweep3d = False
+        title = f'Single Shot Optimization Q{self.cfg.expt.qubit}'
         fig = plt.figure(figsize=(9,5.5))
+        plt.title(title)
         if len(fpts)>1: 
             xval = fpts
             xlabel='Frequency [MHz]'

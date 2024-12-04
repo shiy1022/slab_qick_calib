@@ -212,8 +212,8 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             if fit:
                 p = data['fit_'+ydata]
                 pCov = data['fit_err_amps']
-                captionStr = f'Freq: fit [MHz]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3} \n'
-                captionStr += f'Kappa [MHz]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
+                captionStr = f'Freq: fit [MHz]: {p[2]:.3} \n'
+                captionStr += f'Kappa [MHz]: {p[3]:.3} \n'
                 ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
                 ax[i].set_ylabel(ylabels[i])
                 ax[i].set_xlabel(xlabel)

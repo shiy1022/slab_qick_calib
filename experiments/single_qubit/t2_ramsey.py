@@ -285,7 +285,7 @@ class RamseyExperiment(Experiment):
                     data['f_adjust_ramsey_'+ydata+'2'] = sorted((self.cfg.expt.ramsey_freq - data['fit_' + ydata][7], -self.cfg.expt.ramsey_freq - data['fit_' + ydata][6]), key=abs)
 
             fit_pars, fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
-
+            data['t2r_adjust']=t2r_adjust
             r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, fit_pars)
             print('R2:', r2)
             data['r2']=r2
@@ -311,7 +311,7 @@ class RamseyExperiment(Experiment):
             
         return data
 
-    def display(self, data=None, fit=True, fit_twofreq=False,debug=False, **kwargs):
+    def display(self, data=None, fit=True, fit_twofreq=False,debug=False,plot_all=False, **kwargs):
         if data is None:
             data=self.data
 
@@ -338,12 +338,21 @@ class RamseyExperiment(Experiment):
         if fit_twofreq: fitfunc = fitter.twofreq_decaysin
         else: fitfunc = fitter.decaysin
         print(f'Current pi pulse frequency: {f_pi_test}')
+        title = title + f' (Ramsey Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)'        
 
-        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
+        if plot_all:
+            fig, ax=plt.subplots(3, 1, figsize=(9, 11))
+            fig.suptitle(title)
+            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+            ydata_lab = ['amps', 'avgi', 'avgq']
+        else:
+            fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
+            a.set_title(title)
+            ylabels = ["I [ADC units]"]
+            ydata_lab = ['avgi']
+            ax = [a]
+        
         xlabel = "Wait Time (us)"
-        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-        fig.suptitle(f"{title} (Ramsey Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)")
-        ydata_lab = ['amps', 'avgi', 'avgq']
         fitfunc=fitter.decaysin
         for i, ydata in enumerate(ydata_lab):
             ax[i].plot(data["xpts"], data[ydata],'o-')
