@@ -189,6 +189,8 @@ class ResonatorSpectroscopyExperiment(Experiment):
             if hanger: 
                 data['fit'], data['fit_err'], data['init'] = fitter.fithanger(xdata, ydata)
                 r2 = fitter.get_r2(xdata, ydata, fitter.hangerS21func_sloped, data['fit']) 
+                data['r2']=r2
+                data['fit_err'] = np.mean(np.sqrt(np.diag(data['fit_err']))/np.abs(data['fit']))
 #                if r2<0.5: 
 #                    data['fit'] = [np.nan]*len(data['fit'])               
                 if isinstance(data['fit'], (list, np.ndarray)):
@@ -244,9 +246,14 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data['coarse_props']=props
         return data
 
-    def display(self, data=None, fit=True, findpeaks=False, hanger=True, debug=True, **kwargs):
+    def display(self, data=None, fit=True, findpeaks=False, hanger=True, debug=True, ax=None, **kwargs):
         if data is None:
             data=self.data 
+        
+        if ax is not None:
+            savefig = False
+        else:
+            savefig = True
         
         if 'lo' in self.cfg.hw:
             xpts = float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband[self.qubit]*(self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data['xpts'][1:-1])       
@@ -260,45 +267,50 @@ class ResonatorSpectroscopyExperiment(Experiment):
         else:
             xpts = data['xpts'][1:-1]
         qubit = self.cfg.expt.qubit
-        fig=plt.figure(figsize=(10,7))
-        plt.subplot(211, title=f"Resonator  Spectroscopy Q{qubit} at Gain {self.cfg.expt.gain}",  ylabel="Amps [ADC units]")
+        title = f"Resonator Spectroscopy Q{qubit}, Gain {self.cfg.expt.gain}"
+        if ax is None: 
+            fig, ax = plt.subplots(2,1, figsize=(10,7))
+        ax[0].set_ylabel("Amps [ADC units]")
         
-        plt.plot(xpts, data['amps'][1:-1],'.-')
+        ax[0].plot(xpts, data['amps'][1:-1],'.-')
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
-                    plt.plot(xpts, fitter.hangerS21func_sloped(xpts, *data["fit"]))
-                    
+                    label=f"$\kappa$={data['kappa']:.2f} MHz"
+                    ax[0].plot(xpts, fitter.hangerS21func_sloped(xpts, *data["fit"]), label=label)               
+                    ax[0].legend()
+     
                 if debug: 
-                    plt.plot(xpts, fitter.hangerS21func_sloped(xpts, *data["init"]))
+                    ax[0].plot(xpts, fitter.hangerS21func_sloped(xpts, *data["init"]), label='Initial fit')
             elif not any(np.isnan(data["lorentz_fit"])):
-                plt.plot(xpts, fitter.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
+                ax[0].plot(xpts, fitter.lorfunc(data["lorentz_fit"], xpts), label='Lorentzian fit')
             else:
                 print("Lorentzian fit contains NaN values, skipping plot.")
-
         if findpeaks:
             num_peaks = len(data['coarse_peaks_index'])
             print('Number of peaks:', num_peaks)
             peak_indices = data['coarse_peaks_index']
             for i in range(num_peaks):
                 peak = peak_indices[i]
-                plt.axvline(xpts[peak], linestyle='--', color='0.2')
+                ax[0].axvline(xpts[peak], linestyle='--', color='0.2')
         
         if 'mixer_freq' in self.cfg.hw.soc.dacs.readout and fit:
             data['fit'][0]=data['fit'][0]-self.cfg.hw.soc.dacs.readout.mixer_freq
         elif 'lo_freq' in self.cfg.hw.soc.dacs.readout and fit:
             data['fit'][0]=data['fit'][0]-self.cfg.hw.soc.dacs.readout.lo_freq
             data['init'][0]=data['init'][0]-self.cfg.hw.soc.dacs.readout.lo_freq
-           
-        plt.subplot(212, xlabel="Readout Frequency [MHz]", ylabel="Phase [radians]")
         
-        plt.plot(xpts, data['phase_fix'],'o-')
-
+        if savefig: 
+            ax[1].set_xlabel("Readout Frequency [MHz]")
+            ax[1].set_ylabel("Phase [radians]")
+            ax[1].plot(xpts, data['phase_fix'],'.-')
+        
+            fig.tight_layout()
+            imname = self.fname.split("\\")[-1]
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        
         plt.show()
-        fig.tight_layout()
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-        
+
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
         super().save_data(data=data)

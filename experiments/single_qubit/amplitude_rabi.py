@@ -363,7 +363,7 @@ class AmplitudeRabiExperiment(Experiment):
             fitfunc=fitter.sinfunc
             ydata_lab = ['amps', 'avgi', 'avgq']
             for i, ydata in enumerate(ydata_lab):
-                data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'], data[ydata], fitparams=fitparams)
+                data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'][1:], data[ydata][1:], fitparams=fitparams)
 
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
             r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
@@ -382,7 +382,7 @@ class AmplitudeRabiExperiment(Experiment):
 
         return data
 
-    def display(self, data=None, fit=True, **kwargs):
+    def display(self, data=None, fit=True,plot_all=False, ax=None, savefig=False, **kwargs):
         if data is None:
             data=self.data 
 
@@ -397,7 +397,7 @@ class AmplitudeRabiExperiment(Experiment):
             qMeas = self.cfg.expt.qubits[1]
 
 
-        title = f"Amplitude Rabi on Q{qTest} (Pulse Length {self.cfg.expt.sigma_test}"
+        title = f"Amplitude Rabi Q{qTest} (Pulse Length {self.cfg.expt.sigma_test}"
         if self.checkZZ:
             title=title + ', ZZ Q'+str(qZZ)+')'
         elif self.cfg.expt.checkEF: 
@@ -406,13 +406,22 @@ class AmplitudeRabiExperiment(Experiment):
             title=title + ', CC Meas Q' +str(qMeas)+')'
         else:
             title=title + ')'
-
-        fig, ax=plt.subplots(3, 1, figsize=(9, 11))
-        fig.suptitle(title)
+        if plot_all:
+            fig, ax=plt.subplots(3, 1, figsize=(9, 11))
+            fig.suptitle(title)
+            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+            ydata_lab = ['amps', 'avgi', 'avgq']
+        else:
+            if ax is None:
+                fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
+                ax = [a]
+            ax[0].set_title(title)
+            ylabels = ["I [ADC units]"]
+            ydata_lab = ['avgi']
+            
 
         xlabel = "Gain [DAC units]"
-        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-        ydata_lab = ['amps', 'avgi', 'avgq']
+        
         for i, ydata in enumerate(ydata_lab):
             ax[i].plot(data["xpts"], data[ydata],'o-')
 
@@ -421,8 +430,8 @@ class AmplitudeRabiExperiment(Experiment):
                 pi_gain = fitter.fix_phase(p)
                 pi2_gain = pi_gain/2
                 if pi_gain is not np.nan: 
-                    caption = f'Pi gain [dac units]: {pi_gain:.0f}'
-                ax[i].plot(data["xpts"], fitter.sinfunc(data["xpts"], *p), label=caption)
+                    caption = f'$\pi$ gain: {pi_gain:.0f}'
+                ax[i].plot(data["xpts"][1:], fitter.sinfunc(data["xpts"][1:], *p), label=caption)
     
                 ax[i].axvline(pi_gain, color='0.2', linestyle='--')
                 ax[i].axvline(pi2_gain, color='0.2', linestyle='--')
@@ -431,10 +440,10 @@ class AmplitudeRabiExperiment(Experiment):
                 ax[i].legend(loc='lower right')
       
         plt.show()
-
-        imname = self.fname.split("\\")[-1]
-        fig.tight_layout()
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        if savefig:
+            imname = self.fname.split("\\")[-1]
+            fig.tight_layout()
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
@@ -526,7 +535,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
             data=self.data
         pass
 
-    def display(self, data=None, fit=True,  **kwargs):
+    def display(self, data=None, fit=True, **kwargs):
         if data is None:
             data=self.data 
         

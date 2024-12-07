@@ -167,30 +167,39 @@ class T1Experiment(Experiment):
 
         fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
         r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
-        print('R2:', r2)
         data['r2']=r2
-
-        data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
-        print('fit_err:', data['fit_err'])
-        
-        data['best_fit']=fit_pars
+        fit_err = np.mean(np.abs(fit_err/fit_pars))
         data['new_t1']=fit_pars[2]
-        print('Best fit:', i_best)
         i_best = i_best.encode("ascii", "ignore")
         data['i_best']=i_best
-
+        fit_err = np.mean(np.abs(fit_err/fit_pars))
+        data['fit_err']=fit_err
+        print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
+        
         return data
 
-    def display(self, data=None, fit=True, **kwargs):
+    def display(self, data=None, fit=True,plot_all=False,ax=None, savefig=True, **kwargs):
+        
         if data is None:
             data=self.data 
         qubit = self.cfg.expt.qubit
-        
-        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
+        title=f'$T_1$ Q{qubit}'
         xlabel = "Wait Time (us)"
-        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-        fig.suptitle(f'T1 Q{qubit}')
-        ydata_lab = ['amps', 'avgi', 'avgq']
+        
+
+        if plot_all:
+            fig, ax=plt.subplots(3, 1, figsize=(9, 11))
+            fig.suptitle(title)
+            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+            ydata_lab = ['amps', 'avgi', 'avgq']
+        else:
+            if ax is None:
+                fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
+                ax = [a]
+            ylabels = ["I [ADC units]"]
+            ydata_lab = ['avgi']
+            ax[0].set_title(title)
+        
         for i, ydata in enumerate(ydata_lab):
             ax[i].plot(data["xpts"], data[ydata],'o-')
         
@@ -208,10 +217,11 @@ class T1Experiment(Experiment):
             data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][2][2])/data['fit_avgi'][2] 
             data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][2][2])/data['fit_avgq'][2]
 
-        imname = self.fname.split("\\")[-1]
-        fig.tight_layout()
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-        plt.show()
+        if savefig:
+            imname = self.fname.split("\\")[-1]
+            fig.tight_layout()
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+            plt.show()
         
     def save_data(self, data=None):
         print(f'Saving {self.fname}')

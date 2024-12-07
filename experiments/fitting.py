@@ -322,7 +322,7 @@ def fithanger(xdata, ydata, fitparams=None):
     if fitparams[3] is None: fitparams[3]=0 #phi
     if fitparams[4] is None: fitparams[4]=max(ydata) # scale
     if fitparams[5] is None: fitparams[5]=0 #(ydata[-1] - ydata[0]) / (xdata[-1] - xdata[0])
-    print(fitparams)
+    #print(fitparams)
 
     # bounds = (
     #     [np.min(xdata), -1e9, -1e9, -2*np.pi, (max(np.abs(ydata))-min(np.abs(ydata)))/10, -np.max(np.abs(ydata))],
@@ -342,7 +342,7 @@ def fithanger(xdata, ydata, fitparams=None):
     pCov = np.full(shape=(len(fitparams), len(fitparams)), fill_value=np.inf)
     try:
         pOpt, pCov = sp.optimize.curve_fit(hangerS21func_sloped, xdata, ydata, p0=fitparams, bounds=bounds)
-        print(pOpt)
+        #print(pOpt)
         pOpt[1]=pOpt[1]
         pOpt[2]=pOpt[2]
         pOpt[0]=pOpt[0]

@@ -187,7 +187,11 @@ class RamseyProgram(RAveragerProgram):
             self.mathi(self.q_rps[qTest], self.r_phase, self.r_phase3, "+", 0)        
         #self.setup_and_pulse(ch=self.qubit_chs[qTest], style="arb", freq=self.f_pi_test_reg, gain=self.gain_pi_test, waveform="pi2_test")
         #self.setup_and_pulse(ch=self.qubit_chs[qTest], style="arb", freq=self.f_pi_test_reg, phase=0, gain=self.gain_pi_test, waveform="pi2_test")
-        else: self.mathi(self.q_rps[qTest], self.r_phase, self.r_phase2, "+", 0)
+        else:
+            if self.cfg.expt.ramsey_freq_sign>0: 
+                self.mathi(self.q_rps[qTest], self.r_phase, self.r_phase2, "+", 0)
+            else:
+                self.mathi(self.q_rps[qTest], self.r_phase, 0, "-", self.r_phase2)
         self.pulse(ch=self.qubit_chs[qTest])
 
         if self.checkEF: # map excited back to qubit ground state for measurement
@@ -207,7 +211,7 @@ class RamseyProgram(RAveragerProgram):
         if self.checkZZ: qZZ, qTest = self.qubits
         else: qTest = self.qubits[0]
 
-        phase_step = self.deg2reg(360 * self.cfg.expt.ramsey_freq * self.cfg.expt.step, gen_ch=self.qubit_chs[qTest]) # phase step [deg] = 360 * f_Ramsey [MHz] * tau_step [us]
+        phase_step = self.deg2reg(360 * self.cfg.expt.ramsey_freq_abs * self.cfg.expt.step, gen_ch=self.qubit_chs[qTest]) # phase step [deg] = 360 * f_Ramsey [MHz] * tau_step [us]
         self.mathi(self.q_rps[qTest], self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update the time between two π/2 pulses
         self.mathi(self.q_rps[qTest], self.r_phase2, self.r_phase2, '+', phase_step) # advance the phase of the LO for the second π/2 pulse
 
@@ -247,6 +251,11 @@ class RamseyExperiment(Experiment):
         
         now = datetime.now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        if self.cfg.expt.ramsey_freq >0: 
+            self.cfg.expt.ramsey_freq_sign=1
+        else:
+            self.cfg.expt.ramsey_freq_sign=-1
+        self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
         ramsey = RamseyProgram(soccfg=self.soccfg, cfg=self.cfg)
         #print(ramsey)
         
@@ -277,32 +286,34 @@ class RamseyExperiment(Experiment):
 
             ydata_lab = ['amps', 'avgi', 'avgq']
             for i, ydata in enumerate(ydata_lab):
-                data['fit_' + ydata], data['fit_err_' + ydata], data['init_guess_'+ydata] = fitfunc(data['xpts'], data[ydata], fitparams=fitparams, debug=debug)
+                data['fit_' + ydata], data['fit_err_' + ydata], data['init_guess_'+ydata] = fitfunc(data['xpts'][1:-1], data[ydata][1:-1], fitparams=fitparams, debug=debug)
                 if isinstance(data['fit_'+ydata], (list, np.ndarray)): 
-                    data['f_adjust_ramsey_'+ydata] = sorted((self.cfg.expt.ramsey_freq - data['fit_'+ydata][1], -self.cfg.expt.ramsey_freq - data['fit_'+ydata][1]), key=abs)              
+                    data['f_adjust_ramsey_'+ydata] = sorted((self.cfg.expt.ramsey_freq - data['fit_'+ydata][1], self.cfg.expt.ramsey_freq + data['fit_'+ydata][1]), key=abs)              
 
-                if fit_twofreq:
-                    data['f_adjust_ramsey_'+ydata+'2'] = sorted((self.cfg.expt.ramsey_freq - data['fit_' + ydata][7], -self.cfg.expt.ramsey_freq - data['fit_' + ydata][6]), key=abs)
+                if fit_twofreq:                    
+                    data['f_adjust_ramsey_'+ydata+'2'] = sorted((self.cfg.expt.ramsey_freq - data['fit_' + ydata][7], self.cfg.expt.ramsey_freq - data['fit_' + ydata][6]), key=abs)
 
             fit_pars, fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
             data['t2r_adjust']=t2r_adjust
             r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, fit_pars)
-            print('R2:', r2)
             data['r2']=r2
 
-            data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
-            print('fit_err:', data['fit_err'])
 
             data['best_fit'] = fit_pars
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
-            print(f'Best fit: {i_best}')
+
+            fit_err = np.mean(np.abs(fit_err/fit_pars))
+            data['fit_err']=fit_err
+            print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
 
             if self.cfg.expt.checkEF: 
                 f_pi_test = self.cfg.device.qubit.f_ef[self.cfg.expt.qubits[0]]
             else:
                 f_pi_test = self.cfg.device.qubit.f_ge[self.cfg.expt.qubits[0]]
             
+            print(f'Possible errors are {t2r_adjust[0]:.3f} and {t2r_adjust[1]:.3f} for Ramsey frequency {self.cfg.expt.ramsey_freq:.3f} MHz')
+            data['f_err']=t2r_adjust[0]
             if t2r_adjust[0] < np.abs(t2r_adjust[1]):
                 new_freq = f_pi_test + t2r_adjust[0]
             else:       
@@ -311,7 +322,7 @@ class RamseyExperiment(Experiment):
             
         return data
 
-    def display(self, data=None, fit=True, fit_twofreq=False,debug=False,plot_all=False, **kwargs):
+    def display(self, data=None, fit=True, fit_twofreq=False,debug=False,plot_all=False,ax=None,savefig=True, **kwargs):
         if data is None:
             data=self.data
 
@@ -333,12 +344,14 @@ class RamseyExperiment(Experiment):
             else: f_pi_test = self.cfg.device.qubit.f_Q_ZZ1[qSort]
         if self.checkEF: f_pi_test = self.cfg.device.qubit.f_ef[qTest]
 
-        title = ('EF' if self.checkEF else '') + f'Ramsey on Q{qTest}' + (f'with Q{qZZ} in e' if self.checkZZ else '') 
+        title = ('EF' if self.checkEF else '') + f'Ramsey Q{qTest}' + (f'with Q{qZZ} in e' if self.checkZZ else '') 
+        xlabel = "Wait Time (us)"
+        fitfunc=fitter.decaysin
 
         if fit_twofreq: fitfunc = fitter.twofreq_decaysin
         else: fitfunc = fitter.decaysin
         print(f'Current pi pulse frequency: {f_pi_test}')
-        title = title + f' (Ramsey Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)'        
+        title = title + f' (Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)'        
 
         if plot_all:
             fig, ax=plt.subplots(3, 1, figsize=(9, 11))
@@ -346,22 +359,22 @@ class RamseyExperiment(Experiment):
             ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
             ydata_lab = ['amps', 'avgi', 'avgq']
         else:
-            fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
-            a.set_title(title)
+            if ax is None:
+                fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
+                ax = [a]
+
             ylabels = ["I [ADC units]"]
             ydata_lab = ['avgi']
-            ax = [a]
+            ax[0].set_title(title)
         
-        xlabel = "Wait Time (us)"
-        fitfunc=fitter.decaysin
         for i, ydata in enumerate(ydata_lab):
-            ax[i].plot(data["xpts"], data[ydata],'o-')
+            ax[i].plot(data["xpts"][1:-1], data[ydata][1:-1],'o-')
         
             if fit:
                 p = data['fit_'+ydata]
                 pCov = data['fit_err_amps']
-                captionStr = f'$T_2$ Ramsey fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
-                captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
+                captionStr = f'$T_2$ Ramsey ($\mu$s): {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
+                captionStr += f'Freq. (MHz): {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
                 ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
 
                 # Plot the decaying exponential
@@ -384,9 +397,10 @@ class RamseyExperiment(Experiment):
                         f'\t{f_pi_test + data["f_adjust_ramsey_avgi2"][0]}\n',
                         f'\t{f_pi_test + data["f_adjust_ramsey_avgi2"][1]}')
        
-        imname = self.fname.split("\\")[-1]
-        fig.tight_layout()
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        if savefig:
+            imname = self.fname.split("\\")[-1]
+            fig.tight_layout()
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
         print('New pi pulse frequency {:3.4f}:\n'.format(data['new_freq']))
         plt.show()

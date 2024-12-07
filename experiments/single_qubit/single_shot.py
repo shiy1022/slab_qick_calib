@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
 from qick.helpers import gauss
-from copy import deepcopy
+import copy
 
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
@@ -10,7 +10,7 @@ from tqdm import tqdm_notebook as tqdm
 blue="#4053d3"
 red ="#b51d14"
 int_rgain=True
-def hist(data, plot=True, span=None, verbose=True):
+def hist(data, plot=True, span=None,ax=None, verbose=False):
 
     """
     span: histogram limit is the mean +/- span
@@ -33,9 +33,9 @@ def hist(data, plot=True, span=None, verbose=True):
 
     if verbose:
         print('Unrotated:')
-        print(f'Ig {xg} +/- {np.std(Ig)} \t Qg {yg} +/- {np.std(Qg)} \t Amp g {np.abs(xg+1j*yg)}')
-        print(f'Ie {xe} +/- {np.std(Ie)} \t Qe {ye} +/- {np.std(Qe)} \t Amp e {np.abs(xe+1j*ye)}')
-        if plot_f: print(f'If {xf} +/- {np.std(If)} \t Qf {yf} +/- {np.std(Qf)} \t Amp f {np.abs(xf+1j*yf)}')
+        print(f'Ig {xg:0.3f} +/- {np.std(Ig):0.3f} \t Qg {yg:0.3f} +/- {np.std(Qg):0.3f} \t Amp g {np.abs(xg+1j*yg):0.3f}')
+        print(f'Ie {xe:0.3f} +/- {np.std(Ie):0.3f} \t Qe {ye:0.3f} +/- {np.std(Qe):0.3f} \t Amp e {np.abs(xe+1j*ye):0.3f}')
+        if plot_f: print(f'If {xf:0.3f} +/- {np.std(If)} \t Qf {yf:0.3f} +/- {np.std(Qf):0.3f} \t Amp f {np.abs(xf+1j*yf):0.3f}')
 
     if plot:
         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 6))
@@ -79,9 +79,9 @@ def hist(data, plot=True, span=None, verbose=True):
     if plot_f: xf, yf = np.median(If_new), np.median(Qf_new)
     if verbose:
         print('Rotated:')
-        print(f'Ig {xg} +/- {np.std(Ig)} \t Qg {yg} +/- {np.std(Qg)} \t Amp g {np.abs(xg+1j*yg)}')
-        print(f'Ie {xe} +/- {np.std(Ie)} \t Qe {ye} +/- {np.std(Qe)} \t Amp e {np.abs(xe+1j*ye)}')
-        if plot_f: print(f'If {xf} +/- {np.std(If)} \t Qf {yf} +/- {np.std(Qf)} \t Amp f {np.abs(xf+1j*yf)}')
+        print(f'Ig {xg:.3f} +/- {np.std(Ig):.3f} \t Qg {yg:.3f} +/- {np.std(Qg):.3f} \t Amp g {np.abs(xg+1j*yg):.3f}')
+        print(f'Ie {xe:.3f} +/- {np.std(Ie):.3f} \t Qe {ye:.3f} +/- {np.std(Qe):.3f} \t Amp e {np.abs(xe+1j*ye):.3f}')
+        if plot_f: print(f'If {xf:.3f} +/- {np.std(If)} \t Qf {yf:.3f} +/- {np.std(Qf):.3f} \t Amp f {np.abs(xf+1j*yf):.3f}')
 
 
     if span is None:
@@ -111,12 +111,35 @@ def hist(data, plot=True, span=None, verbose=True):
         axs[1,0].set_ylabel('Counts')
         axs[1,0].set_xlabel('I [ADC levels]')       
         axs[1,0].legend(loc='upper right')
-
+    
     else:        
         ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims)
         ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims)
         if plot_f:
             nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
+    
+    if ax is not None: 
+        ax[0].plot(Ig_new, Qg_new,'.', label='g', color=blue, alpha=a, markersize=m)
+        ax[0].plot(Ie_new, Qe_new, '.', label='e', color=red, alpha=a, markersize=m)
+        if plot_f: ax[0].plot(If_new, Qf_new, '.', label='f', color='g', alpha=a, markersize=m)
+        ax[0].plot(xg, yg, color='k', marker='o')
+        ax[0].plot(xe, ye, color='k', marker='o')    
+        if plot_f: axs[0, 1].scatter(xf, yf, color='k', marker='o')    
+
+        # ax[0].set_xlabel('I [ADC levels]')
+        ax[0].legend(loc='upper right')
+        ax[0].set_title('Rotated')
+        ax[0].axis('equal')
+
+        """X and Y ranges for histogram"""
+
+        ng, binsg, pg = ax[1].hist(Ig_new, bins=numbins, range = xlims, color=blue, label='g', alpha=0.5)
+        ne, binse, pe = ax[1].hist(Ie_new, bins=numbins, range = xlims, color=red, label='e', alpha=0.5)
+        if plot_f:
+            nf, binsf, pf = ax[1].hist(If_new, bins=numbins, range = xlims, color='g', label='f', alpha=0.5)
+        ax[1].set_ylabel('Counts')
+        ax[1].set_xlabel('I [ADC levels]')       
+        ax[1].legend(loc='upper right')
 
     """Compute the fidelity using overlap of the histograms"""
     fids = []
@@ -337,7 +360,7 @@ class HistogramExperiment(Experiment):
         data=dict()
 
         # Ground state shots
-        cfg2 =deepcopy(dict(self.cfg))
+        cfg2 =copy.deepcopy(dict(self.cfg))
         cfg = AttrDict(cfg2)
         cfg.expt.pulse_e = False
         cfg.expt.pulse_f = False
@@ -381,29 +404,36 @@ class HistogramExperiment(Experiment):
         
         return data
 
-    def display(self, data=None, span=None, verbose=True, plot_e=True, plot_f=False, **kwargs):
+    def display(self, data=None, span=None, verbose=False, plot_e=True, plot_f=False,ax=None,plot=True, **kwargs):
         if data is None:
             data=self.data 
         
-        fids, thresholds, angle, fig = hist(data=data, plot=True, verbose=verbose, span=span)
+        if ax is not None:  
+            savefig = False
+        else:
+            savefig=True
+
+        fids, thresholds, angle, fig = hist(data=data, plot=True, verbose=verbose, span=span, ax=ax)
             
-        print(f'ge fidelity (%): {100*fids[0]}')
+        print(f'ge Fidelity (%): {100*fids[0]:.3f}')
         if 'expt' not in self.cfg: 
             self.cfg.expt.check_e = plot_e
             self.cfg.expt.check_f = plot_f
         if self.cfg.expt.check_f:
-            print(f'gf fidelity (%): {100*fids[1]}')
-            print(f'ef fidelity (%): {100*fids[2]}')
-        print(f'rotation angle (deg): {angle}')
-        print(f'threshold ge: {thresholds[0]}')
+            print(f'gf Fidelity (%): {100*fids[1]:.3f}')
+            print(f'ef Fidelity (%): {100*fids[2]:.3f}')
+        print(f'Rotation angle (deg): {angle:.3f}')
+        print(f'Threshold ge: {thresholds[0]:.3f}')
         if self.cfg.expt.check_f:
-            print(f'threshold gf: {thresholds[1]}')
-            print(f'threshold ef: {thresholds[2]}')
+            print(f'Threshold gf: {thresholds[1]:.3f}')
+            print(f'Threshold ef: {thresholds[2]:.3f}')
         qubit = self.cfg.expt.qubits[0]
         imname = self.fname.split("\\")[-1]
-        fig.suptitle(f'Single Shot Histogram Analysis Q{qubit}')
-        fig.tight_layout()
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+
+        if savefig: 
+            fig.suptitle(f'Single Shot Histogram Analysis Q{qubit}')
+            fig.tight_layout()
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
@@ -459,10 +489,10 @@ class SingleShotOptExperiment(Experiment):
         for f_ind, f in enumerate(tqdm(fpts, disable=not progress)):
             Ig.append([]); Ie.append([]); Qg.append([]); Qe.append([])
             if check_f: If.append([]); Qf.append([])
-            for g_ind, gain in enumerate(gainpts):
+            for g_ind, gain in enumerate(tqdm(gainpts, disable=not progress)):
                 Ig[-1].append([]); Ie[-1].append([]); Qg[-1].append([]); Qe[-1].append([])
                 if check_f: If[-1].append([]); Qf[-1].append([])
-                for l_ind, l in enumerate(lenpts):
+                for l_ind, l in enumerate(tqdm(lenpts, disable=not progress)):
                     shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file, im=self.im)
                     shot.cfg = self.cfg
                     shot.cfg.device.readout.frequency = float(f)
@@ -482,15 +512,21 @@ class SingleShotOptExperiment(Experiment):
                     angle[f_ind, g_ind, l_ind] = results['angle']
                     # print(f'freq: {f}, gain: {gain}, len: {l}')
                     # print(f'\tfid ge [%]: {100*results["fids"][0]}')
-                    if check_f: print(f'\tfid gf [%]: {100*results["fids"][1]}')
+                    if check_f: print(f'\tfid gf [%]: {100*results["fids"][1]:.3f}')
 
 
+        
+        if check_f: 
+            self.data['If'] = np.array(If)
+            self.data['Qf'] = np.array(Qf)
         if self.cfg.expt.save_data: 
             self.data = dict(fpts=fpts, gainpts=gainpts, lenpts=lenpts, fid=fid, threshold=threshold, angle=angle, Ig=Ig, Ie=Ie, Qg=Qg, Qe=Qe)
             if check_f: self.data['If'] = If; self.data['Qf'] = Qf
         else:
             self.data = dict(fpts=fpts, gainpts=gainpts, lenpts=lenpts, fid=fid, threshold=threshold, angle=angle)
         
+        for key in self.data.keys():
+            self.data[key] = np.array(self.data[key])
         return self.data
 
     def analyze(self, data=None, **kwargs):
@@ -503,12 +539,9 @@ class SingleShotOptExperiment(Experiment):
         lenpts = data['lenpts']
 
         imax = np.unravel_index(np.argmax(fid), shape=fid.shape)
-        print(imax)
-        print(fpts)
-        print(gainpts)
-        print(lenpts)
-        print(f'Max fidelity {100*fid[imax]} %')
-        print(f'Set params: \n angle (deg) {-angle[imax]} \n threshold {threshold[imax]} \n freq [Mhz] {fpts[imax[0]]} \n Gain [DAC units] {gainpts[imax[1]]} \n readout length [us] {lenpts[imax[2]]}')
+
+        print(f'Max fidelity {100*fid[imax]:.3f} %')
+        print(f'Set params: \n angle (deg) {-angle[imax]:.3f} \n threshold {threshold[imax]:.3f} \n freq [MHz] {fpts[imax[0]]:.3f} \n Gain [DAC units] {gainpts[imax[1]]:.3f} \n readout length [us] {lenpts[imax[2]]:.3f}')
         self.data['freq'] = fpts[imax[0]]
         self.data['gain'] = gainpts[imax[1]]
         self.data['length'] = lenpts[imax[2]]
@@ -531,17 +564,17 @@ class SingleShotOptExperiment(Experiment):
         labs = ['Freq.', 'Gain', 'Len']
         if len(fpts)>1: 
             ndims+=1
-            sweep_var.append(['fpts'])
+            sweep_var.append('fpts')
             npts.append(len(fpts))
             inds.append(0)
         if len(gainpts)>1:
             ndims+=1
-            sweep_var.append(['gainpts'])
+            sweep_var.append('gainpts')
             npts.append(len(gainpts))
             inds.append(1)
         if len(lenpts)>1:
             ndims+=1
-            sweep_var.append(['lenpts'])
+            sweep_var.append('lenpts')
             npts.append(len(lenpts))
             inds.append(2)
         def smart_ax(n):
@@ -550,35 +583,45 @@ class SingleShotOptExperiment(Experiment):
             else: col = 5
             return row, col
         colors = ["#004488","#BB5566",  "#DDAA33"]
+        title = f'Single Shot Optimization Q{self.cfg.expt.qubit}'
 
         def return_dim(data, dim, i):
-            if dim == 0: return data[i,:,:]
-            elif dim == 1: return data[:,i,:]
-            elif dim == 2: return data[:,:,i]
+            if len(dim)==1:
+                if dim[0] == 0: return data[i,:,:].reshape(-1)
+                elif dim[0] == 1: return data[:,i,:].reshape(-1)
+                elif dim[0] == 2: return data[:,:,i].reshape(-1)
+            elif len(dim)==2:
+                if dim == [0,1]: return data[i[0],i[1],:].reshape(-1)
+                if dim == [0,2]: return data[i[0],:,i[1]].reshape(-1)
+                if dim == [1,2]: return data[:,i[0],i[1]].reshape(-1)
+                
         m=0.5
         if ndims==1: 
             row,col = smart_ax(npts[0])
-            fig, ax = plt.subplot(row,col, figsize=(col*3, row*3))
+            fig, ax = plt.subplots(row,col, figsize=(col*3, row*3))
             ax = ax.flatten()
             for i in range(npts[0]): 
 
-                ax[i].plot(return_dim(self.data['Ig'], inds[0],i) , return_dim(self.data['Qg'], inds[0],i),'.', color=colors[0],alpha=0.2, markersize=m)
-                ax[i].plot(return_dim(self.data['Ie'], inds[0],i) , return_dim(self.data['Qe'], inds[0],i),'.', color=colors[0],alpha=0.2, markersize=m)
-                ax[i].set_title(f'{labs[inds[0]]} {sweep_var[0][i]}')
+                ax[i].plot(return_dim(self.data['Ig'], inds,i), return_dim(self.data['Qg'], inds,i),'.', color=colors[0], alpha=0.2, markersize=m)
+                ax[i].plot(return_dim(self.data['Ie'], inds,i), return_dim(self.data['Qe'], inds,i),'.', color=colors[1], alpha=0.2, markersize=m)
+  
+                ax[i].set_title(f'{labs[inds[0]]} {data[sweep_var[0]][i]:.2f}')
                 
                 
         elif ndims==2:
             fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1]*3, npts[0]*3))
+            
             for i in range(npts[0]):
                 for j in range(npts[1]):
-                    ax[i,j].plot(['Ig'],['Qg'],'r.')
-                    ax[i,j].plot(['Qe'],['Ie'],'b.')
+                    ax[i,j].plot(return_dim(self.data['Ig'], inds,[i,j]), return_dim(self.data['Qg'], inds,[i,j]),'.', color=colors[0], alpha=0.2, markersize=m)
+                    ax[i,j].plot(return_dim(self.data['Ie'], inds,[i,j]), return_dim(self.data['Qe'], inds,[i,j]),'.', color=colors[1], alpha=0.2, markersize=m)
+                    
                     if i == npts[0]-1:
-                        ax[i,j].set_xlabel(np.round(sweep_var[1][j],1))
+                        ax[i,j].set_xlabel(np.round(self.data[sweep_var[1]][j],1))
                     if j == 0:
-                        ax[i,j].set_ylabel(np.round(sweep_var[0][i]))
-            plt.figtext(0.5, 0.0, labs[inds[0]], horizontalalignment='center')
-            plt.figtext(0.0, 0.5, labs[inds[1]], verticalalignment='center', rotation='vertical')
+                        ax[i,j].set_ylabel(np.round(self.data[sweep_var[0]][i],1))
+            plt.figtext(0.5, 0.0, labs[inds[1]], horizontalalignment='center')
+            plt.figtext(0.0, 0.5, labs[inds[0]], verticalalignment='center', rotation='vertical')
         else: 
             for i in range(npts[2]):
                 fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1]*3, npts[0]*3))
@@ -587,8 +630,13 @@ class SingleShotOptExperiment(Experiment):
                         ax[i,j].plot(['Ig'],['Qg'],'r.')
                         ax[i,j].plot(['Qe'],['Ie'],'b.')
         
-
+        fig.suptitle(title)
         fig.tight_layout()
+        
+
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'_raw.png')
+
         # if len(fpts)>1 and gainpts>1 and lenpts>1: 
         #     sweep3d = True
         # elif fpts>1 and gainpts>1 or fpts>1 and lenpts>1 or gainpts>1 and lenpts>1:

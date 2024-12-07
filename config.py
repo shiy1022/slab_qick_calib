@@ -45,8 +45,8 @@ def in_rng(val, rng_vals):
 def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
     cfg=load(file_name)
     if not np.isnan(value):     
-        if not isinstance(value, int):
-            value=round(value, sig)
+        if not isinstance(value, int) and not isinstance(value, str):
+            value=float(round(value, sig))
         if rng_vals is not None:
             value = in_rng(value, rng_vals)
         if isinstance(field, tuple): # for setting nested fields
@@ -69,8 +69,9 @@ def update_readout(file_name, field, value, qubit_i, verbose=True, sig=4, rng_va
     cfg=load(file_name)
     if not np.isnan(value):
         if rng_vals is not None:
-            value = in_rng(value, rng_vals)        
-        value=round(value, sig)
+            value = in_rng(value, rng_vals)
+        if not isinstance(value, int) and not isinstance(value, str):
+            value=float(round(value, sig))
         old_value = cfg['device']['readout'][field][qubit_i]
         cfg['device']['readout'][field][qubit_i] = value
         save(cfg, file_name)

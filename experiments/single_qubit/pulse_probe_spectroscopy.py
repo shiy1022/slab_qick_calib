@@ -230,7 +230,7 @@ class PulseProbeSpectroscopyExperiment(Experiment):
 
 # ====================================================== #
 
-class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
+class PulseProbePowerSweepSpectroscopyExperimentOld(Experiment):
     """
     PulseProbe Spectroscopy Experiment
     Experimental Config:

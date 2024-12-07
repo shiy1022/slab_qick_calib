@@ -175,15 +175,17 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitter.lorfunc)
             r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
-            print('R2:', r2)
+            print(f'R2:{r2:.3f}')
             data['r2']=r2
             data['best_fit']=fit_pars
-            print('Best fit:', i_best)
+            print(f'Best fit:{i_best}')
             data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
             print('fit_err:', data['fit_err'])
 
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
+            data['new_freq'] = fit_pars[2]
+
         return data
 
     def display(self, data=None, fit=True, signs=[1,1,1], **kwargs):
@@ -213,7 +215,7 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
                 p = data['fit_'+ydata]
                 pCov = data['fit_err_amps']
                 captionStr = f'Freq: fit [MHz]: {p[2]:.3} \n'
-                captionStr += f'Kappa [MHz]: {p[3]:.3} \n'
+                captionStr += f'$\kappa$ [MHz]: {p[3]:.3} \n'
                 ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
                 ax[i].set_ylabel(ylabels[i])
                 ax[i].set_xlabel(xlabel)

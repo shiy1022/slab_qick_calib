@@ -268,15 +268,16 @@ class RamseyEchoExperiment(Experiment):
             print('R2:', r2)
             data['r2']=r2
 
-            data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
-            print('fit_err:', data['fit_err'])
             data['best_fit'] = data['fit_'+i_best]
 
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=fit_pars
             
-            print(f'Best fit: {i_best}')
             f_pi_test = self.cfg.device.qubit.f_ge
+
+            fit_err = np.mean(np.abs(fit_err/fit_pars))
+            data['fit_err']=fit_err
+            print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
 
             if t2r_adjust[0] < np.abs(t2r_adjust[1]):
                 new_freq = f_pi_test + t2r_adjust[0]
@@ -286,11 +287,15 @@ class RamseyEchoExperiment(Experiment):
 
         return data
 
-    def display(self, data=None, fit=True, debug=False,plot_all=False, **kwargs):
+    def display(self, data=None, fit=True, debug=False,plot_all=False,ax=None,savefig=True, **kwargs):
         if data is None:
             data=self.data
         qubit = self.cfg.expt.qubit
-        title=f"Ramsey Echo Q{qubit} (Ramsey Freq: {self.cfg.expt.ramsey_freq:.4} MHz)",
+
+        xlabel = "Wait Time (us)"
+        title=f"Ramsey Echo Q{qubit} (Freq: {self.cfg.expt.ramsey_freq:.4} MHz)"
+        fitfunc=fitter.decaysin
+
 
         print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
         fitfunc=fitter.decaysin
@@ -301,22 +306,22 @@ class RamseyEchoExperiment(Experiment):
             ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
             ydata_lab = ['amps', 'avgi', 'avgq']
         else:
-            fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
-            a.set_title(title)
+            if ax is None:
+                fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
+                ax = [a]
             ylabels = ["I [ADC units]"]
             ydata_lab = ['avgi']
-            ax = [a]
-
-        xlabel = "Wait Time (us)"
-        fitfunc=fitter.decaysin
+            
+            ax[0].set_title(title)
+        
         for i, ydata in enumerate(ydata_lab):
             ax[i].plot(data["xpts"], data[ydata],'o-')
         
             if fit:
                 p = data['fit_'+ydata]
                 pCov = data['fit_err_amps']
-                captionStr = f'$T_2$ Echo fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
-                captionStr += f'Frequency [MHz]: {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
+                captionStr = f'$T_2$ Echo ($\mu$s): {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
+                captionStr += f'Freq. (MHz): {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
                 ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
 
                 # Plot the decaying exponential
@@ -327,6 +332,7 @@ class RamseyEchoExperiment(Experiment):
                 ax[i].set_ylabel(ylabels[i])
                 ax[i].set_xlabel(xlabel)
                 ax[i].legend(loc='upper right')
+                
                 if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
          
             if debug: 
@@ -340,8 +346,9 @@ class RamseyEchoExperiment(Experiment):
             
         plt.show()
         imname = self.fname.split("\\")[-1]
-        fig.tight_layout()
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        if savefig:
+            fig.tight_layout()
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
     def save_data(self, data=None):
         print(f'Saving {self.fname}')

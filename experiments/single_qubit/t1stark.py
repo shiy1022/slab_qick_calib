@@ -845,6 +845,7 @@ class T1StarkPowerContTimeExperiment(Experiment):
         fig=plt.figure(figsize=(7,8))
         plt.title(title)
         plt.pcolormesh(data['xpts']**2/np.max(data['xpts']**2),y_sweep, data['avgi']/data['avgi_off'], label='I')
+        plt.colorbar()
         plt.xlabel('Gain Sq[DAC units]')
 
         plt.tight_layout()
