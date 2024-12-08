@@ -6,7 +6,7 @@ import experiments.fitting as fitter
 import numpy as np
 import warnings
 
-def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=201, check_f=False):
+def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=251, plot=False, check_f=False):
     
     auto_cfg = config.load(cfg_file)
     freq = auto_cfg['device']['readout']['frequency'][qubit_i]
@@ -30,22 +30,34 @@ def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=201, chec
         xpts_chi = chi.data['xpts']
         xpts_res = rspec.data['xpts']
 
-    
-    fig, ax = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
-    ax[0].plot(xpts_res, rspec.data['amps'], label='No Pulse')
-    ax[2].plot(xpts_res[1:-1], rspec.data['phase_fix'])
-
-    ax[0].set_title(f'Chi Measurement Q{qubit_i}')
-
-    ax[0].plot(xpts_chi, chi.data['amps'], label='e Pulse')
-    ax[2].plot(xpts_chi[1:-1], chi.data['phase_fix'], label='e Pulse')
-
-    ax[1].plot(xpts_res, rspec.data['amps']-chi.data['amps'])
-    
     arg=np.argmin(np.abs(np.abs(chi.data['amps']))-np.abs(rspec.data['amps']))
     arg2=np.argmin(np.abs(rspec.data['amps']))
+    chi.data['rval']=rspec.data['xpts'][arg2]
+    chi.data['cval']=chi.data['xpts'][arg]
     chi_val = xpts_chi[arg]-xpts_res[arg2]
+    chi.data['freq_opt']=rspec.data['xpts'][arg]
     
+    fig, ax = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
+    ax[0].set_title(f'Chi Measurement Q{qubit_i}')
+    ax[0].plot(xpts_res, rspec.data['amps'], label='No Pulse')
+    ax[0].plot(xpts_chi, chi.data['amps'], label=f'e Pulse $\chi=${chi_val:0.2f} MHz')
+    ax[0].legend()
+    ax[0].axvline(x=xpts_chi[arg], color='r', linestyle='--')  # Add vertical line at selected point
+    ax[0].axvline(x=xpts_res[arg2], color='r', linestyle='--')
+    ax[0].set_ylabel('Amplitude')
+    ax[0].set_xlabel('Frequency (MHz)')
+
+    ax[1].plot(xpts_res, rspec.data['amps']-chi.data['amps'])
+    ax[1].axvline(x=xpts_chi[arg], color='r', linestyle='--')
+    ax[1].axvline(x=xpts_res[arg2], color='r', linestyle='--')
+    ax[1].set_ylabel('Difference')
+    ax[1].set_xlabel('Frequency (MHz)')
+
+    ax[2].plot(xpts_res[1:-1], rspec.data['phase_fix'])
+    ax[2].plot(xpts_chi[1:-1], chi.data['phase_fix'], label='e Pulse')
+
+    
+
     if check_f:
         ax[0].plot(chif.data['xpts'], chif.data['amps'], label='f pulse')
         ax[2].plot(chif.data['xpts'][1:-1], chif.data['phase_fix'], label='f pulse')
@@ -55,17 +67,10 @@ def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=201, chec
     # if check_f:
     #     ax[0].plot(chif.data['xpts'][1:-1], fitter.hangerS21func_sloped(chif.data["xpts"][1:-1], *chif.data["fit"]),'k')
     
-    ax[0].legend()
-
-    ax[0].axvline(x=xpts_chi[arg], color='r', linestyle='--')  # Add vertical line at selected point
-    ax[1].axvline(x=xpts_chi[arg], color='r', linestyle='--')
-    ax[1].axvline(x=xpts_res[arg2], color='r', linestyle='--')
-    ax[0].axvline(x=xpts_res[arg2], color='r', linestyle='--')
     for a in ax:
         a.set_xlabel('Frequency (MHz)')
     
-    ax[0].set_ylabel('Amplitude')
-    ax[1].set_ylabel('Difference')
+    
     ax[2].set_ylabel('Phase')
     plt.show()
 
@@ -73,19 +78,16 @@ def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=201, chec
         ax[0].plot(chif.data['xpts'], chif.data['amps'], label='f pulse')
         ax[2].plot(chif.data['xpts'][1:-1], chif.data['phase_fix'], label='f pulse')
 
-    ax[0].plot(xpts_res, fitter.hangerS21func_sloped(xpts_res, *rspec.data["fit"]),'k')
-    ax[0].plot(xpts_chi, fitter.hangerS21func_sloped(xpts_chi, *chi.data["fit"]),'k')
-    if check_f:
-        ax[0].plot(xpts_chi, fitter.hangerS21func_sloped(xpts_chi, *chif.data["fit"]),'k')
+    #ax[0].plot(xpts_res, fitter.hangerS21func_sloped(xpts_res, *rspec.data["fit"]),'k')
+    #ax[0].plot(xpts_chi, fitter.hangerS21func_sloped(xpts_chi, *chi.data["fit"]),'k')
+    #if check_f:
+    #    ax[0].plot(xpts_chi, fitter.hangerS21func_sloped(xpts_chi, *chif.data["fit"]),'k')
     
-    ax[0].legend()
-    chi.data['chi'] = (rspec.data['fit'][0]-chi.data['fit'][0])/2
-    chi.data['freq_opt']=rspec.data['xpts'][arg]
-
+    
 
     imname = rspec.fname.split("\\")[-1]
     fig.savefig(rspec.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'chi.png')
-    return chi, chi_val
+    return [chi,rspec], chi_val, 
 
 def measure_temp(soc, expt_path, cfg_path, qubit_i, im=None, npts=20, reps=None, rounds=None, chan=None):
     
@@ -146,13 +148,14 @@ def recenter_smart(qi, cfg_dict, start='T2r', freq=0.3, max_err=0.45, min_r2=0.1
     while i<ntries and not all_done: 
         status, prog = run_scan_level(qi, cfg_dict, scan_info, level,min_r2=min_r2, max_t1=max_t1)
         if status:
+            if level>2: 
+                freq_error.append(prog.data['f_err'])
+                print(f'New f error is {freq_error[-1]:0.3f} MHz')
             if level == len(scans)-1: 
                 all_done = True
             else:
                 level+=1
-            if level>2: 
-                freq_error.append(prog.data['f_err'])
-                print(f'New f error is {freq_error[-1]:0.3f} MHz')
+            
             freqs.append(prog.data['new_freq'])
         else:
             if prog is not None and 'new_ramsey_freq' in prog.data:

@@ -90,7 +90,7 @@ def make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=None, go=True, center=
     if rounds is None:
         rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base_spec)
     if span=='kappa':
-        span = float(prog.cfg.device.readout.kappa[qubit_i]*5)
+        span = float(prog.cfg.device.readout.kappa[qubit_i]*7)
 
     prog.cfg.expt = dict(
         start = center-span/2, #Lowest resontaor frequency
@@ -1055,7 +1055,7 @@ def make_t1(soc, expt_path, cfg_file, qubit_i, im=None, go=True, span=None, npts
       im=im
     )
     if span is None: 
-        span = 3*prog.cfg.device.qubit.T1[qubit_i]
+        span = 3.7*prog.cfg.device.qubit.T1[qubit_i]
     if reps is None:
         reps = int(2*prog.cfg.device.readout.reps[qubit_i]*reps_base)
     if rounds is None:

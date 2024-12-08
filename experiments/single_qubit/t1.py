@@ -184,7 +184,7 @@ class T1Experiment(Experiment):
             data=self.data 
         qubit = self.cfg.expt.qubit
         title=f'$T_1$ Q{qubit}'
-        xlabel = "Wait Time (us)"
+        xlabel = "Wait Time ($\mu$s)"
         
 
         if plot_all:
@@ -206,7 +206,7 @@ class T1Experiment(Experiment):
             if fit:
                 p = data['fit_'+ydata]
                 pCov = data['fit_err_amps']
-                captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
+                captionStr = f'$T_1$ fit: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.2} $\mu$s'
                 ax[i].plot(data["xpts"], fitter.expfunc(data["xpts"], *p), label=captionStr)
                 ax[i].set_ylabel(ylabels[i])
                 ax[i].set_xlabel(xlabel)

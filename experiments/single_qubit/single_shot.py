@@ -3,7 +3,7 @@ import numpy as np
 from qick import *
 from qick.helpers import gauss
 import copy
-
+import seaborn as sns 
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 
@@ -37,26 +37,7 @@ def hist(data, plot=True, span=None,ax=None, verbose=False):
         print(f'Ie {xe:0.3f} +/- {np.std(Ie):0.3f} \t Qe {ye:0.3f} +/- {np.std(Qe):0.3f} \t Amp e {np.abs(xe+1j*ye):0.3f}')
         if plot_f: print(f'If {xf:0.3f} +/- {np.std(If)} \t Qf {yf:0.3f} +/- {np.std(Qf):0.3f} \t Amp f {np.abs(xf+1j*yf):0.3f}')
 
-    if plot:
-        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 6))
-        fig.tight_layout()
-        m=0.7
-        a=0.25
-        axs[0,0].plot(Ig, Qg, '.', label='g', color=blue, alpha=a, markersize=m)
-        axs[0,0].plot(Ie, Qe, '.', label='e', color=red, alpha=a, markersize=m)
-        
-        if plot_f: axs[0,0].plot(If, Qf,'.', label='f', color='g', alpha=a, markersize=m)
-        axs[0,0].plot(xg, yg, color='k', marker='o')
-        axs[0,0].plot(xe, ye, color='k', marker='o')
-        if plot_f: axs[0,0].plot(xf, yf, color='k', marker='o')
-
-        # axs[0,0].set_xlabel('I [ADC levels]')
-        axs[0,0].set_ylabel('Q [ADC levels]')
-        axs[0,0].legend(loc='upper right')
-        axs[0,0].set_title('Unrotated')
-        axs[0,0].axis('equal')
-    else:
-        fig=None
+    
 
     """Compute the rotation angle"""
     theta = -np.arctan2((ye-yg),(xe-xg))
@@ -74,80 +55,38 @@ def hist(data, plot=True, span=None,ax=None, verbose=False):
         Qf_new = If*np.sin(theta) + Qf*np.cos(theta)
 
     """New means of each blob"""
-    xg, yg = np.median(Ig_new), np.median(Qg_new)
-    xe, ye = np.median(Ie_new), np.median(Qe_new)
+    xg_new, yg_new = np.median(Ig_new), np.median(Qg_new)
+    xe_new, ye_new = np.median(Ie_new), np.median(Qe_new)
     if plot_f: xf, yf = np.median(If_new), np.median(Qf_new)
     if verbose:
         print('Rotated:')
-        print(f'Ig {xg:.3f} +/- {np.std(Ig):.3f} \t Qg {yg:.3f} +/- {np.std(Qg):.3f} \t Amp g {np.abs(xg+1j*yg):.3f}')
-        print(f'Ie {xe:.3f} +/- {np.std(Ie):.3f} \t Qe {ye:.3f} +/- {np.std(Qe):.3f} \t Amp e {np.abs(xe+1j*ye):.3f}')
+        print(f'Ig {xg_new:.3f} +/- {np.std(Ig):.3f} \t Qg {yg_new:.3f} +/- {np.std(Qg):.3f} \t Amp g {np.abs(xg_new+1j*yg_new):.3f}')
+        print(f'Ie {xe_new:.3f} +/- {np.std(Ie):.3f} \t Qe {ye_new:.3f} +/- {np.std(Qe):.3f} \t Amp e {np.abs(xe_new+1j*ye_new):.3f}')
         if plot_f: print(f'If {xf:.3f} +/- {np.std(If)} \t Qf {yf:.3f} +/- {np.std(Qf):.3f} \t Amp f {np.abs(xf+1j*yf):.3f}')
 
 
     if span is None:
         span = (np.max(np.concatenate((Ie_new, Ig_new))) - np.min(np.concatenate((Ie_new, Ig_new))))/2
-    xlims = [(xg+xe)/2-span, (xg+xe)/2+span]
-    ylims = [yg-span, yg+span]
-
-    if plot:
-        axs[0,1].plot(Ig_new, Qg_new,'.', label='g', color=blue, alpha=a, markersize=m)
-        axs[0,1].plot(Ie_new, Qe_new, '.', label='e', color=red, alpha=a, markersize=m)
-        if plot_f: axs[0, 1].plot(If_new, Qf_new, '.', label='f', color='g', alpha=a, markersize=m)
-        axs[0,1].plot(xg, yg, color='k', marker='o')
-        axs[0,1].plot(xe, ye, color='k', marker='o')    
-        if plot_f: axs[0, 1].scatter(xf, yf, color='k', marker='o')    
-
-        # axs[0,1].set_xlabel('I [ADC levels]')
-        axs[0,1].legend(loc='upper right')
-        axs[0,1].set_title('Rotated')
-        axs[0,1].axis('equal')
-
-        """X and Y ranges for histogram"""
-
-        ng, binsg, pg = axs[1,0].hist(Ig_new, bins=numbins, range = xlims, color=blue, label='g', alpha=0.5)
-        ne, binse, pe = axs[1,0].hist(Ie_new, bins=numbins, range = xlims, color=red, label='e', alpha=0.5)
-        if plot_f:
-            nf, binsf, pf = axs[1,0].hist(If_new, bins=numbins, range = xlims, color='g', label='f', alpha=0.5)
-        axs[1,0].set_ylabel('Counts')
-        axs[1,0].set_xlabel('I [ADC levels]')       
-        axs[1,0].legend(loc='upper right')
-    
-    else:        
-        ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims)
-        ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims)
-        if plot_f:
-            nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
-    
-    if ax is not None: 
-        ax[0].plot(Ig_new, Qg_new,'.', label='g', color=blue, alpha=a, markersize=m)
-        ax[0].plot(Ie_new, Qe_new, '.', label='e', color=red, alpha=a, markersize=m)
-        if plot_f: ax[0].plot(If_new, Qf_new, '.', label='f', color='g', alpha=a, markersize=m)
-        ax[0].plot(xg, yg, color='k', marker='o')
-        ax[0].plot(xe, ye, color='k', marker='o')    
-        if plot_f: axs[0, 1].scatter(xf, yf, color='k', marker='o')    
-
-        # ax[0].set_xlabel('I [ADC levels]')
-        ax[0].legend(loc='upper right')
-        ax[0].set_title('Rotated')
-        ax[0].axis('equal')
-
-        """X and Y ranges for histogram"""
-
-        ng, binsg, pg = ax[1].hist(Ig_new, bins=numbins, range = xlims, color=blue, label='g', alpha=0.5)
-        ne, binse, pe = ax[1].hist(Ie_new, bins=numbins, range = xlims, color=red, label='e', alpha=0.5)
-        if plot_f:
-            nf, binsf, pf = ax[1].hist(If_new, bins=numbins, range = xlims, color='g', label='f', alpha=0.5)
-        ax[1].set_ylabel('Counts')
-        ax[1].set_xlabel('I [ADC levels]')       
-        ax[1].legend(loc='upper right')
+    xlims = [(xg_new+xe_new)/2-span, (xg_new+xe_new)/2+span]
+    ylims = [yg_new-span, yg_new+span]
 
     """Compute the fidelity using overlap of the histograms"""
     fids = []
     thresholds = []
+
+    """X and Y ranges for histogram"""
+
+    
+    ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims)
+    ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims)
+    if plot_f:
+        nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
+    
     contrast = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5*ng.sum() + 0.5*ne.sum())))
     tind=contrast.argmax()
     thresholds.append(binsg[tind])
     fids.append(contrast[tind])
+
     if plot_f:
         contrast = np.abs(((np.cumsum(ng) - np.cumsum(nf)) / (0.5*ng.sum() + 0.5*nf.sum())))
         tind=contrast.argmax()
@@ -158,10 +97,51 @@ def hist(data, plot=True, span=None,ax=None, verbose=False):
         tind=contrast.argmax()
         thresholds.append(binsg[tind])
         fids.append(contrast[tind])
+
+    if plot:
+        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 6))
+        fig.tight_layout()
+        m=0.7
+        a=0.25
+
+        ng, binsg, pg = axs[1,0].hist(Ig_new, bins=numbins, range = xlims, color=blue, label='g', alpha=0.5)
+        ne, binse, pe = axs[1,0].hist(Ie_new, bins=numbins, range = xlims, color=red, label='e', alpha=0.5)
+
+        axs[0,0].plot(Ig, Qg, '.', label='g', color=blue, alpha=a, markersize=m)
+        axs[0,0].plot(Ie, Qe, '.', label='e', color=red, alpha=a, markersize=m)
         
-    if plot: 
+        if plot_f: axs[0,0].plot(If, Qf,'.', label='f', color='g', alpha=a, markersize=m)
+        axs[0,0].plot(xg, yg, color='k', marker='o')
+        axs[0,0].plot(xe, ye, color='k', marker='o')
+        if plot_f: axs[0,0].plot(xf, yf, color='k', marker='o')
+
+        # axs[0,0].set_xlabel('I [ADC levels]')
+        axs[0,0].set_ylabel('Q [ADC levels]')
+        axs[0,0].legend(loc='upper right')
+        axs[0,0].set_title('Unrotated')
+        axs[0,0].axis('equal')
+    
+        axs[0,1].plot(Ig_new, Qg_new,'.', label='g', color=blue, alpha=a, markersize=m)
+        axs[0,1].plot(Ie_new, Qe_new, '.', label='e', color=red, alpha=a, markersize=m)
+        if plot_f: axs[0, 1].plot(If_new, Qf_new, '.', label='f', color='g', alpha=a, markersize=m)
+        axs[0,1].plot(xg_new, yg_new, color='k', marker='o')
+        axs[0,1].plot(xe_new, ye_new, color='k', marker='o')    
+        if plot_f: axs[0, 1].scatter(xf, yf, color='k', marker='o')    
+
+        # axs[0,1].set_xlabel('I [ADC levels]')
+        axs[0,1].legend(loc='upper right')
+        axs[0,1].set_title('Rotated')
+        axs[0,1].axis('equal')
+
+        
+        if plot_f:
+            nf, binsf, pf = axs[1,0].hist(If_new, bins=numbins, range = xlims, color='g', label='f', alpha=0.5)
+        axs[1,0].set_ylabel('Counts')
+        axs[1,0].set_xlabel('I [ADC levels]')       
+        axs[1,0].legend(loc='upper right')
         axs[1,0].set_title(f'Histogram (Fidelity g-e: {100*fids[0]:.3}%)')
         axs[1,0].axvline(thresholds[0], color='0.2', linestyle='--')
+
         if plot_f:
             axs[1,0].axvline(thresholds[1], color='0.2', linestyle='--')
             axs[1,0].axvline(thresholds[2], color='0.2', linestyle='--')
@@ -183,6 +163,40 @@ def hist(data, plot=True, span=None,ax=None, verbose=False):
         
         plt.subplots_adjust(hspace=0.25, wspace=0.15)        
         plt.show()
+    else:        
+        fig=None
+        ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims)
+        ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims)
+        if plot_f:
+            nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
+    
+    if ax is not None: 
+        a=0.25
+        m=0.7
+        ax[0].plot(Ig_new, Qg_new,'.', label='g', color=blue, alpha=a, markersize=m)
+        ax[0].plot(Ie_new, Qe_new, '.', label='e', color=red, alpha=a, markersize=m)
+        if plot_f: ax[0].plot(If_new, Qf_new, '.', label='f', color='g', alpha=a, markersize=m)
+        ax[0].plot(xg_new, yg_new, color='k', marker='o')
+        ax[0].plot(xe_new, ye_new, color='k', marker='o')    
+        if plot_f: axs[0, 1].scatter(xf, yf, color='k', marker='o')    
+
+        # ax[0].set_xlabel('I [ADC levels]')
+        ax[0].legend(loc='upper right')
+        ax[0].set_title('Rotated')
+        ax[0].axis('equal')
+
+        """X and Y ranges for histogram"""
+
+        ng, binsg, pg = ax[1].hist(Ig_new, bins=numbins, range = xlims, color=blue, label='g', alpha=0.5)
+        ne, binse, pe = ax[1].hist(Ie_new, bins=numbins, range = xlims, color=red, label='e', alpha=0.5)
+        if plot_f:
+            nf, binsf, pf = ax[1].hist(If_new, bins=numbins, range = xlims, color='g', label='f', alpha=0.5)
+        ax[1].set_ylabel('Counts')
+        ax[1].set_xlabel('I [ADC levels]')       
+        ax[1].legend(loc='upper right')
+        ax[1].set_title(f'Histogram (Fidelity g-e: {100*fids[0]:.3}%)')
+        ax[1].axvline(thresholds[0], color='0.2', linestyle='--')
+        
 
     return fids, thresholds, theta*180/np.pi, fig # fids: ge, gf, ef
 
@@ -413,7 +427,7 @@ class HistogramExperiment(Experiment):
         else:
             savefig=True
 
-        fids, thresholds, angle, fig = hist(data=data, plot=True, verbose=verbose, span=span, ax=ax)
+        fids, thresholds, angle, fig = hist(data=data, plot=plot, verbose=verbose, span=span, ax=ax)
             
         print(f'ge Fidelity (%): {100*fids[0]:.3f}')
         if 'expt' not in self.cfg: 
@@ -438,7 +452,6 @@ class HistogramExperiment(Experiment):
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
-
 
 
 # ====================================================== #
@@ -602,8 +615,8 @@ class SingleShotOptExperiment(Experiment):
             ax = ax.flatten()
             for i in range(npts[0]): 
 
-                ax[i].plot(return_dim(self.data['Ig'], inds,i), return_dim(self.data['Qg'], inds,i),'.', color=colors[0], alpha=0.2, markersize=m)
-                ax[i].plot(return_dim(self.data['Ie'], inds,i), return_dim(self.data['Qe'], inds,i),'.', color=colors[1], alpha=0.2, markersize=m)
+                ax[i].plot(return_dim(self.data['Ig'], inds,i), return_dim(self.data['Qg'], inds,i),'.', color=blue, alpha=0.2, markersize=m)
+                ax[i].plot(return_dim(self.data['Ie'], inds,i), return_dim(self.data['Qe'], inds,i),'.', color=red, alpha=0.2, markersize=m)
   
                 ax[i].set_title(f'{labs[inds[0]]} {data[sweep_var[0]][i]:.2f}')
                 
@@ -613,8 +626,8 @@ class SingleShotOptExperiment(Experiment):
             
             for i in range(npts[0]):
                 for j in range(npts[1]):
-                    ax[i,j].plot(return_dim(self.data['Ig'], inds,[i,j]), return_dim(self.data['Qg'], inds,[i,j]),'.', color=colors[0], alpha=0.2, markersize=m)
-                    ax[i,j].plot(return_dim(self.data['Ie'], inds,[i,j]), return_dim(self.data['Qe'], inds,[i,j]),'.', color=colors[1], alpha=0.2, markersize=m)
+                    ax[i,j].plot(return_dim(self.data['Ig'], inds,[i,j]), return_dim(self.data['Qg'], inds,[i,j]),'.', color=blue, alpha=0.2, markersize=m)
+                    ax[i,j].plot(return_dim(self.data['Ie'], inds,[i,j]), return_dim(self.data['Qe'], inds,[i,j]),'.', color=red, alpha=0.2, markersize=m)
                     
                     if i == npts[0]-1:
                         ax[i,j].set_xlabel(np.round(self.data[sweep_var[1]][j],1))
@@ -627,8 +640,8 @@ class SingleShotOptExperiment(Experiment):
                 fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1]*3, npts[0]*3))
                 for i in range(npts[0]):
                     for j in range(npts[1]):
-                        ax[i,j].plot(['Ig'],['Qg'],'r.')
-                        ax[i,j].plot(['Qe'],['Ie'],'b.')
+                        ax[i,j].plot(['Ig'],['Qg'],'.',color=blue)
+                        ax[i,j].plot(['Qe'],['Ie'],'.', color=red)
         
         fig.suptitle(title)
         fig.tight_layout()
@@ -637,41 +650,39 @@ class SingleShotOptExperiment(Experiment):
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'_raw.png')
 
-        # if len(fpts)>1 and gainpts>1 and lenpts>1: 
-        #     sweep3d = True
-        # elif fpts>1 and gainpts>1 or fpts>1 and lenpts>1 or gainpts>1 and lenpts>1:
-        #     sweep2d = True
-        #     sweep3d = False
-        # else:
-        #     sweep2d= False
-        #     sweep3d = False
         title = f'Single Shot Optimization Q{self.cfg.expt.qubit}'
         fig = plt.figure(figsize=(9,5.5))
         plt.title(title)
         if len(fpts)>1: 
             xval = fpts
-            xlabel='Frequency [MHz]'
+            xlabel='Frequency (MHz)'
             var1 = gainpts
             var2 = lenpts
+            npts = len(var1)*len(var2)
+            bb = sns.color_palette("coolwarm", npts)
             for v1_ind, v1 in enumerate(var1):
                 for v2_ind, v2 in enumerate(var2):
-                    plt.plot(xval, 100*fid[:,v1_ind, v2_ind], 'o-', label=f'{v1:1.0f}, {v2:.2f}')
+                    plt.plot(xval, 100*fid[:,v1_ind, v2_ind], 'o-', label=f'{v1:1.0f}, {v2:.2f}', color=bb[v1_ind*len(var2)+v2_ind])
         elif len(gainpts)>1:
             xval = gainpts
             xlabel='Gain [DAC units]'
             var1 = fpts
             var2 = lenpts
+            npts = len(var1)*len(var2)
+            bb = sns.color_palette("coolwarm", npts)
             for v1_ind, v1 in enumerate(var1):
                 for v2_ind, v2 in enumerate(var2):
-                    plt.plot(xval, 100*fid[v1_ind,:, v2_ind], 'o-', label=f'{v1:.2f}, {v2:.2f}')
+                    plt.plot(xval, 100*fid[v1_ind,:, v2_ind], 'o-', label=f'{v1:.2f}, {v2:.2f}', color=bb[v1_ind*len(var2)+v2_ind])
         else:
             xval = lenpts
-            xlabel='Readout length [us]'
+            xlabel='Readout length (us)'
             var1 = fpts
             var2 = gainpts
+            npts = len(var1)*len(var2)
+            bb = sns.color_palette("coolwarm", npts)
             for v1_ind, v1 in enumerate(var1):
                 for v2_ind, v2 in enumerate(var2):
-                    plt.plot(xval, 100*fid[v1_ind, v2_ind,:], 'o-', label=f'{v2:1.0f},  {v1:.2f}')
+                    plt.plot(xval, 100*fid[v1_ind, v2_ind,:], 'o-', label=f'{v2:1.0f},  {v1:.2f}', color=bb[v1_ind*len(var2)+v2_ind])
             
         plt.xlabel(xlabel)
         plt.ylabel(f'Fidelity [%]')

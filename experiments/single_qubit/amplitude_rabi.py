@@ -367,16 +367,14 @@ class AmplitudeRabiExperiment(Experiment):
 
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
             r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
-            print('R2:', r2)
             data['r2']=r2
             data['best_fit']=fit_pars
-            print('Best fit:', i_best)
-            data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
-            print('fit_err:', data['fit_err'])
 
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
-
+            fit_err = np.mean(np.abs(fit_err/fit_pars))
+            data['fit_err']=fit_err
+            print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
             pi_length = fitter.fix_phase(data['best_fit'])
             data['pi_length']=pi_length
 

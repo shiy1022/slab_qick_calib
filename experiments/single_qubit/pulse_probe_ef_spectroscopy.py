@@ -188,9 +188,14 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
 
         return data
 
-    def display(self, data=None, fit=True, signs=[1,1,1], **kwargs):
+    def display(self, data=None, fit=True, signs=[1,1,1],ax=None,plot_all=True, **kwargs):
         if data is None:
             data=self.data 
+
+        if ax is None:
+            savefig=True
+        else:
+            savefig=False
 
         if 'mixer_freq' in self.cfg.hw.soc.dacs.qubit:
             xpts = self.cfg.hw.soc.dacs.qubit.mixer_freq + data['xpts']
@@ -198,33 +203,43 @@ class PulseProbeEFSpectroscopyExperiment(Experiment):
             xpts = self.cfg.hw.soc.dacs.qubit.lo_freq + data['xpts'][1:-1]
         else: 
             xpts = data['xpts']
+
         if self.cfg.expt.checkEF:
             title=f"EF Spectroscopy Q{self.cfg.expt.qubit} (Gain {self.cfg.expt.gain})"
         else:
             title=f"Spectroscopy Q{self.cfg.expt.qubit} (Gain {self.cfg.expt.gain})"
         fitfunc=fitter.lorfunc
-        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
-        xlabel = "Wait Time (us)"
+
+        if ax is None:
+            fig, ax=plt.subplots(3, 1, figsize=(9, 10))
+            fig.suptitle(title)
+
+
+        xlabel = "Frequency (MHz)"
         ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-        fig.suptitle(title)
-        ydata_lab = ['amps', 'avgi', 'avgq']
+        if plot_all:
+            ydata_lab = ['amps', 'avgi', 'avgq']
+        else:
+            ydata_lab = ['amps']
+
         for i, ydata in enumerate(ydata_lab):
             ax[i].plot(xpts, data[ydata],'o-')
         
             if fit:
                 p = data['fit_'+ydata]
                 pCov = data['fit_err_amps']
-                captionStr = f'Freq: fit [MHz]: {p[2]:.3} \n'
-                captionStr += f'$\kappa$ [MHz]: {p[3]:.3} \n'
+                captionStr = f'Freq: {p[2]:.6} (MHz) \n'
+                captionStr += f'$\kappa$: {p[3]:.3} (MHz)\n'
                 ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
                 ax[i].set_ylabel(ylabels[i])
                 ax[i].set_xlabel(xlabel)
-                ax[i].legend()
+                ax[i].legend(loc='lower right')
 
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        if savefig:
+            imname = self.fname.split("\\")[-1]
+            plt.tight_layout()
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         
-        plt.tight_layout()
         plt.show()
 
     def save_data(self, data=None):
@@ -440,9 +455,14 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
         
         return data
 
-    def display(self, data=None, fit=True, **kwargs):
+    def display(self, data=None, fit=True, ax=None, **kwargs):
         if data is None:
             data=self.data 
+
+        if ax is None: 
+            savefig=False
+        else:
+            savefig=True
 
         if self.cfg.expt.checkEF:
             title=f"EF Spectroscopy Power Sweep Q{self.cfg.expt.qubit}"
@@ -451,15 +471,17 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
 
         inner_sweep = data['xpts']
         outer_sweep = data['gainpts']
-
         amps = data['amps']
 
         y_sweep = outer_sweep
         x_sweep = inner_sweep
 
-        fig=plt.figure(figsize=(10,8))
+        if ax is None:
+            fig=plt.figure(figsize=(10,8))
+        
         plt.title(title)
         plt.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
+        fig.tight_layout()
         if 'log' in self.cfg.expt and self.cfg.expt.log:
             plt.yscale('log')
         plt.xlabel("Qubit Frequency [MHz]")
@@ -467,8 +489,10 @@ class PulseProbePowerSweepSpectroscopyExperiment(Experiment):
         
         plt.colorbar(label='Amps/Avg [ADC level]')
         plt.show()
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+        
+        if savefig:
+            imname = self.fname.split("\\")[-1]
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         
     def save_data(self, data=None):
         print(f'Saving {self.fname}')

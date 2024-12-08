@@ -292,7 +292,7 @@ class RamseyEchoExperiment(Experiment):
             data=self.data
         qubit = self.cfg.expt.qubit
 
-        xlabel = "Wait Time (us)"
+        xlabel = "Wait Time ($\mu$s)"
         title=f"Ramsey Echo Q{qubit} (Freq: {self.cfg.expt.ramsey_freq:.4} MHz)"
         fitfunc=fitter.decaysin
 
@@ -320,8 +320,8 @@ class RamseyEchoExperiment(Experiment):
             if fit:
                 p = data['fit_'+ydata]
                 pCov = data['fit_err_amps']
-                captionStr = f'$T_2$ Echo ($\mu$s): {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3} \n'
-                captionStr += f'Freq. (MHz): {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.3}'
+                captionStr = f'$T_2$ Echo : {p[3]:.4} $\pm$ {np.sqrt(pCov[3][3]):.2g} $\mu$s \n'
+                captionStr += f'Freq. : {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.1} MHz'
                 ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
 
                 # Plot the decaying exponential

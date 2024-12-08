@@ -246,7 +246,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data['coarse_props']=props
         return data
 
-    def display(self, data=None, fit=True, findpeaks=False, hanger=True, debug=True, ax=None, **kwargs):
+    def display(self, data=None, fit=True, findpeaks=False, hanger=True, debug=False, ax=None, **kwargs):
         if data is None:
             data=self.data 
         
