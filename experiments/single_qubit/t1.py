@@ -130,6 +130,7 @@ class T1Experiment(Experiment):
         now = datetime.now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         q_ind = self.cfg.expt.qubit
+        
         for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
             for key, value in subcfg.items() :
                 if isinstance(value, list):
@@ -148,8 +149,13 @@ class T1Experiment(Experiment):
         amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
         phases = np.angle(avgi+1j*avgq) # Calculating the phase        
         
+        shots_i, shots_q = t1.collect_shots()
+        #sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
+        hist, bin_edges = np.histogram(shots_i, bins=60)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
         current_time = current_time.encode('ascii','replace')
-        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}
+        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time, 'hist':hist, 'bin_centers':bin_centers}
         self.data=data
         return data
 
@@ -170,6 +176,7 @@ class T1Experiment(Experiment):
         data['r2']=r2
         fit_err = np.mean(np.abs(fit_err/fit_pars))
         data['new_t1']=fit_pars[2]
+        data['new_t1_i']=data['fit_avgi'][2]
         i_best = i_best.encode("ascii", "ignore")
         data['i_best']=i_best
         fit_err = np.mean(np.abs(fit_err/fit_pars))
@@ -178,13 +185,18 @@ class T1Experiment(Experiment):
         
         return data
 
-    def display(self, data=None, fit=True,plot_all=False,ax=None, savefig=True, **kwargs):
+    def display(self, data=None, fit=True,plot_all=False,ax=None, show_hist=False, **kwargs):
         
         if data is None:
             data=self.data 
         qubit = self.cfg.expt.qubit
         title=f'$T_1$ Q{qubit}'
         xlabel = "Wait Time ($\mu$s)"
+
+        if ax is None: 
+            savefig = True
+        else:
+            savefig = False
         
 
         if plot_all:
@@ -212,6 +224,10 @@ class T1Experiment(Experiment):
                 ax[i].set_xlabel(xlabel)
                 ax[i].legend(loc='upper right')
 
+        if show_hist: 
+            fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+            ax.plot(data['bin_centers'], data['hist'], 'o-')
+
         if fit: 
             data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
             data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][2][2])/data['fit_avgi'][2] 
@@ -228,7 +244,6 @@ class T1Experiment(Experiment):
         super().save_data(data=data)
         return self.fname
     
-# ====================================================== #
 
 class T1Continuous(Experiment):
     """
@@ -429,4 +444,45 @@ class T1_2D(Experiment):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
+
+
+# class T1_Scan(Scan): 
+
+#     def __init__(self, cfg_dict) 
+
+#     def run_scan(self, ):
+
+#     #def make_scan(self, go=True, span=None, npts=60, reps=None, rounds=None, fine=False):
         
+#         prog = T1Experiment(
+#         soccfg=soc,
+#         path=expt_path,
+#         prefix=f"t1_qubit{qubit_i}",
+#         config_file= cfg_file,
+#         im=im
+#         )
+#         if span is None: 
+#             span = 3.7*prog.cfg.device.qubit.T1[qubit_i]
+#         if reps is None:
+#             reps = int(2*prog.cfg.device.readout.reps[qubit_i]*reps_base)
+#         if rounds is None:
+#             rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
+
+#         if fine is True: 
+#             rounds = rounds*2
+#         prog.cfg.expt = dict(
+#             start=0, # wait time [us]
+#             step=span/npts, 
+#             expts=npts,
+#             reps=reps, # number of times we repeat a time point 
+#             rounds=rounds, # number of start to finish sweeps to average over
+#             qubit=qubit_i,
+#             length_scan = span, # length of the scan in us
+#             qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
+#         )
+
+#         if go:
+#             prog.go(analyze=True, display=True, progress=True, save=True)
+
+#         return prog
+

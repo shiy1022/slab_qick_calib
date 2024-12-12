@@ -533,7 +533,7 @@ class AmplitudeRabiChevronExperiment(Experiment):
             data=self.data
         pass
 
-    def display(self, data=None, fit=True, **kwargs):
+    def display(self, data=None, fit=True, plot_both=False, **kwargs):
         if data is None:
             data=self.data 
         
@@ -541,33 +541,34 @@ class AmplitudeRabiChevronExperiment(Experiment):
         y_sweep = data['freqpts']
         avgi = data['avgi']
         avgq = data['avgq']
-
-        fig=plt.figure(figsize=(10,8))
-        plt.subplot(211, title="Amplitude Rabi", ylabel="Frequency [MHz]")
-        plt.imshow(
-            np.flip(avgi, 0),
-            cmap='viridis',
-            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
-            aspect='auto')
-        plt.colorbar(label='I [ADC level]')
-        plt.clim(vmin=None, vmax=None)
-        # plt.axvline(1684.92, color='k')
-        # plt.axvline(1684.85, color='r')
-
-        plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Frequency [MHz]")
-        plt.imshow(
-            np.flip(avgq, 0),
-            cmap='viridis',
-            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
-            aspect='auto')
-        plt.colorbar(label='Q [ADC level]')
-        plt.clim(vmin=None, vmax=None)
         
-        if fit: pass
 
-        #plt.tight_layout()
-        plt.show()
+        title = f"Amplitude Rabi Chevron Q{self.cfg.expt.qubits[0]} (Pulse Length {self.cfg.expt.sigma_test} $\mu$s)"
+
+        if plot_both:
+            fig, ax =plt.subplots(2,1,figsize=(8,6))
+            ydata_lab = ['avgi', 'avgq']
+            ydata_labs = ['I [ADC level]', 'Q [ADC level]']
+            fig.sup_title(title)
+        else:
+            
+            fig, ax =plt.subplots(1,1,figsize=(6,4))
+            ax.set_title(title)
+            ydata_lab = ['avgi']
+            ax=[ax]
+            ydata_labs = ['I [ADC level]']
+
+        for i, ydata in enumerate(ydata_lab):
+            #ax[i].plot(211, xlabel="Gain [DAC units]", ylabel="Frequency [MHz]")
         
+            ax[i].pcolormesh(x_sweep, y_sweep, avgi, cmap='viridis', shading='auto')
+               
+            
+            plt.colorbar(ax[i].collections[0], ax=ax[i], label=ydata_labs[i])
+            ax[i].set_xlabel("Gain [DAC units]")
+            ax[i].set_ylabel("Frequency [MHz]")
+
+        fig.tight_layout()
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
         plt.show()

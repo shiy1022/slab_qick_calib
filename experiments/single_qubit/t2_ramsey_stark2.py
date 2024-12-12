@@ -689,13 +689,18 @@ class RamseyStarkPower2Experiment(Experiment):
             plt.colorbar(label='I [ADC level]')
             plt.clim(vmin=None, vmax=None)
 
-        
+        from scipy.optimize import curve_fit
         plt.tight_layout()
         plt.show()
         if fit: 
             plt.figure()
             freq = [data['fit_avgi'][i][1] for i in range(len(data['gainpts']))]
             plt.plot(data['gainpts'], freq)
+            def quad_fit(x, a, b, c):
+                return a*x**2 + b*x + c
+            popt, pcov = curve_fit(quad_fit, data['gainpts'], freq)
+            plt.plot(data['gainpts'], quad_fit(data['gainpts'], *popt), label='Quadratic Fit')
+            print(f'Quadratic Fit: {popt[0]:.3g}x^2 + {popt[1]:.3g}x + {popt[2]:.3g}')
 
         plt.figure(figsize=(10,6))
         for i in range(len(data['gainpts'])):

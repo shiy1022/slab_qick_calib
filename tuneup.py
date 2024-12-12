@@ -6,7 +6,7 @@ import experiments.fitting as fitter
 import numpy as np
 import warnings
 
-def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=251, plot=False, check_f=False):
+def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=301, plot=False, check_f=False):
     
     auto_cfg = config.load(cfg_file)
     freq = auto_cfg['device']['readout']['frequency'][qubit_i]
@@ -18,7 +18,7 @@ def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=251, plot
     if check_f: 
         chif = cfg.make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=im, span=span, center = freq-0.65*span, npts=npts, rounds=5, check_e = True,check_f=True, relax_delay=15)
         chif.go(analyze=True, display=False, progress=True, save=True)
-    rspec = cfg.make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=im, center = center, span=span, npts=npts, go=False)
+    rspec = cfg.make_rspec_fine(soc, expt_path, cfg_file, qubit_i, im=im, center = center, span=span, npts=npts, go=False,rounds=2)
     rspec.go(analyze=True, display=False, progress=True, save=True)
 
     if 'mixer_freq' in chi.cfg.hw.soc.dacs.readout:
@@ -89,10 +89,12 @@ def check_chi(soc, expt_path, cfg_file, qubit_i, im=None, span=7, npts=251, plot
     fig.savefig(rspec.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'chi.png')
     return [chi,rspec], chi_val, 
 
-def measure_temp(soc, expt_path, cfg_path, qubit_i, im=None, npts=20, reps=None, rounds=None, chan=None):
+def measure_temp(soc, expt_path, cfg_path, qubit_i, im=None, npts=14, reps=None, rounds=None, chan=None):
     
-    rabief=cfg.make_amprabiEF(soc, expt_path, cfg_path, qubit_i, im=im, go=True,reps=reps,rounds=rounds, pulse_ge=True)
-    rabief_nopulse=cfg.make_amprabiEF(soc, expt_path, cfg_path, qubit_i, im=im, go=True,temp=True, pulse_ge=False, npts=npts, reps=reps, rounds=rounds)
+    auto_cfg = config.load(cfg_path)
+    span = auto_cfg['device']['qubit']['pulses']['pi_ef']['gain'][qubit_i]*4
+    rabief=cfg.make_amprabiEF(soc, expt_path, cfg_path, qubit_i, im=im, go=True,reps=reps,rounds=rounds, pulse_ge=True, span=span)
+    rabief_nopulse=cfg.make_amprabiEF(soc, expt_path, cfg_path, qubit_i, im=im, go=True,temp=True, pulse_ge=False, npts=npts, reps=reps, rounds=rounds, span=span)
 
     # To measure temperature, use fewer points to get more signal more quickly 
     h = 6.62607015e-34
@@ -107,11 +109,21 @@ def measure_temp(soc, expt_path, cfg_path, qubit_i, im=None, npts=20, reps=None,
 
     fig= plt.figure()
     i_best= str(rabief.data['i_best'])[2:-1]
-    plt.plot(rabief.data['xpts'], rabief.data[i_best], label='With Pulse')
-    plt.plot(rabief_nopulse.data['xpts'], rabief_nopulse.data[i_best], label='With Pulse')
+    plt.plot(rabief.data['xpts'], rabief.data[i_best]-np.mean(rabief.data[i_best]), label='ge Pulse')
+    #plt.legend()
+    plt.xlabel('Amplitude ge pulse')
+    axt = plt.twinx()
+    axt.plot(rabief_nopulse.data['xpts'], rabief_nopulse.data[i_best]-np.mean(rabief_nopulse.data[i_best]), label='No Pulse', color='tab:orange')
+    axt.tick_params(axis='y', colors='tab:orange')
+    axt.yaxis.label.set_color('tab:orange')
+    axt.set_xlabel('Gain [DAC units]')
+    axt.set_ylabel('Amplitude No pulse')
+    title = f'Qubit {qubit_i} Temperature: {qubit_temp:0.2f} mK, Population: {population:0.2f}'
     imname = rabief.fname.split("\\")[-1]
     fig.savefig(rabief.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'temp.png')
     print('Qubit temp [mK]:', qubit_temp)
+    
+    #axt.legend()
     print('State preparation ratio:', population)
 
     print(rabief.data['best_fit'][0])
@@ -126,8 +138,8 @@ def recenter_smart(qi, cfg_dict, start='T2r', freq=0.3, max_err=0.45, min_r2=0.1
     start_freq = auto_cfg['device']['qubit']['f_ge'][qi]
     freqs=[start_freq]
 
-    scans = [cfg.make_qspec, cfg.make_qspec, cfg.make_qspec, cfg.make_t2r, cfg.make_t2r] 
-    params = [{'coarse':True, 'span':70}, {'span':25}, {'fine':True}, {'ramsey_freq':1.25*freq,'step':np.pi/np.abs(freq)/200, 'npts':200}, {'ramsey_freq':'smart', 'npts':200}]
+    scans = [cfg.make_qspec, cfg.make_qspec, cfg.make_qspec, cfg.make_t2r,cfg.make_t2r, cfg.make_t2r] 
+    params = [{'coarse':True, 'span':70}, {'span':25}, {'fine':True}, {'ramsey_freq':1.5*freq,'span':np.pi/np.abs(freq)},{}, {'ramsey_freq':'smart', 'npts':200}]
     freq_error=[]
     scan_info = {'scans':scans, 'params':params}
     if start == 'T2r':
@@ -146,11 +158,16 @@ def recenter_smart(qi, cfg_dict, start='T2r', freq=0.3, max_err=0.45, min_r2=0.1
     all_done = False
     ntries=12
     while i<ntries and not all_done: 
+        print(f'Level {level}, try {i}')
         status, prog = run_scan_level(qi, cfg_dict, scan_info, level,min_r2=min_r2, max_t1=max_t1)
         if status:
             if level>2: 
                 freq_error.append(prog.data['f_err'])
                 print(f'New f error is {freq_error[-1]:0.3f} MHz')
+            if level == 3:
+                params[4]['ramsey_freq']=freq*0.7
+                params[4]['span']=np.pi/np.abs(freq*0.7)
+
             if level == len(scans)-1: 
                 all_done = True
             else:
@@ -160,11 +177,11 @@ def recenter_smart(qi, cfg_dict, start='T2r', freq=0.3, max_err=0.45, min_r2=0.1
         else:
             if prog is not None and 'new_ramsey_freq' in prog.data:
                 params[3]['ramsey_freq']=prog.data['new_ramsey_freq']
-                params[3]['step']=np.pi/np.abs(prog.data['new_ramsey_freq'])/200
+                params[3]['span']=np.pi/np.abs(prog.data['new_ramsey_freq'])
                 level=3
             else:
                 level-=1
-        ntries+=1
+        i+=1
     
     print(f'Change in frequency: {freqs[-1]-freqs[-1]:0.3f} MHz')
     auto_cfg = config.load(cfg_dict['cfg_file'])
@@ -200,7 +217,7 @@ def find_spec(qi, cfg_dict, start='coarse', max_err=0.45, min_r2=0.1, max_t1=500
                 params[level]['center']=prog.data['new_freq']
         else:
             level-=1
-        ntries+=1
+        i+=1
     
     if i==ntries:
         return False
@@ -251,7 +268,7 @@ def recenter_qubit(qi,cfg_dict, freq=0.3, max_err=0.5, min_r2=0.1, max_t1=500, s
     start_freq = auto_cfg['device']['qubit']['f_ge'][qi]
 
     if start == 'T2r':
-        status, t2r = run_scan(cfg.make_t2r, qi, cfg_dict, {'ramsey_freq':1.5*freq,'step':np.pi/np.abs(freq)/200, 'npts':200}, min_r2, max_err)
+        status, t2r = run_scan(cfg.make_t2r, qi, cfg_dict, {'ramsey_freq':1.5*freq,'span':np.pi/np.abs(freq), 'npts':200}, min_r2, max_err)
     else:
         status=False 
     if status:
@@ -349,15 +366,24 @@ def get_coherence(scan_name, qi, cfg_dict, par, params={}, min_r2=0.1, max_err=0
     while err>tol and i<5: 
         status, prog = run_scan(scan_name, qi, cfg_dict, params, min_r2, max_err)
         if par == 'T1':
-            new_par = prog.data['new_t1']
+            new_par = prog.data['new_t1_i']
         else: 
             if 'best_fit' in prog.data:
-                new_par = prog.data['best_fit'][3]
+                new_par = prog.data['fit_avgi'][3]
         if status:
             auto_cfg = config.update_qubit(cfg_dict['cfg_file'], par, new_par, qi, sig=2, rng_vals=[1.5, max_t1])
-        elif not status:
+            err = np.abs(new_par-old_par)/old_par
+        elif prog.data['fit_err'] > max_err:
+            print('Fit Error too high')
+            params['span']=2*new_par
+            #status, prog=get_coherence(scan_name, qi, cfg_dict, par, params={}, min_r2=0.1, max_err=0.5, tol=0.3, max_t1=500)
+            err = 2*tol
+            # if status: 
+            #     return status, prog
+        else:     
             print('Failed')    
-        err = np.abs(new_par-old_par)/old_par
+            err = 2*tol
+        
         old_par = new_par
         i+=1
 

@@ -266,17 +266,23 @@ class ResonatorSpectroscopyExperiment(Experiment):
             data['init'][0]=data['init'][0]+self.cfg.hw.soc.dacs.readout.lo_freq
         else:
             xpts = data['xpts'][1:-1]
+        
         qubit = self.cfg.expt.qubit
         title = f"Resonator Spectroscopy Q{qubit}, Gain {self.cfg.expt.gain}"
-        if ax is None: 
-            fig, ax = plt.subplots(2,1, figsize=(10,7))
-        ax[0].set_ylabel("Amps [ADC units]")
         
+        if ax is None: 
+            fig, ax = plt.subplots(2,1, figsize=(8,7))
+            fig.suptitle(title)
+        else:
+            ax[0].set_title(title)
+        
+        ax[0].set_ylabel("Amps [ADC units]")
         ax[0].plot(xpts, data['amps'][1:-1],'.-')
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
                     label=f"$\kappa$={data['kappa']:.2f} MHz"
+                    label += f" \nFreq={data['fit'][0]:.2f} MHz"
                     ax[0].plot(xpts, fitter.hangerS21func_sloped(xpts, *data["fit"]), label=label)               
                     ax[0].legend()
      

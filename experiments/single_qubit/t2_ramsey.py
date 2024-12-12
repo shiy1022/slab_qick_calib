@@ -350,7 +350,7 @@ class RamseyExperiment(Experiment):
 
         if fit_twofreq: fitfunc = fitter.twofreq_decaysin
         else: fitfunc = fitter.decaysin
-        print(f'Current pi pulse frequency: {f_pi_test}')
+        #print(f'Current pi pulse frequency: {f_pi_test}')
         title = title + f' (Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)'        
 
         if plot_all:
@@ -385,7 +385,7 @@ class RamseyExperiment(Experiment):
                 ax[i].set_ylabel(ylabels[i])
                 ax[i].set_xlabel(xlabel)
                 ax[i].legend(loc='upper right')
-                if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
+                #if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
          
             if debug: 
                 pinit = data['init_guess_'+ydata]
@@ -402,7 +402,7 @@ class RamseyExperiment(Experiment):
             fig.tight_layout()
             fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
-        print('New pi pulse frequency {:3.4f}:\n'.format(data['new_freq']))
+        #print('New pi pulse frequency {:3.4f}:\n'.format(data['new_freq']))
         plt.show()
 
     def save_data(self, data=None):

@@ -499,13 +499,25 @@ class SingleShotOptExperiment(Experiment):
         qubit = self.cfg.expt.qubit
         Ig, Ie, Qg, Qe = [], [], [], []
         if check_f: If, Qf = [], []
-        for f_ind, f in enumerate(tqdm(fpts, disable=not progress)):
+        gprog=False; fprog=False; lprog=False
+        if len(fpts)>1: 
+            fprog=True
+        else: 
+            fprog=False
+            if len(gainpts)>1: 
+                gprog=True
+            else: 
+                gprog=False
+                if len(lenpts)>1: lprog=True
+                else: lprog=False
+        
+        for f_ind, f in enumerate(tqdm(fpts, disable=not fprog)):
             Ig.append([]); Ie.append([]); Qg.append([]); Qe.append([])
             if check_f: If.append([]); Qf.append([])
-            for g_ind, gain in enumerate(tqdm(gainpts, disable=not progress)):
+            for g_ind, gain in enumerate(tqdm(gainpts, disable=not gprog)):
                 Ig[-1].append([]); Ie[-1].append([]); Qg[-1].append([]); Qe[-1].append([])
                 if check_f: If[-1].append([]); Qf[-1].append([])
-                for l_ind, l in enumerate(tqdm(lenpts, disable=not progress)):
+                for l_ind, l in enumerate(tqdm(lenpts, disable=not lprog)):
                     shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file, im=self.im)
                     shot.cfg = self.cfg
                     shot.cfg.device.readout.frequency = float(f)
@@ -526,8 +538,6 @@ class SingleShotOptExperiment(Experiment):
                     # print(f'freq: {f}, gain: {gain}, len: {l}')
                     # print(f'\tfid ge [%]: {100*results["fids"][0]}')
                     if check_f: print(f'\tfid gf [%]: {100*results["fids"][1]:.3f}')
-
-
         
         if check_f: 
             self.data['If'] = np.array(If)
@@ -620,7 +630,6 @@ class SingleShotOptExperiment(Experiment):
   
                 ax[i].set_title(f'{labs[inds[0]]} {data[sweep_var[0]][i]:.2f}')
                 
-                
         elif ndims==2:
             fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1]*3, npts[0]*3))
             
@@ -636,19 +645,21 @@ class SingleShotOptExperiment(Experiment):
             plt.figtext(0.5, 0.0, labs[inds[1]], horizontalalignment='center')
             plt.figtext(0.0, 0.5, labs[inds[0]], verticalalignment='center', rotation='vertical')
         else: 
-            for i in range(npts[2]):
+            for k in range(npts[2]):
                 fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1]*3, npts[0]*3))
                 for i in range(npts[0]):
                     for j in range(npts[1]):
-                        ax[i,j].plot(['Ig'],['Qg'],'.',color=blue)
-                        ax[i,j].plot(['Qe'],['Ie'],'.', color=red)
+                        ax[i,j].plot(self.data['Ig'][i,j,k,:],self.data['Qg'][i,j,k],'.', color=blue, alpha=0.2, markersize=m)
+                        ax[i,j].plot(self.data['Ie'][i,j,k,:],self.data['Qe'][i,j,k],'.', color=red, alpha=0.2, markersize=m)
+            fig.suptitle(title)
+            fig.tight_layout()
+            imname = self.fname.split("\\")[-1]
+            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'_raw_{k}.png')
+        
         
         fig.suptitle(title)
         fig.tight_layout()
         
-
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'_raw.png')
 
         title = f'Single Shot Optimization Q{self.cfg.expt.qubit}'
         fig = plt.figure(figsize=(9,5.5))
