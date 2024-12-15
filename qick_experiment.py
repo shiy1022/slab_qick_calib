@@ -8,6 +8,7 @@ from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import fitting as fitter
+import time
 
 class QickExperiment(Experiment):
     def __init__(self, cfg_dict=None, prefix='QickExp', progress=None, qi=0):
@@ -25,6 +26,8 @@ class QickExperiment(Experiment):
         prog = prog_name(soccfg=self.soccfg, cfg=self.cfg)
         now = datetime.now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = current_time.encode('ascii','replace')
+
         xpts, avgi, avgq = prog.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
 
         avgi = avgi[0][0]
@@ -35,8 +38,7 @@ class QickExperiment(Experiment):
         if hist:
             v, hist = self.make_hist(prog)
 
-        current_time = current_time.encode('ascii','replace')
-        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}
+        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'start_time':current_time}
         if hist: 
             data['bin_centers'] = v
             data['hist'] = hist
@@ -177,8 +179,10 @@ class QickExperimentLoop(QickExperiment):
     def acquire(self, prog_name, x_sweep, progress=True, hist=False):
         
         data={"xpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
-
-        xvals = np.arange(len(x_sweep[0]['pts']))
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = current_time.encode('ascii','replace')
+        xvals = np.arange(len(x_sweep[0]['count']))
         for i in tqdm(xvals, disable=not progress):
             for j in range(len(x_sweep)):
                 self.cfg.expt[x_sweep[j]['var']] = x_sweep[j]['pts'][i]
@@ -191,7 +195,9 @@ class QickExperimentLoop(QickExperiment):
         for k, a in data.items():
             data[k]=np.array(a)
 
+        data['start_time'] = current_time
         self.data = data
+
 
         return data
 
@@ -240,27 +246,49 @@ class QickExperiment2D(QickExperimentLoop):
 
         data={"avgi":[], "avgq":[], "amps":[], "phases":[]}
         yvals = np.arange(len(y_sweep[0]['pts']))
+        data['time']=[]
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = current_time.encode('ascii','replace')
+            
         for i in tqdm(yvals):
             for j in range(len(y_sweep)):
                 self.cfg.expt[y_sweep[j]['var']] = y_sweep[j]['pts'][i]
             prog = prog_name(soccfg=self.soccfg, cfg=self.cfg)
             xpts, avgi, avgq = prog.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
             data = self.stow_data(avgi, avgq, data)
+            data['time'].append(time.time())
         
         data['xpts'] = xpts
-        data['ypts'] = y_sweep['pts']
+        if 'count' in [y_sweep[j]['var'] for j in range(len(y_sweep))]:
+            data['ypts'] = (data['time']-np.min(data['time']))/3600
+        else:
+            data['ypts'] = y_sweep[0]['pts']
         for j in range(len(y_sweep)):
             data[y_sweep[j]['var']+'_pts'] = y_sweep[j]['pts']
         for k, a in data.items():
             data[k] = np.array(a)
+        self['start_time'] = current_time
         self.data=data
         return data
     
     def stow_data(self, avgi, avgq, data):
-        super().stow_data(avgi, avgq, data)
+        data=super().stow_data(avgi, avgq, data)
+        return data
     
     def analyze(self,fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
-        pass 
+        if data is None:
+            data=self.data
+        ydata_lab = ['amps', 'avgi', 'avgq']
+        ydata_lab= ['avgi']
+        for i, ydata in enumerate(ydata_lab):
+            data['fit_'+ydata] = []
+            data['fit_err_'+ydata] = []
+            for j in range(len(data['ypts'])):
+                fit_pars = []
+                fit_pars, fit_err, init = fitterfunc(data['xpts'], data[ydata][j], fitparams=None)
+                data['fit_'+ydata].append(fit_pars) 
+                data['fit_err_'+ydata].append(fit_err)
 
     def display(self, data=None,ax=None,plot_both=False,plot_amps=False, title='', xlabel='', ylabel='', **kwargs):
         if data is None:
@@ -274,12 +302,12 @@ class QickExperiment2D(QickExperimentLoop):
             savefig=False
 
         if plot_both:
-            fig, ax =plt.subplots(2,1,figsize=(8,6))
+            fig, ax =plt.subplots(2,1,figsize=(8,10))
             ydata_lab = ['avgi', 'avgq']
             ydata_labs = ['I [ADC level]', 'Q [ADC level]']
             fig.suptitle(title)
         elif plot_amps:
-            fig, ax = plt.subplots(1,1,figsize=(8,6))
+            fig, ax = plt.subplots(2,1,figsize=(8,10))
             ydata_lab = ['amps','phases']
             ydata_labs = ['Amplitude [ADC level]', 'Phase [radians]']
             fig.suptitle(title)
@@ -298,7 +326,7 @@ class QickExperiment2D(QickExperimentLoop):
             ax[i].set_ylabel(ylabel)
 
             if 'log' in self.cfg.expt and self.cfg.expt.log:
-                ax.set_yscale('log')
+                ax[i].set_yscale('log')
 
         if savefig:
             fig.tight_layout()
@@ -323,6 +351,10 @@ class QickExperiment2DLoop(QickExperiment2D):
         
         xvals = np.arange(len(x_sweep[0]['pts']))
         yvals = np.arange(len(y_sweep[0]['pts']))
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = current_time.encode('ascii','replace')
+
         data={"xpts":[], "ypts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
         for k in tqdm(yvals, disable=not progress):
             for j in range(len(y_sweep)):
@@ -351,6 +383,7 @@ class QickExperiment2DLoop(QickExperiment2D):
         for k, a in data.items():
             data[k] = np.array(a)
         
+        data['start_time'] = current_time
         self.data=data
         return data
 

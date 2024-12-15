@@ -3,12 +3,13 @@ import matplotlib.patches as mpl_patches
 import numpy as np
 from qick import *
 from qick.helpers import gauss
-
+import time
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import copy
 import fitting as fitter
+from qick_experiment import QickExperimentLoop, QickExperiment2DLoop
 
 class T1StarkProgram(AveragerProgram):
     def __init__(self, soccfg, cfg):
@@ -95,22 +96,22 @@ class T1StarkProgram(AveragerProgram):
     def body(self):
         cfg=AttrDict(self.cfg)
         self.set_pulse_registers(ch=self.qubit_ch, style="arb", freq=self.f_ge, phase=0, gain=cfg.device.qubit.pulses.pi_ge.gain, waveform="pi_qubit")
-        self.pulse(ch=self.qubit_ch)
-        #self.sync_all() # align channels
-        if self.cfg.expt.acStark:
-            #self.stark_time = self.us2cycles(self.r_wait, gen_ch=self.qubit_chs[qTest])
-            self.set_pulse_registers(
-                    ch=self.qubit_ch,
-                    style="const",
-                    freq=self.stark_freq,
-                    phase=0,
-                    gain=self.stark_gain, # gain set by update
-                    length=self.stark_length)
+        if self.cfg.expt.do_exp:
             self.pulse(ch=self.qubit_ch)
-            self.sync_all(5) # align channels and wait 50ns
-        else:
-            self.sync_all(self.stark_length) # align channels and wait 50ns
-        #self.wait_all(self.stark_length) # wait for the pulse to finish
+            #self.sync_all() # align channels
+            if self.cfg.expt.acStark:
+                self.set_pulse_registers(
+                        ch=self.qubit_ch,
+                        style="const",
+                        freq=self.stark_freq,
+                        phase=0,
+                        gain=self.stark_gain, # gain set by update
+                        length=self.stark_length)
+                self.pulse(ch=self.qubit_ch)
+                self.sync_all(5) # align channels and wait 50ns
+            else:
+                self.sync_all(self.stark_length) # align channels and wait 50ns
+            #self.wait_all(self.stark_length) # wait for the pulse to finish
 
         self.measure(pulse_ch=self.res_ch, 
              adcs=[self.adc_ch],
@@ -127,7 +128,7 @@ class T1StarkProgram(AveragerProgram):
 
 
 
-class T1StarkExperiment(Experiment):
+class T1StarkExperiment(QickExperimentLoop):
     """
     T1 Experiment
     Experimental Config:
@@ -140,321 +141,69 @@ class T1StarkExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='T1_stark', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict,  qi=0, go=True, params={},prefix='', progress=False, style='', min_r2=None, max_err=None):
 
-    def acquire(self, progress=False, debug=False):
+        if prefix=='':
+            prefix = f"ramsey_stark_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {
+            'expts':60, 
+            'start':0.02,
+            'span':self.cfg.device.qubit.T1[qi]*3.7, 
+            'reps':2*self.reps, 
+            'rounds':self.rounds, 
+            'stark_gain':20000, 
+            'delay_time':self.cfg.device.qubit.T1[qi],
+            'df':70,
+            'acStark':True, 
+            'do_exp':True}
+        params = {**params_def, **params}
+        params['stark_freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
+        params['step']=params['span']/(params['expts']-1)
+        params_exp = {'qubit':[qi], 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        self.cfg.expt = {**params, **params_exp}
         
-       
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
-
-                                
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
+    
+    def acquire(self, progress=False):
+        q_ind = self.cfg.expt.qubit[0]
+        self.update_config(q_ind)
+                                     
         lengths = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(self.cfg.expt["expts"])
-        xvals =  np.arange(self.cfg.expt["expts"])
-        data={"xpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
-
-        for i in tqdm(xvals, disable=not progress):
-            length = lengths[i]
-            self.cfg.expt.length = float(length)
-            t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
-            #print(t1)
-            self.prog = t1
-            avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
-            avgi = avgi[0][0]
-            avgq = avgq[0][0]
-            amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
-            phase = np.angle(avgi+1j*avgq) # Calculating the phase
-            data["xpts"].append(length)
-            data["avgi"].append(avgi)
-            data["avgq"].append(avgq)
-            data["amps"].append(amp)
-            data["phases"].append(phase)
-
-        for k, a in data.items():
-            data[k]=np.array(a)  
+        x_sweep = [{'var':'length', 'pts':lengths}]
+        super().acquire(T1StarkProgram, x_sweep, progress=progress)
         
-        current_time = current_time.encode('ascii','replace')
-        data['time']=current_time
-        self.data=data
-        return data
+        return self.data
 
     def analyze(self, data=None, **kwargs):
         if data is None:
             data=self.data
-            
-        # fitparams=[y-offset, amp, x-offset, decay rate]
-        # Remove the last point from fit in case weird edge measurements
+        
         fitfunc = fitter.expfunc
         fitterfunc=fitter.fitexp
-        ydata_lab = ['amps', 'avgi', 'avgq']
-        for i, ydata in enumerate(ydata_lab):
-            data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'], data[ydata], fitparams=None)
+        super().analyze(fitfunc, fitterfunc, data)
 
-        fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
-        r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
-        print('R2:', r2)
-        data['r2']=r2
+        return self.data
 
-        data['fit_err']=np.mean(np.abs(fit_err/fit_pars))
-        print('fit_err:', data['fit_err'])
+    def display(self, data=None, fit=True,plot_all=False,ax=None, show_hist=False):
         
-        data['best_fit']=fit_pars
-        data['new_t1']=fit_pars[2]
-        print('Best fit:', i_best)
-        i_best = i_best.encode("ascii", "ignore")
-        data['i_best']=i_best
-
-        return data
-
-    def display(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data=self.data 
-        qubit = self.cfg.expt.qubit
+        qubit=self.cfg.expt.qubit
+        df = self.cfg.expt.stark_freq-self.cfg.device.qubit.f_ge
+        xlabel = "Wait Time ($\mu$s)"
+        captionStr = ['$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s']
+        title=f'$T_1$ Stark Q{qubit} Freq: {df}, Amp: {self.cfg.expt.stark_gain}'
+        var=[2]
+        fitfunc = fitter.expfunc
         
-        fig, ax=plt.subplots(3, 1, figsize=(9, 10))
-        xlabel = "Wait Time (us)"
-        ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-        fig.suptitle(f'T1 Stark Q{qubit}')
-        ydata_lab = ['amps', 'avgi', 'avgq']
-        for i, ydata in enumerate(ydata_lab):
-            ax[i].plot(data["xpts"], data[ydata],'o-')
-        
-            if fit:
-                p = data['fit_'+ydata]
-                pCov = data['fit_err_amps']
-                captionStr = f'$T_1$ fit [us]: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.3}'
-                ax[i].plot(data["xpts"], fitter.expfunc(data["xpts"], *p), label=captionStr)
-                ax[i].set_ylabel(ylabels[i])
-                ax[i].set_xlabel(xlabel)
-                ax[i].legend(loc='upper right')
-
-        if fit: 
-            data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][2][2])/data['fit_avgi'][2] 
-            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][2][2])/data['fit_avgq'][2]
-
-        imname = self.fname.split("\\")[-1]
-        fig.tight_layout()
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-        plt.show()
+        super().display(data=data,ax=ax,plot_all=plot_all,title=title, xlabel=xlabel, fit=fit, show_hist=show_hist,fitfunc=fitfunc,captionStr=captionStr,var=var)
         
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
     
-# ====================================================== #
-
-class T1Continuous(Experiment):
-    """
-    T1 Continuous
-    Experimental Config:
-    expt = dict(
-        start: wait time sweep start [us]
-        step: wait time sweep step
-        expts: number steps in sweep
-        reps: number averages per experiment
-        rounds: number rounds to repeat experiment sweep
-    )
-    """
-    def __init__(self, soccfg=None, path='', prefix='T1Continuous', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
-    
-    def acquire(self, progress=False, debug=False):
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
-        t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
-
-        shots_i, shots_q = t1.collect_shots()
-
-
-        avgi = avgi[0][0]
-        avgq = avgq[0][0]
-        amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-        phases = np.angle(avgi+1j*avgq) # Calculating the phase    
-
-        now = datetime.now()
-        current_time = now.strftime("%H:%M:%S")
-        current_time = current_time.encode('ascii','replace')
-
-        data={'xpts': x_pts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time, 'raw_i': shots_i, 'raw_q': shots_q, 'raw_amps': np.abs(shots_i+1j*shots_q)}   
-        
-        self.data=data
-        return data
-
-    def analyze(self, data=None, **kwargs):
-        if data is None:
-            data=self.data
-            
-        # fitparams=[y-offset, amp, x-offset, decay rate]
-        # Remove the last point from fit in case weird edge measurements
-        data['fit_amps'], data['fit_err_amps'] = fitter.fitexp(data['xpts'][:-1], data['amps'][:-1], fitparams=None)
-        data['fit_avgi'], data['fit_err_avgi'] = fitter.fitexp(data['xpts'][:-1], data['avgi'][:-1], fitparams=None)
-        data['fit_avgq'], data['fit_err_avgq'] = fitter.fitexp(data['xpts'][:-1], data['avgq'][:-1], fitparams=None)
-                
-        return data
-
-        
-    def display(self, data=None, fit=True, show = False, **kwargs):
-        if data is None:
-            data=self.data 
-    
-        plt.figure(figsize=(10,10))
-        plt.subplot(211, title="$T_1$", ylabel="I [ADC units]")
-        plt.plot(data["xpts"], data["avgi"],'o-', label = 'Current Data')
-        plt.plot(self.cfg.expt.prev_data_x, self.cfg.expt.prev_data_i,'o-', label = 'Previous Data')
-        if fit:
-            p = data['fit_avgi']
-            pCov = data['fit_err_avgi']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgi"]), label=captionStr)
-            plt.legend()
-            print(f'Fit T1 avgi [us]: {data["fit_avgi"][3]}')
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][3][3])/data['fit_avgi'][3]
-        plt.legend()
-        plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC units]")
-        plt.plot(data["xpts"], data["avgq"],'o-', label = 'Current Data')
-        plt.plot(self.cfg.expt.prev_data_x, self.cfg.expt.prev_data_q,'o-', label = 'Previous Data')
-        if fit:
-            p = data['fit_avgq']
-            pCov = data['fit_err_avgq']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgq"]), label=captionStr)
-            plt.legend()
-            print(f'Fit T1 avgq [us]: {data["fit_avgq"][3]}')
-            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][3][3])/data['fit_avgq'][3]
-
-        plt.legend()
-        if show:
-            plt.show() 
-
-    
-    def save_data(self, data=None):
-        print(f'Saving {self.fname}')
-        super().save_data(data=data)
-        return self.fname
-    
-
-class T1_2D(Experiment):
-    """
-    sweep_pts = number of points in the 2D sweep
-    """
-    def __init__(self, soccfg=None, path='', prefix='T1_2D', config_file=None, progress=None, im=None):
-            super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
-    
-    def acquire(self, progress=False, debug=False):
-
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        current_time = current_time.encode('ascii','replace')
-
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})    
-                    
-        sweeppts = np.arange(self.cfg.expt["sweep_pts"])
-        data={"xpts":[], "sweeppts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
-
-        for i in tqdm(sweeppts):
-            t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
-        
-            xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
-        
-            avgi = avgi[0][0]
-            avgq = avgq[0][0]
-            amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-            phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-
-            data["avgi"].append(avgi)
-            data["avgq"].append(avgq)
-            data["amps"].append(amps)
-            data["phases"].append(phases)
-        
-        data['xpts'] = xpts
-        data['sweeppts'] = sweeppts
-        data['time'] = current_time
-
-        for k, a in data.items():
-            data[k] = np.array(a)
-        self.data=data
-        return data
-    
-    def analyze(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data=self.data
-        pass
-
-    def display(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data=self.data 
-        
-        x_sweep = data['xpts']
-        y_sweep = data['sweeppts']
-        avgi = data['avgi']
-        avgq = data['avgq']
-
-        plt.figure(figsize=(10,8))
-        plt.subplot(211, title="T1 2D", ylabel="Points")
-        plt.imshow(
-            np.flip(avgi, 0),
-            cmap='viridis',
-            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
-            aspect='auto')
-        plt.colorbar(label='I [ADC level]')
-        plt.clim(vmin=None, vmax=None)
-        # plt.axvline(1684.92, color='k')
-        # plt.axvline(1684.85, color='r')
-
-        plt.subplot(212, xlabel="Points", ylabel="Frequency [MHz]")
-        plt.imshow(
-            np.flip(avgq, 0),
-            cmap='viridis',
-            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
-            aspect='auto')
-        plt.colorbar(label='Q [ADC level]')
-        plt.clim(vmin=None, vmax=None)
-        
-        if fit: pass
-
-        plt.tight_layout()
-        plt.show()
-
-        plt.plot(x_sweep, data['amps'][0])
-        plt.title(f'First point')
-        plt.show()
-
-        
-    def save_data(self, data=None):
-        print(f'Saving {self.fname}')
-        super().save_data(data=data)
-        return self.fname
         
 class T1StarkPowerExperiment(Experiment):
     """
@@ -733,7 +482,7 @@ class T1StarkPowerContExperiment(Experiment):
         return self.fname
     
 
-class T1StarkPowerContTimeExperiment(Experiment):
+class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
     """
     Stark Power Rabi Experiment
     Experimental Config:
@@ -751,66 +500,105 @@ class T1StarkPowerContTimeExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='T1StarkPowerCont', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict,  qi=0, go=True, params={},prefix='', progress=False, style='', min_r2=None,acStark=True, max_err=None):
+        
+        if prefix=='':
+            prefix = f"t1_stark_amp_cont_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {
+            'count':1000, 
+            'repsT1':10*self.reps, 
+            'repsE':2*self.reps,
+            'repsG':self.reps,
+            'rounds':self.rounds, 
+            'start_gain':0,
+            'stop_gain':self.cfg.device.qubit.max_gain,
+            'expts_gain':200,
+            'df':70,
+            'delay_time':self.cfg.device.qubit.T1[qi],
+            'start':0}
+        params = {**params_def, **params}
+        params['stark_freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
+
+        expt_params = {'acStark':acStark, 'qubit':[qi], 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        self.cfg.expt = {**params, **expt_params}
+        
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
-        # expand entries in config that are length 1 to fill all qubits
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})     
-
+        q_ind = self.cfg.expt.qubit[0]
+        self.update_config(q_ind)
 
         span_gain = self.cfg.expt.stop_gain - self.cfg.expt.start_gain
-        coef = span_gain / np.sqrt(self.cfg.expt["expts"])
-        gainpts = self.cfg.expt["start_gain"] + coef*np.sqrt(np.arange(self.cfg.expt["expts"]))
+        coef = span_gain / np.sqrt(self.cfg.expt["count"])
+        gainpts = self.cfg.expt["start_gain"] + coef*np.sqrt(np.arange(self.cfg.expt["count"]))
         gainpts = gainpts.astype(int)
-        data={"xpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[], 'avgi_off':[], 'avgq_off':[], 'amps_off':[], 'phases_off':[]}
+        data={"xpts":[],"time":[], "avgi":[], "avgq":[], "amps":[], "phases":[], 'avgi_e':[], 'avgq_e':[], 'amps_e':[], 'phases_e':[],'avgi_g':[], 'avgq_g':[], 'amps_g':[], 'phases_g':[]}
 
         self.cfg.T1expt = copy.deepcopy(self.cfg.expt)
         self.cfg.Eexpt = copy.deepcopy(self.cfg.expt)
+        self.cfg.Gexpt = copy.deepcopy(self.cfg.expt)
 
         self.cfg.Eexpt.reps = self.cfg.expt.repsE
         self.cfg.T1expt.reps = self.cfg.expt.repsT1
+        self.cfg.Gexpt.reps = self.cfg.expt.repsG
 
         self.cfg.Eexpt.length=0
+        self.cfg.Gexpt.length=0
         self.cfg.T1expt.length=self.cfg.expt.delay_time
         self.cfg.Eexpt.acStark = False
-        for tm in tqdm(np.arange(self.cfg.expt.ntimes)):
-            data["avgi_off"].append([])
-            data["avgq_off"].append([])
-            data["amps_off"].append([])
-            data["phases_off"].append([])
+        self.cfg.Gexpt.acStark = False
+        for tm in tqdm(np.arange(self.cfg.expt.count)):
+            data['time'].append(time.time())
+            data["avgi_e"].append([])
+            data["avgq_e"].append([])
+            data["amps_e"].append([])
+            data["phases_e"].append([])
+            
+            data["avgi_g"].append([])
+            data["avgq_g"].append([])
+            data["amps_g"].append([])
+            data["phases_g"].append([])
+
             data["xpts"].append([])
             data["avgi"].append([])
             data["avgq"].append([])
             data["amps"].append([])
             data["phases"].append([])
             for gain in gainpts:
-
-                self.cfg.expt=copy.deepcopy(self.cfg.Eexpt)
+                     
+                self.cfg.expt=copy.deepcopy(self.cfg.Gexpt)
+                self.cfg.expt.do_exp = False 
                 t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
                 avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
                 avgi = avgi[0][0]
                 avgq = avgq[0][0]
                 amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
                 phases = np.angle(avgi+1j*avgq) # Calculating the phase
-                data["avgi_off"][-1].append(avgi)
-                data["avgq_off"][-1].append(avgq)
-                data["amps_off"][-1].append(amp)
-                data["phases_off"][-1].append(phases)
+                data["avgi_g"][-1].append(avgi)
+                data["avgq_g"][-1].append(avgq)
+                data["amps_g"][-1].append(amp)
+                data["phases_g"][-1].append(phases)
+                
+                self.cfg.expt=copy.deepcopy(self.cfg.Eexpt)
+                self.cfg.expt.do_exp = True
+                t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
+                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
+                avgi = avgi[0][0]
+                avgq = avgq[0][0]
+                amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
+                phases = np.angle(avgi+1j*avgq) # Calculating the phase
+                data["avgi_e"][-1].append(avgi)
+                data["avgq_e"][-1].append(avgq)
+                data["amps_e"][-1].append(amp)
+                data["phases_e"][-1].append(phases)
 
                 self.cfg.expt=copy.deepcopy(self.cfg.T1expt)
-                self.cfg.expt.stark_gain = gain       
+                self.cfg.expt.do_exp = True 
+                self.cfg.expt.stark_gain = gain 
                 t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
                 avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
                 avgi = avgi[0][0]
@@ -825,38 +613,40 @@ class T1StarkPowerContTimeExperiment(Experiment):
   
         for k, a in data.items():
             data[k] = np.array(a)
+        data['ypts'] = (data['time']-np.min(data['time']))/3600
+
         self.data=data
         return data
 
     def analyze(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data=self.data
-
         pass
-
-
 
     def display(self, data=None, fit=True,plot_both=False, **kwargs):
         if data is None:
             data=self.data 
         
-        title = f'Amplitude Stark T1, Frequency: {self.cfg.expt.stark_freq-self.cfg.device.qubit.f_ge} MHz' 
-        y_sweep = np.arange(self.cfg.expt.ntimes)
-        fig=plt.figure(figsize=(7,8))
-        plt.title(title)
-        plt.pcolormesh(data['xpts']**2/np.max(data['xpts']**2),y_sweep, data['avgi']/data['avgi_off'], label='I')
+        dv = data['avgi_e']-data['avgi_g']
+        norm_data = (data['avgi']-data['avgi_g'])/dv
+        qubit=self.cfg.expt.qubit
+        df = self.cfg.expt.stark_freq-self.cfg.device.qubit.f_ge
+        y_sweep = data['ypts']
+        xlabel = "Gain Sq"
+        ylabel = 'Time (hrs)'
+        title=f'$T_1$ Stark Q{qubit[0]} Freq: {df}'
+        fig, ax = plt.subplots(1,1, figsize=(6,6))
+        plt.pcolormesh(data['xpts']**2/np.max(data['xpts']**2),y_sweep, norm_data, label='I')
         plt.colorbar()
-        plt.xlabel('Gain Sq[DAC units]')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
 
         plt.tight_layout()
         plt.show()
 
-        
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
         
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname

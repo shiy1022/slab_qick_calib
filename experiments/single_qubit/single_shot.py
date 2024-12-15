@@ -464,26 +464,31 @@ class HistogramExperiment(QickExperiment):
 # ====================================================== #
 class SingleShotOptExperiment(QickExperiment):
     """
-    Single Shot optimization experiment over readout parameters
-    expt = dict(
-        reps: number of shots per expt
-        start_f: start frequency (MHz)
-        step_f: frequency step (MHz)
-        expts_f: number of experiments in frequency
-
-        start_gain: start gain (dac units)
-        step_gain: gain step (dac units)
-        expts_gain: number of experiments in gain sweep
-
-        start_len: start readout len (dac units)
-        step_len: length step (dac units)
-        expts_len: number of experiments in length sweep
-
-        check_f: optimize fidelity for g/f (as opposed to g/e)
-    )
+        start_f (float): Starting frequency for the experiment.
+        span_f (float): Frequency span for the experiment.
+        expts_f (int): Number of frequency experiments.
+        
+        start_gain (float): Starting gain for the experiment.
+        span_gain (float): Gain span for the experiment.
+        expts_gain (int): Number of gain experiments.
+        
+        start_len (float): Starting readout length for the experiment.
+        span_len (float): Readout length span for the experiment.
+        expts_len (int): Number of readout length experiments.
+        reps (int): Number of repetitions for each experiment.
+        check_f (bool): Flag to check frequency.
+        
+        step_f (float): Frequency step size.
+        step_gain (float): Gain step size.
+        step_len (float): Readout length step size.
+        
+        qubit (list): List of qubits to be used in the experiment.
+        save_data (bool): Flag to save data.
+        qubit_chan (int): Qubit channel for readout.
     """
+   
 
-    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, check_f=False, style=''):
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, style=''):
 
         if prefix is None:
             prefix = f"single_shot_opt_qubit_{qi}"
@@ -494,15 +499,15 @@ class SingleShotOptExperiment(QickExperiment):
         self.config_file=cfg_dict['cfg_file']
         self.cfg_dict = cfg_dict
 
-        params_def = {'span_f': 0.3, 'npts_f':5, 'npts_gain':5, 'npts_len':5, 'reps':10000}
+        params_def = {'span_f': 0.3, 'expts_f':5, 'expts_gain':5, 'expts_len':5, 'reps':10000, 'check_f':False}
 
         # Start vals 
-        if params_def['npts_f']==1:
+        if params_def['expts_f']==1:
             params_def['start_f'] = self.cfg.device.readout.frequency[qi]
         else:
             params_def['start_f'] = self.cfg.device.readout.frequency[qi] - 0.5*params_def['span_f']
         
-        if params_def['npts_gain']==1:
+        if params_def['expts_gain']==1:
             params_def['start_gain'] = self.cfg.device.readout.gain[qi]
         else:
             if style=='fine': 
@@ -512,7 +517,7 @@ class SingleShotOptExperiment(QickExperiment):
                 params_def['start_gain'] = self.cfg.device.readout.gain[qi] * 0.3
                 params_def['span_gain'] = 1.8 * self.cfg.device.readout.gain[qi]
 
-        if params_def['npts_len']==1:
+        if params_def['expts_len']==1:
             params_def['start_len'] = self.cfg.device.readout.readout_length[qi]
         else:
             if style=='fine': 
@@ -523,42 +528,26 @@ class SingleShotOptExperiment(QickExperiment):
                 params_def['span_len'] = 1.8 * self.cfg.device.readout.readout_length[qi]
 
         params = {**params_def, **params}
-        if params['npts_f'] == 1:
-            step_f =0 
+        if params['expts_f'] == 1:
+            params['step_f'] =0 
         else:
-            step_f = params_def['span_f']/(params['npts_f']-1)
+            params['step_f'] = params_def['span_f']/(params['expts_f']-1)
         
-        if params_def['npts_gain'] == 1:
-            step_gain = 0
+        if params_def['expts_gain'] == 1:
+            params['step_gain'] = 0
         else:
-            step_gain = params_def['span_gain']/(params['npts_gain']-1)
+            params['step_gain'] = params_def['span_gain']/(params['expts_gain']-1)
 
-        if params['npts_len'] == 1:
-            step_len =0 
+        if params['expts_len'] == 1:
+            params['step_len'] =0 
         else:
-            step_len = params_def['span_len']/(params['npts_len']-1)
+            params['step_len'] = params_def['span_len']/(params['expts_len']-1)
 
         if params['span_gain'] + params['start_gain'] > self.cfg.device.qubit.max_gain:
             params['span_gain'] = self.cfg.device.qubit.max_gain - params['start_gain']
 
-
-        self.cfg.expt = dict(
-            reps=params['reps'],
-            qubit=[qi],
-            start_f=params['start_f'],
-            step_f=step_f,
-            expts_f=params['npts_f'],
-            start_gain=params['start_gain'],#start_gain=1000,
-            step_gain=step_gain,
-            expts_gain=params['npts_gain'],
-            start_len=params['start_len'],
-            step_len=step_len,
-            expts_len=params['npts_len'],
-            check_f=check_f,
-            save_data=True,
-            qubits=[qi],
-            qubit_chan=self.cfg.hw.soc.adcs.readout.ch[qi],
-        )
+        params_exp = {'qubit':[qi], 'save_data':True, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        self.cfg.expt = {**params, **params_exp}
 
         if go:
             self.go(analyze=False, display=False, progress=False, save=True)

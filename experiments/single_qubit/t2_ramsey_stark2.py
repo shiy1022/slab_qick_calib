@@ -233,32 +233,18 @@ class RamseyStark2Experiment(QickExperimentLoop):
     )
     """
 
-    def __init__(self, cfg_dict,  qi=0, go=True, params={},prefix='', progress=False, style='', min_r2=None,acStark=True, max_err=None):
+    def __init__(self, cfg_dict,  qi=0, go=True, params={},prefix='', progress=False, style='', min_r2=None, max_err=None):
 
         if prefix=='':
             prefix = f"ramsey_stark_qubit{qi}"
             
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        params_def = {'expts':100, 'step':0.0023251488095238095, 'reps':2*self.reps, 'rounds':self.rounds, 'gain':20000, 'df':70,'ramsey_freq':0.1,'start':0.01}
+        params_def = {'expts':100, 'step':0.0023251488095238095, 'reps':2*self.reps, 'rounds':self.rounds, 'gain':20000, 'df':70,'ramsey_freq':0.1,'start':0.01, 'checkEF':False, 'checkZZ':False, 'acStark':True}
         params = {**params_def, **params}
         params['freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
-        
-        self.cfg.expt = dict(
-            start=params['start'], # wait time tau [us]
-            step= params['step'], # [us]
-            expts=params['expts'],
-            ramsey_freq=params['ramsey_freq'], # [MHz]
-            reps=params['reps'],
-            rounds=params['rounds'], 
-            qubit=[qi],
-            stark_gain=params['gain'], 
-            stark_freq=params['freq'],
-            checkZZ=False,
-            checkEF=False,
-            acStark=acStark,
-            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
-        )
+        params_exp = {'qi':[qi], 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        self.cfg.expt = {**params, **params_exp}
         
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
@@ -299,7 +285,6 @@ class RamseyStark2Experiment(QickExperimentLoop):
         return data
 
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
     
@@ -492,13 +477,21 @@ class RamseyStarkPower2Experiment(QickExperiment2DLoop):
             
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        params_def = {'expts':100, 'step':0.0023251488095238095, 'reps':self.reps, 'rounds':self.rounds, 'end_gain':self.cfg.device.qubit.max_gain,'expts_gain':20,'start_gain':5000, 'df':70,'ramsey_freq':0.1,'start':0.01}
+        params_def = {
+            'expts':100, 
+            'step':0.0023251488095238095, 
+            'reps':self.reps, 
+            'rounds':self.rounds, 
+            'end_gain':self.cfg.device.qubit.max_gain,
+            'expts_gain':20,'start_gain':5000, 
+            'df':70,
+            'ramsey_freq':0.1,
+            'start':0.01}
         params = {**params_def, **params}
         params['stark_freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
 
         expt_params = {'checkZZ':False, 'checkEF':False, 'acStark':acStark, 'qubit':[qi], 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
         self.cfg.expt = {**params, **expt_params}
-
         
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
@@ -525,15 +518,7 @@ class RamseyStarkPower2Experiment(QickExperiment2DLoop):
             data=self.data
 
         fitterfunc=fitter.fitdecaysin
-
-        ydata_lab = ['amps', 'avgi', 'avgq']
-        ydata_lab= ['avgi']
-        for i, ydata in enumerate(ydata_lab):
-            data['fit_'+ydata] = []
-            for i in range(len(data['stark_gain_pts'])):
-                fit_pars = []
-                fit_pars, fit_err, init = fitterfunc(data['length_pts'], data[ydata][i], fitparams=None)
-                data['fit_'+ydata].append(fit_pars)
+        super().analyze(fitfunc=fitter.decaysin, fitterfunc=fitterfunc, data=data)
 
         from scipy.optimize import curve_fit
         def quad_fit(x, a, b, c):

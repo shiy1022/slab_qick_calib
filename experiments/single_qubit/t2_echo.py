@@ -211,6 +211,7 @@ class RamseyEchoExperiment(QickExperiment):
     Experimental Config:
     expt = dict(
         start: total wait time b/w the two pi/2 pulses start sweep [us]
+        span: total increment of wait time across experiments [us]
         step: total wait time step - make sure nyquist freq = 0.5 * (1/step) > ramsey (signal) freq!
         expts: number experiments stepping from start
         ramsey_freq: frequency by which to advance phase [MHz]
@@ -223,31 +224,21 @@ class RamseyEchoExperiment(QickExperiment):
     """
 
     def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, style='', min_r2=None, max_err=None):
-            #span=None, npts=100, ramsey_freq=0.1, reps=None, rounds=None,
+            #span=None, expts=100, ramsey_freq=0.1, reps=None, rounds=None,
         if prefix is None:
             prefix = f"echo_qubit{qi}"
             
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        params_def = {'npts':100, 'ramsey_freq':0.1, 'span':3*self.cfg.device.qubit.T2e[qi], 'reps':2*self.reps, 'rounds':2*self.rounds}
+        params_def = {'expts':100, 'ramsey_freq':0.1, 'span':3*self.cfg.device.qubit.T2e[qi], 'reps':2*self.reps, 'rounds':2*self.rounds, 'start':0.1, 'num_pi':1, 'cp':True, 'cpmg':False}
         params = {**params_def, **params}    
-        step = params['span']/params['npts']
+        params['step'] = params['span']/params['expts']
         if params['ramsey_freq']=='smart':
             params['ramsey_freq'] = np.pi/2/self.cfg.device.qubit.T2e[qi]
 
-        self.cfg.expt = dict(
-            start=0.1, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
-            step=step, #step,
-            expts=params['npts'],
-            ramsey_freq=params['ramsey_freq'], # frequency by which to advance phase [MHz]
-            num_pi=1, # number of pi pulses
-            cpmg=False, # set either cp or cpmg to True
-            cp=True, # set either cp or cpmg to True
-            reps=params['reps'],
-            rounds=params['rounds'],
-            qubit=qi,
-            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
-        )
+        params_exp= {'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        self.cfg.expt = {**params, **params_exp}
+        
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 

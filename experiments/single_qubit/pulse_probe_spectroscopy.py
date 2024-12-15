@@ -132,13 +132,14 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
         rounds: number repetitions of experiment sweep
         length: ef const pulse length [us]
         gain: ef const pulse gain [dac units]
+        checkEF: flag to check EF transition
     )
     """
 
-    def __init__(self, cfg_dict, prefix='', progress=None, qi=0, go=True, params={}, style='', check_ef=False, min_r2=None, max_err=None):
+    def __init__(self, cfg_dict, prefix='', progress=None, qi=0, go=True, params={}, style='', checkEF=False, min_r2=None, max_err=None):
         
         prefix = 'qubit_spectroscopy_'
-        if check_ef: 
+        if checkEF: 
             prefix = prefix+'ef' 
         prefix += style+f"_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
@@ -149,12 +150,12 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
         # otherwise, narrow span, low gain, centered at ge frequency 
         max_len = 150 
         if style == 'coarse': 
-            params_def = {'gain':1500*self.cfg.device.readout.spec_gain[qi], 'span':500, 'npts':500}
+            params_def = {'gain':1500*self.cfg.device.readout.spec_gain[qi], 'span':500, 'expts':500}
         elif style == 'fine':
-            params_def = {'gain':100*self.cfg.device.readout.spec_gain[qi], 'span':5, 'npts':100}
+            params_def = {'gain':100*self.cfg.device.readout.spec_gain[qi], 'span':5, 'expts':100}
         else: 
-            params_def = {'gain':500*self.cfg.device.readout.spec_gain[qi], 'span':50, 'npts':200}
-        if check_ef: 
+            params_def = {'gain':500*self.cfg.device.readout.spec_gain[qi], 'span':50, 'expts':200}
+        if checkEF: 
             params_def['gain']=2*params_def['gain']
         params_def2={'relax_delay':10, 'len':50, 'reps':self.reps, 'rounds':self.rounds}
         params_def = {**params_def, **params_def2}
@@ -162,35 +163,23 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
         # combine params and params_Def, preferreing params 
         params = {**params_def, **params}
         
-        if check_ef: 
+        if checkEF: 
             params_def['start']=self.cfg.device.qubit.f_ef[qi]-params['span']/2
         else:
             params_def['start']=self.cfg.device.qubit.f_ge[qi]-params['span']/2
         params = {**params_def, **params}
         
 
-        if params['len']=='t1' and not check_ef:
-            params['len']=3*self.cfg.device.qubit.T1[qi]
+        if params['length']=='t1' and not checkEF:
+            params['length']=3*self.cfg.device.qubit.T1[qi]
         else:
-            params['len']=self.cfg.device.qubit.T1[qi]/4
-        if params['len']>max_len:
-            params['len']=max_len
+            params['length']=self.cfg.device.qubit.T1[qi]/4
+        if params['length']>max_len:
+            params['length']=max_len
+        params['step'] = params['span']/params['expts']
+        params_exp = {'pulse_type':'const', 'checkEF':checkEF, 'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        self.cfg.expt = {**params, **params_exp}
         
-        self.cfg.expt = dict(
-            start= params['start'], # qubit frequency to be mixed up [MHz]
-            step = params['span']/params['npts'], # min step ~1 Hz
-            expts = params['npts'], # Number experiments stepping from start
-            reps = params['reps'], # Number averages per point
-            rounds = params['rounds'], #Number of start to finish sweeps to average over 
-            length = params['len'], # qubit probe constant pulse length [us]
-            gain = int(params['gain']), #qubit pulse gain  
-            pulse_type = 'const', 
-            checkEF=check_ef,
-            #pulse_type = 'gauss',  
-            qubit = qi,
-            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
-            relax_delay=params['relax_delay']
-        ) 
         if go: 
             super().run(min_r2=min_r2, max_err=max_err)
 
@@ -240,20 +229,26 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
     
 class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
     """
-    PulseProbe Spectroscopy Experiment
-    Experimental Config:
-        start_f: Qubit frequency [MHz]
-        step_f
-        expts_f: Number of experiments stepping from start
-        "start_gain": start frequency (dac units), 
-       "step_gain": frequency step (dac units), 
-       "expts_gain": number of experiments in gain sweep,
-        reps: Number of averages per point
-        rounds: Number of start to finish sweeps to average over
-        length: Qubit probe constant pulse length [us]
+    self.cfg.expt: dict
+        - start_f (float): Qubit frequency start [MHz].
+        - step_f (float): Frequency step size [MHz].
+        - expts_f (int): Number of experiments stepping from start frequency.
+        - reps (int): Number of averages per point.
+        - rounds (int): Number of start to finish sweeps to average over.
+        - length (float): Qubit probe constant pulse length [us].
+        - expts_gain (int): Number of gain experiments.
+        - max_gain (int): Maximum gain for the sweep.
+        - pulse_type (str): Type of pulse, default is 'const'.
+        - checkEF (bool): Flag to check EF transition.
+        - qubit (int): Qubit index.
+        - qubit_chan (int): Qubit channel index.
+        - relax_delay (float): Relaxation delay [us].
+        - log (bool): Flag to indicate if logarithmic gain sweep is used.
+        - rng (int): Range for logarithmic gain sweep.
     """
+    
 
-    def __init__(self, cfg_dict, prefix='', progress=None, qi=0, go=True, span=None, params={}, style='', checkEF=False, min_r2=None, max_err=None):
+    def __init__(self, cfg_dict, prefix='', progress=None, qi=0, go=True, span=None, params={}, style='', checkEF=False,log=True, min_r2=None, max_err=None):
         
         prefix = 'qubit_spectroscopy_power_'
         if checkEF: 
@@ -263,14 +258,14 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
   
         max_len = 150 
         if style == 'coarse': 
-            params_def = { 'span':800, 'npts':500}
+            params_def = { 'span':800, 'expts':500}
         elif style == 'fine':
-            params_def = {'span':40, 'npts':100}
+            params_def = {'span':40, 'expts':100}
         else: 
-            params_def = { 'span':120, 'npts':200}
+            params_def = { 'span':120, 'expts':200}
         if checkEF: 
             params_def['gain']=2*params_def['gain']
-        params_def2={'relax_delay':10, 'len':25, 'reps':self.reps, 'rounds':self.rounds, 'rng':50, 'max_gain':self.cfg.device.qubit.max_gain, 'expts_gain':10}
+        params_def2={'relax_delay':10, 'length':25, 'reps':self.reps, 'rounds':self.rounds, 'rng':50, 'max_gain':self.cfg.device.qubit.max_gain, 'expts_gain':10}
         params_def = {**params_def, **params_def2}
         
         # combine params and params_Def, preferreing params 
@@ -283,33 +278,18 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
         params = {**params_def, **params}
         
 
-        if params['len']=='t1' and not checkEF:
-            params['len']=3*self.cfg.device.qubit.T1[qi]
+        if params['length']=='t1' and not checkEF:
+            params['length']=3*self.cfg.device.qubit.T1[qi]
         else:
-            params['len']=self.cfg.device.qubit.T1[qi]/4
-        if params['len']>max_len:
-            params['len']=max_len
-        
-        self.cfg.expt = dict(
-            start_f= params['start'], # qubit frequency to be mixed up [MHz]
-            step_f = params['span']/params['npts'], # min step ~1 Hz
-            expts_f = params['npts'], # Number experiments stepping from start
-            reps = params['reps'], # Number averages per point
-            rounds = params['rounds'], #Number of start to finish sweeps to average over 
-            length = params['len'], # qubit probe constant pulse length [us]
-            expts_gain = params['expts_gain'], #qubit pulse gain 
-            max_gain = params['max_gain'], # max gain for the sweep 
-            pulse_type = 'const', 
-            checkEF=checkEF,
-            #pulse_type = 'gauss',  
-            qubit = qi,
-            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
-            relax_delay=params['relax_delay'],
-            log=True, 
-            rng=params['rng']
-        ) 
+            params['length']=self.cfg.device.qubit.T1[qi]/4
+        if params['length']>max_len:
+            params['length']=max_len
+        params['step'] = params['span']/params['expts']
+        exp_params = {'pulse_type':'const', 'checkEF':checkEF, 'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi], 'log':log}
+        params = {**params, **exp_params}
+        self.cfg.expt = params
         if go: 
-            self.go()
+            self.go(progress=progress, display=True, analyze=True, save=True)
 
     def acquire(self, progress=False):
         super().update_config(q_ind=self.cfg.expt.qubit)        
@@ -323,11 +303,11 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
         else:
             gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
         
-        self.cfg.expt.start = self.cfg.expt.start_f
-        self.cfg.expt.step = self.cfg.expt.step_f
-        self.cfg.expt.expts = self.cfg.expt.expts_f
+        # self.cfg.expt.start = self.cfg.expt.start_f
+        # self.cfg.expt.step = self.cfg.expt.step_f
+        # self.cfg.expt.expts = self.cfg.expt.expts_f
         
-        ysweep={'pts':gainpts, 'var':'gain'}
+        ysweep=[{'pts':gainpts, 'var':'gain'}]
         super().acquire(PulseProbeSpectroscopyProgram, ysweep, progress=progress)
         self.data["gainpts"] = gainpts
         return self.data
@@ -351,44 +331,17 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
             
         return data
 
-    def display(self, data=None, fit=True, ax=None, **kwargs):
+    def display(self, data=None, fit=True, plot_amps=True, ax=None, **kwargs):
 
         if self.cfg.expt.checkEF:
             title=f"EF Spectroscopy Power Sweep Q{self.cfg.expt.qubit}"
         else:
             title=f"Spectroscopy Power Sweep Q{self.cfg.expt.qubit}"
         
+        xlabel = "Qubit Frequency (MHz)"
+        ylabel = "Qubit Gain (DAC level)"
 
-        if data is None:
-            data=self.data 
-
-        if ax is None: 
-            savefig=True
-            fig, ax=plt.subplots(1,1,figsize=(10,8))
-        else:
-            savefig=False
-        ax.set_xlabel("Qubit Frequency (MHz)")
-        ax.set_ylabel("Qubit Gain (DAC level)")
-
-
-        x_sweep = data['xpts']
-        y_sweep = data['gainpts']
-        amps = data['amps']
-
-        ax.set_title(title)
-        ax.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
-
-        if 'log' in self.cfg.expt and self.cfg.expt.log:
-            ax.set_yscale('log')
-        
-        cbar = plt.colorbar(ax.collections[0], ax=ax, label='Amps [ADC level]')
-        
-        if savefig:
-            fig.tight_layout()
-            imname = self.fname.split("\\")[-1]
-            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-            plt.show()
-
-        
+        super().display(data=data, ax=ax,plot_amps=plot_amps, title=title, xlabel=xlabel, ylabel=ylabel, fit=fit, **kwargs)
+   
     def save_data(self, data=None):
         super().save_data(data=data)

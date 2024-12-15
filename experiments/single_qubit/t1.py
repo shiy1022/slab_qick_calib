@@ -8,7 +8,7 @@ from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import fitting as fitter
-from qick_experiment import QickExperiment
+from qick_experiment import QickExperiment, QickExperiment2D
 
 class T1Program(RAveragerProgram):
     def __init__(self, soccfg, cfg):
@@ -112,16 +112,18 @@ class T1Program(RAveragerProgram):
 
 class T1Experiment(QickExperiment):
     """
-    T1 Experiment
-    Experimental Config:
-    expt = dict(
-        start: wait time sweep start [us]
-        step: wait time sweep step
-        expts: number steps in sweep
-        reps: number averages per experiment
-        rounds: number rounds to repeat experiment sweep
-    )
+    self.cfg.expt: dict
+        A dictionary containing the configuration parameters for the T1 experiment. The keys and their descriptions are as follows:
+        - start (int): The initial wait time between the two pi/2 pulses in microseconds.
+        - span (float): The total span of the wait time sweep in microseconds.
+        - step (float): The step size for the wait time increments in microseconds.
+        - expts (int): The number of experiments to be performed.
+        - reps (int): The number of repetitions for each experiment.
+        - rounds (int): The number of rounds for the experiment.
+        - qubit (int): The index of the qubit being used in the experiment.
+        - qubit_chan (int): The channel of the qubit being read out.
     """
+    
 
     def __init__(self, cfg_dict,  qi=0, go=True, params={},prefix=None, progress=None, style='', min_r2=None, max_err=None):
 
@@ -130,38 +132,27 @@ class T1Experiment(QickExperiment):
             
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        params_def = {'npts':60,  'span':3.7*self.cfg.device.qubit.T1[qi], 'reps':2*self.reps, 'rounds':self.rounds}
+        params_def = {'expts':60,  'span':3.7*self.cfg.device.qubit.T1[qi], 'reps':2*self.reps, 'rounds':self.rounds, 'start':0}
         if style=='fine': 
             params_def['rounds'] = params_def['rounds']*2
         elif style=='fast':
-            params_def['npts'] = 30
+            params_def['expts'] = 30
         params = {**params_def, **params}    
         
-        step = params['span']/params['npts']
-        
-        self.cfg.expt = dict(
-            start=0, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
-            step=step, #step,
-            expts=params['npts'],
-            reps=params['reps'],
-            rounds=params['rounds'],
-            qubit=qi,
-            length_scan = params['span'], # length of the scan in us
-            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
-        )
+        params['step'] = params['span']/params['expts']
+        params_exp = {'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        params = {**params, **params_exp}
+        self.cfg.expt = params
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
             
-
     def acquire(self, progress=False, debug=False):
         
         q_ind = self.cfg.expt.qubit
         self.update_config(q_ind=q_ind)                           
-
         super().acquire(T1Program, progress=progress)
         
-        #self.data=data
         return self.data
 
     def analyze(self, data=None, **kwargs):
@@ -292,145 +283,63 @@ class T1Continuous(Experiment):
         return self.fname
     
 
-class T1_2D(Experiment):
+class T1_2D(QickExperiment2D):
     """
     sweep_pts = number of points in the 2D sweep
     """
-    def __init__(self, soccfg=None, path='', prefix='T1_2D', config_file=None, progress=None, im=None):
-            super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    
+    def __init__(self, cfg_dict, qi=0, go=True, params={},prefix=None, progress=None, style='', min_r2=None, max_err=None):
+
+        if prefix is None:
+            prefix = f"t1_2d_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {'expts':60,  'span':3.7*self.cfg.device.qubit.T1[qi], 'reps':2*self.reps, 'rounds':self.rounds, 'start':0, 'sweep_pts':200}
+        if style=='fine': 
+            params_def['rounds'] = params_def['rounds']*2
+        elif style=='fast':
+            params_def['expts'] = 30
+        params = {**params_def, **params}    
+        
+        params['step'] = params['span']/params['expts']
+        params_exp = {'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        params = {**params, **params_exp}
+        self.cfg.expt = params
+
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
+    
     
     def acquire(self, progress=False, debug=False):
 
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        current_time = current_time.encode('ascii','replace')
+        super().update_config(q_ind=self.cfg.expt.qubit)              
+        sweep_pts = np.arange(self.cfg.expt["sweep_pts"])
+        y_sweep = [{'pts':sweep_pts, 'var':'count'}]
+        super().acquire(T1Program, y_sweep, progress=progress)
 
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})    
-                    
-        sweeppts = np.arange(self.cfg.expt["sweep_pts"])
-        data={"xpts":[], "sweeppts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
-
-        for i in tqdm(sweeppts):
-            t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
-        
-            xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
-        
-            avgi = avgi[0][0]
-            avgq = avgq[0][0]
-            amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-            phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-
-            data["avgi"].append(avgi)
-            data["avgq"].append(avgq)
-            data["amps"].append(amps)
-            data["phases"].append(phases)
-        
-        data['xpts'] = xpts
-        data['sweeppts'] = sweeppts
-        data['time'] = current_time
-
-        for k, a in data.items():
-            data[k] = np.array(a)
-        self.data=data
-        return data
+        return self.data
     
     def analyze(self, data=None, fit=True, **kwargs):
         if data is None:
             data=self.data
-        pass
+        
+        fitfunc = fitter.expfunc
+        fitterfunc=fitter.fitexp
+        super().analyze(fitfunc, fitterfunc, data)
 
-    def display(self, data=None, fit=True, **kwargs):
+    def display(self, data=None, fit=True,ax=None, **kwargs):
         if data is None:
             data=self.data 
         
-        x_sweep = data['xpts']
-        y_sweep = data['sweeppts']
-        avgi = data['avgi']
-        avgq = data['avgq']
+        title = f'$T_1$ 2D Q{self.cfg.expt.qubit}'
+        xlabel = f'Wait Time ($\mu$s)'
+        ylabel = 'Time (s)'
 
-        plt.figure(figsize=(10,8))
-        plt.subplot(211, title="T1 2D", ylabel="Points")
-        plt.imshow(
-            np.flip(avgi, 0),
-            cmap='viridis',
-            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
-            aspect='auto')
-        plt.colorbar(label='I [ADC level]')
-        plt.clim(vmin=None, vmax=None)
-        # plt.axvline(1684.92, color='k')
-        # plt.axvline(1684.85, color='r')
-
-        plt.subplot(212, xlabel="Points", ylabel="Frequency [MHz]")
-        plt.imshow(
-            np.flip(avgq, 0),
-            cmap='viridis',
-            extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
-            aspect='auto')
-        plt.colorbar(label='Q [ADC level]')
-        plt.clim(vmin=None, vmax=None)
-        
-        if fit: pass
-
-        plt.tight_layout()
-        plt.show()
-
-        plt.plot(x_sweep, data['amps'][0])
-        plt.title(f'First point')
-        plt.show()
+        super().display(data=data, ax=ax,title=title, xlabel=xlabel, ylabel=ylabel, fit=fit, **kwargs)
 
         
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
-
-
-# class T1_Scan(Scan): 
-
-#     def __init__(self, cfg_dict) 
-
-#     def run_scan(self, ):
-
-#     #def make_scan(self, go=True, span=None, npts=60, reps=None, rounds=None, fine=False):
-        
-#         prog = T1Experiment(
-#         soccfg=soc,
-#         path=expt_path,
-#         prefix=f"t1_qubit{qubit_i}",
-#         config_file= cfg_file,
-#         im=im
-#         )
-#         if span is None: 
-#             span = 3.7*prog.cfg.device.qubit.T1[qubit_i]
-#         if reps is None:
-#             reps = int(2*prog.cfg.device.readout.reps[qubit_i]*reps_base)
-#         if rounds is None:
-#             rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
-
-#         if fine is True: 
-#             rounds = rounds*2
-#         prog.cfg.expt = dict(
-#             start=0, # wait time [us]
-#             step=span/npts, 
-#             expts=npts,
-#             reps=reps, # number of times we repeat a time point 
-#             rounds=rounds, # number of start to finish sweeps to average over
-#             qubit=qubit_i,
-#             length_scan = span, # length of the scan in us
-#             qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
-#         )
-
-#         if go:
-#             prog.go(analyze=True, display=True, progress=True, save=True)
-
-#         return prog
-
