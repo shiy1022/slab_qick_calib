@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm_notebook as tqdm
 
 from qick import *
-from slab import Experiment, AttrDict
+from slab import AttrDict
+from qick_experiment import QickExperiment
 
 """
 Run this calibration when the wiring of the setup is changed.
@@ -64,7 +65,7 @@ class ToFCalibrationProgram(AveragerProgram):
         self.measure(pulse_ch=self.dac_ch, adcs=[self.adc_ch], adc_trig_offset=cfg.expt.trig_offset, wait=True, syncdelay=self.us2cycles(cfg.device.readout.relax_delay))
 # ====================================================== #
 
-class ToFCalibrationExperiment(Experiment):
+class ToFCalibrationExperiment(QickExperiment):
     """
     Time of flight experiment
     Experimental Config
@@ -77,26 +78,33 @@ class ToFCalibrationExperiment(Experiment):
     } 
     """
 
-    def __init__(self, soccfg=None, path='', prefix='ToFCalibration', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict={}, progress=None,  prefix=None, qi=0, 
+                 trig_offset=150,readout_length=1, reps=100, pulse_length=0.5,gain=None, go=True):
+        if prefix is None:
+            prefix = f"adc_trig_offset_calibration_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        self.cfg.expt = dict(pulse_length=pulse_length, # [us]
+        readout_length=readout_length, # [us]
+        trig_offset=0, # [clock ticks]
+        gain=self.cfg.device.readout.max_gain,
+        frequency=self.cfg.device.readout.frequency[qi], # [MHz]
+        reps=reps, # Number of averages per point
+        qubit=qi, 
+        relax_delay=0.1) 
+
+        if go: 
+            self.go(analyze=False, display=False, progress=True, save=True)
+            self.display(adc_trig_offset=trig_offset) 
+
 
     def acquire(self, progress=False):
         q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
+        super().update_config(q_ind=q_ind)                              
 
         data={"i":[], "q":[], "amps":[], "phases":[]}
         tof = ToFCalibrationProgram(soccfg=self.soccfg, cfg=self.cfg)
-        # from qick.helpers import progs2json
-        # print(progs2json([tof.dump_prog()]))
-        # print(self.im)
         iq = tof.acquire_decimated(self.im[self.cfg.aliases.soc], load_pulses=True, progress=True)
         i, q = iq[0]
         amp = np.abs(i+1j*q) # Calculating the magnitude
@@ -127,12 +135,11 @@ class ToFCalibrationExperiment(Experiment):
         q_ind = self.cfg.expt.qubit
         adc_ch = self.cfg.hw.soc.adcs.readout.ch
         dac_ch = self.cfg.hw.soc.dacs.readout.ch
-        plt.subplot(111, title=f"Time of flight calibration: dac ch {dac_ch} to adc ch {adc_ch}", xlabel="Clock ticks", ylabel="Transmission [ADC units]")
+        plt.subplot(111, title=f"Time of flight calibration: DAC Ch. {dac_ch} to ADC Ch. {adc_ch}", xlabel="Clock ticks", ylabel="Transmission [ADC units]")
         
         plt.plot(data["i"], label='I')
         plt.plot(data["q"], label='Q')
         plt.axvline(adc_trig_offset, c='k', ls='--')
-        # plt.ylim(-100, 100)
         plt.legend()
         plt.show()
         

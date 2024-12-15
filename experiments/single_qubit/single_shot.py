@@ -6,7 +6,7 @@ import copy
 import seaborn as sns 
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
-
+from qick_experiment import QickExperiment
 blue="#4053d3"
 red ="#b51d14"
 int_rgain=True
@@ -346,7 +346,7 @@ class HistogramProgram(AveragerProgram):
         return shots_i0, shots_q0
 
 
-class HistogramExperiment(Experiment):
+class HistogramExperiment(QickExperiment):
     """
     Histogram Experiment
     expt = dict(
@@ -356,20 +356,27 @@ class HistogramExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='Histogram', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, check_f=False, reps=10000, style=''):
+
+        if prefix is None:
+            prefix = f"single_shot_qubit_{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+    
+        self.cfg.expt = dict(
+            reps=reps,
+            check_e = True, 
+            check_f=check_f,
+            qubits=[qi],
+            qubit_chan=self.cfg.hw.soc.adcs.readout.ch[qi],
+    )
+
+        if go:
+            self.go(analyze=True, display=True, progress=True, save=True)
 
     def acquire(self, progress=False, debug=False):
-        num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if not(isinstance(value3, list)):
-                                value2.update({key3: [value3]*num_qubits_sample})                                
-                elif not(isinstance(value, list)):
-                    subcfg.update({key: [value]*num_qubits_sample})                     
+        super().update_config()                   
 
         data=dict()
 
@@ -455,7 +462,7 @@ class HistogramExperiment(Experiment):
 
 
 # ====================================================== #
-class SingleShotOptExperiment(Experiment):
+class SingleShotOptExperiment(QickExperiment):
     """
     Single Shot optimization experiment over readout parameters
     expt = dict(
@@ -476,8 +483,87 @@ class SingleShotOptExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='Histogram', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, check_f=False, style=''):
+
+        if prefix is None:
+            prefix = f"single_shot_opt_qubit_{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        self.im = cfg_dict['im']
+        self.soccfg=cfg_dict['soc']
+        self.config_file=cfg_dict['cfg_file']
+        self.cfg_dict = cfg_dict
+
+        params_def = {'span_f': 0.3, 'npts_f':5, 'npts_gain':5, 'npts_len':5, 'reps':10000}
+
+        # Start vals 
+        if params_def['npts_f']==1:
+            params_def['start_f'] = self.cfg.device.readout.frequency[qi]
+        else:
+            params_def['start_f'] = self.cfg.device.readout.frequency[qi] - 0.5*params_def['span_f']
+        
+        if params_def['npts_gain']==1:
+            params_def['start_gain'] = self.cfg.device.readout.gain[qi]
+        else:
+            if style=='fine': 
+                params_def['start_gain'] = self.cfg.device.readout.gain[qi] * 0.8
+                params_def['span_gain'] = 0.4 * self.cfg.device.readout.gain[qi]
+            else:    
+                params_def['start_gain'] = self.cfg.device.readout.gain[qi] * 0.3
+                params_def['span_gain'] = 1.8 * self.cfg.device.readout.gain[qi]
+
+        if params_def['npts_len']==1:
+            params_def['start_len'] = self.cfg.device.readout.readout_length[qi]
+        else:
+            if style=='fine': 
+                params_def['start_len'] = self.cfg.device.readout.readout_length[qi]*0.8
+                params_def['span_len'] = 0.4 * self.cfg.device.readout.readout_length[qi]
+            else:       
+                params_def['start_len'] = self.cfg.device.readout.readout_length[qi]*0.3
+                params_def['span_len'] = 1.8 * self.cfg.device.readout.readout_length[qi]
+
+        params = {**params_def, **params}
+        if params['npts_f'] == 1:
+            step_f =0 
+        else:
+            step_f = params_def['span_f']/(params['npts_f']-1)
+        
+        if params_def['npts_gain'] == 1:
+            step_gain = 0
+        else:
+            step_gain = params_def['span_gain']/(params['npts_gain']-1)
+
+        if params['npts_len'] == 1:
+            step_len =0 
+        else:
+            step_len = params_def['span_len']/(params['npts_len']-1)
+
+        if params['span_gain'] + params['start_gain'] > self.cfg.device.qubit.max_gain:
+            params['span_gain'] = self.cfg.device.qubit.max_gain - params['start_gain']
+
+
+        self.cfg.expt = dict(
+            reps=params['reps'],
+            qubit=[qi],
+            start_f=params['start_f'],
+            step_f=step_f,
+            expts_f=params['npts_f'],
+            start_gain=params['start_gain'],#start_gain=1000,
+            step_gain=step_gain,
+            expts_gain=params['npts_gain'],
+            start_len=params['start_len'],
+            step_len=step_len,
+            expts_len=params['npts_len'],
+            check_f=check_f,
+            save_data=True,
+            qubits=[qi],
+            qubit_chan=self.cfg.hw.soc.adcs.readout.ch[qi],
+        )
+
+        if go:
+            self.go(analyze=False, display=False, progress=False, save=True)
+            self.analyze()
+            self.display()
 
     def acquire(self, progress=True):
         fpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
@@ -485,7 +571,7 @@ class SingleShotOptExperiment(Experiment):
         lenpts = self.cfg.expt["start_len"] + self.cfg.expt["step_len"]*np.arange(self.cfg.expt["expts_len"])
         # print(fpts)
         # print(gainpts)
-# print(lenpts)
+    # print(lenpts)
         if 'save_data' not in self.cfg.expt: 
             self.cfg.expt.save_data = False
         
@@ -496,7 +582,6 @@ class SingleShotOptExperiment(Experiment):
             check_f = False
         else:
             check_f = self.cfg.expt.check_f
-        qubit = self.cfg.expt.qubit
         Ig, Ie, Qg, Qe = [], [], [], []
         if check_f: If, Qf = [], []
         gprog=False; fprog=False; lprog=False
@@ -518,7 +603,7 @@ class SingleShotOptExperiment(Experiment):
                 Ig[-1].append([]); Ie[-1].append([]); Qg[-1].append([]); Qe[-1].append([])
                 if check_f: If[-1].append([]); Qf[-1].append([])
                 for l_ind, l in enumerate(tqdm(lenpts, disable=not lprog)):
-                    shot = HistogramExperiment(soccfg=self.soccfg, config_file=self.config_file, im=self.im)
+                    shot = HistogramExperiment(self.cfg_dict, go=False, progress=False, qi=self.cfg.expt.qubit[0])
                     shot.cfg = self.cfg
                     shot.cfg.device.readout.frequency = float(f)
                     if int_rgain: 
@@ -605,7 +690,6 @@ class SingleShotOptExperiment(Experiment):
             if n<5: col = n
             else: col = 5
             return row, col
-        colors = ["#004488","#BB5566",  "#DDAA33"]
         title = f'Single Shot Optimization Q{self.cfg.expt.qubit}'
 
         def return_dim(data, dim, i):
@@ -659,6 +743,8 @@ class SingleShotOptExperiment(Experiment):
         
         fig.suptitle(title)
         fig.tight_layout()
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'_raw_{k}.png')
         
 
         title = f'Single Shot Optimization Q{self.cfg.expt.qubit}'

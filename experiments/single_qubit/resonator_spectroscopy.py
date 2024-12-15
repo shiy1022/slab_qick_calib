@@ -7,8 +7,8 @@ from qick import *
 from qick.helpers import gauss
 from slab import Experiment, AttrDict
 from scipy.signal import find_peaks
-
-import experiments.fitting as fitter
+from qick_experiment import QickExperiment, QickExperiment2D
+import fitting as fitter
 
 """
 Measures the resonant frequency of the readout resonator when the qubit is in its ground state: sweep readout pulse frequency and look for the frequency with the maximum measured amplitude.
@@ -105,7 +105,7 @@ class ResonatorSpectroscopyProgram(AveragerProgram):
             wait=True,
             syncdelay=self.us2cycles(cfg.device.readout.relax_delay))
 
-class ResonatorSpectroscopyExperiment(Experiment):
+class ResonatorSpectroscopyExperiment(QickExperiment):
     """
     Resonator Spectroscopy Experiment
     Experimental Config
@@ -119,39 +119,65 @@ class ResonatorSpectroscopyExperiment(Experiment):
         )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='ResonatorSpectroscopy', config_file=None, progress=None, im=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, prefix='', progress=None, qi=0, go=True, params={}, style='fine', check_e=False):
+    
+        prefix = 'resonator_spectroscopy_'
+        if style=='coarse': 
+            prefix = prefix+'coarse'
+        elif style=='chi':
+            prefix = prefix+'chi'
+        prefix += style+f"_qubit{qi}"
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        
+        params_def = {'gain':self.cfg.device.readout.gain[qi], 'reps':self.reps, 'rounds':self.rounds, 'relax_delay':5}
+        if style=='coarse':
+            params_def['start']=6000
+            params_def['npts']=5000
+            params_def['span']=500
+        else: 
+            params_def['center']=self.cfg.device.readout.frequency[qi]
+            params_def['npts']=200
+            params_def['span']=5
+        
+        # combine params and params_Def, preferreing params 
+        params = {**params_def, **params}
+        
+        if params['span']=='kappa':
+            params['span'] = float(7*self.cfg.device.readout.kappa[qi])
+        params = {**params_def, **params}
+        if 'center' in params: 
+                params['start'] = params['center']-params['span']/2
+        
+        self.cfg.expt = dict(
+            start= params['start'], # qubit frequency to be mixed up [MHz]
+            step = params['span']/params['npts'], # min step ~1 Hz
+            expts = params['npts'], # Number experiments stepping from start
+            reps = params['reps'], # Number averages per point
+            rounds = params['rounds'], #Number of start to finish sweeps to average over 
+            gain = int(params['gain']), #qubit pulse gain  
+            pulse_e = check_e, 
+            pulse_f = False,
+            qubit = qi,
+            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
+        ) 
+        if go: 
+            if style=='coarse':
+                self.go(analyze=False, display=False, progress=True, save=True)
+
+                self.analyze(fit=False, findpeaks = True)
+                self.display(fit=False, findpeaks = True)
+            else:
+                super().run()
 
     def acquire(self, progress=False):
         q_ind = self.cfg.expt.qubit
-        if 'smart' in self.cfg.expt and self.cfg.expt.smart==True:
-            kappa = np.abs(self.cfg.device.qubit['kappa'][q_ind])
-            N = self.cfg.expt["expts"] 
-            df = self.cfg.expt["step"]*N 
-            w = df / kappa 
-            at = np.arctan(2 *w/(1-w**2))+np.pi
-            R = w / np.tan(at/2)
-            fr = self.cfg.expt["start"]+df/2
-            n = np.arange(N)-N/2
-            xpts = fr + R * df / (2 * w)*np.tan(n/(N-1)*at)
-        else:
-            xpts=self.cfg.expt["start"] + self.cfg.expt["step"]*np.arange(self.cfg.expt["expts"])
-        
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
+        self.update_config(q_ind)
+        xpts=self.cfg.expt["start"] + self.cfg.expt["step"]*np.arange(self.cfg.expt["expts"])    
 
         data={"xpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
         for f in tqdm(xpts, disable=not progress):
             self.cfg.expt.frequency = f
             rspec = ResonatorSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
-            # print(rspec)
             avgi, avgq = rspec.acquire(self.im[self.cfg.aliases.soc], load_pulses=True, progress=False)
             avgi = avgi[0][0]
             avgq = avgq[0][0]
@@ -182,7 +208,6 @@ class ResonatorSpectroscopyExperiment(Experiment):
                 xdata = self.cfg.hw.soc.dacs.readout.lo_freq + data['xpts'][1:-1]
             else:
                 xdata = data["xpts"][1:-1]
-
 
             ydata = data['amps'][1:-1]
             fitparams = [max(ydata), -(max(ydata)-min(ydata)), xdata[np.argmin(ydata)], 0.1 ]
@@ -321,7 +346,7 @@ class ResonatorSpectroscopyExperiment(Experiment):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
 
-class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
+class ResonatorPowerSweepSpectroscopyExperiment(QickExperiment):
     """Resonator Power Sweep Spectroscopy Experiment
        Experimental Config
        expt_cfg={
@@ -335,19 +360,54 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         } 
     """
 
-    def __init__(self, soccfg=None, path='', prefix='ResonatorPowerSweepSpectroscopy', config_file=None, progress=None, im=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, prefix='', progress=None, qi=0, go=True, params={}, log=True):
+    
+        prefix = f'resonator_spectroscopy_power_sweep_qubit{qi}'
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def={'relax_delay':5, 'reps':self.reps/10000, 'rounds':self.rounds, 'rng':100, 'max_gain':self.cfg.device.qubit.max_gain, 'expts_gain':10, 'span_f':15, 'npts_f':200, 'start_gain':50, 'step_gain':1000, 'f_off':4}
+        params_def['start_f']=self.cfg.device.readout.frequency[qi]-params_def['span_f']/2-params_def['f_off']
+
+
+        # combine params and params_Def, preferreing params 
+        params = {**params_def, **params}
+
+        self.cfg.expt = dict(
+            start_f= params['start_f'], # qubit frequency to be mixed up [MHz]
+            step_f = params['span_f']/params['npts_f'], # min step ~1 Hz
+            expts_f = params['npts_f'], # Number experiments stepping from start
+            reps = params['reps'], # Number averages per point
+            rounds = params['rounds'], #Number of start to finish sweeps to average over 
+            expts_gain = params['expts_gain'], #qubit pulse gain 
+            max_gain = params['max_gain'], # max gain for the sweep
+            start_gain = params['start_gain'], # start gain for the sweep
+            step_gain = params['step_gain'], # step gain for the sweep 
+            pulse_type = 'const', 
+            pulse_e=False, 
+            pulse_f=False,
+            qubit = qi,
+            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
+            relax_delay=params['relax_delay'],
+            log=True, 
+            rng=params['rng']
+        ) 
+
+        if go: 
+            self.go(analyze=False, display=False, progress=True, save=True)
+            self.analyze(fit=True, lowgain=None, highgain=None);
+            self.display(fit=True)
+        
 
     def acquire(self, progress=False):
-        
+        q_ind = self.cfg.expt.qubit
+        super().update_config(q_ind)   
         xpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
         
         if 'log' in self.cfg.expt and self.cfg.expt.log==True:
             rng = self.cfg.expt.rng
             rat = rng**(-1/(self.cfg.expt["expts_gain"]-1))
 
-            max_gain = 32768
-            gainpts = max_gain * rat**(np.arange(self.cfg.expt["expts_gain"]))
+            gainpts = self.cfg.expt['max_gain'] * rat**(np.arange(self.cfg.expt["expts_gain"]))
             gainpts = [int(g) for g in gainpts]
             rep_list = np.round(self.cfg.expt["reps"] * (1/rat**np.arange(self.cfg.expt["expts_gain"]))**2)
             print(rep_list)
@@ -360,17 +420,7 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         else:
             gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
             rep_list = self.cfg.expt["reps"] * np.ones(self.cfg.expt["expts_gain"])
-        pts = np.arange(self.cfg.expt["expts_gain"])
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
+        pts = np.arange(self.cfg.expt["expts_gain"])      
 
         data={"xpts":[], "gainpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
         for i in tqdm(pts, disable=not progress):
@@ -414,8 +464,8 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
             if lowgain == None: lowgain = np.min(data['gainpts'])
             i_highgain = np.argmin(np.abs(data['gainpts']-highgain))
             i_lowgain = np.argmin(np.abs(data['gainpts']-lowgain))
-            fit_highpow, err=fitter.fitlor(data["xpts"], data["amps"][i_highgain])
-            fit_lowpow, err =fitter.fitlor(data["xpts"], data["amps"][i_lowgain])
+            fit_highpow, err, pinit=fitter.fitlor(data["xpts"], data["amps"][i_highgain])
+            fit_lowpow, err, pinitlow =fitter.fitlor(data["xpts"], data["amps"][i_lowgain])
             data['fit'] = [fit_highpow, fit_lowpow]
             data['fit_gains'] = [highgain, lowgain]
             data['lamb_shift'] = fit_highpow[2] - fit_lowpow[2]
@@ -439,7 +489,6 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
         # if 'log' in self.cfg.expt and self.cfg.expt.log:
         #     y_sweep = np.log10(y_sweep)
 
-        # THIS IS CORRECT EXTENT LIMITS FOR 2D PLOTS
         fig, ax =plt.subplots(1,1,figsize=(10,8))
         plt.pcolormesh(x_sweep, y_sweep, amps, cmap='viridis', shading='auto')
         if 'log' in self.cfg.expt and self.cfg.expt.log:
@@ -471,217 +520,3 @@ class ResonatorPowerSweepSpectroscopyExperiment(Experiment):
     def save_data(self, data=None):
         print(f'Saving {self.fname}')
         super().save_data(data=data)
-
-# ====================================================== #
-
-class Resonator2DSpectroscopyExperiment(Experiment):
-    """Resonator 2D Spectroscopy Experiment
-       Experimental Config
-       expt_cfg={
-       "start_f": start frequency (MHz), 
-       "step_f": frequency step (MHz), 
-       "expts_f": number of experiments in frequency,
-       "reps": number of reps, 
-        } 
-    """
-
-    def __init__(self, soccfg=None, path='', prefix='Resonator2DSpectroscopy', config_file=None, progress=None, im=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress, im=im)
-
-    def acquire(self, progress=False):
-       
-        xpts = self.cfg.expt["start"] + self.cfg.expt["step"]*np.arange(self.cfg.expt["expts"])
-        pts = np.arange(self.cfg.expt['pts'])
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
-
-        data={"xpts":[], "gainpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[],'pts':pts}
-        for i in tqdm(pts, disable=not progress):
-            data["avgi"].append([])
-            data["avgq"].append([])
-            data["amps"].append([])
-            data["phases"].append([])
-            
-
-            for f in tqdm(xpts, disable=True):
-                self.cfg.expt.frequency = f
-                rspec = ResonatorSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
-                self.prog = rspec
-                avgi, avgq = rspec.acquire(self.im[self.cfg.aliases.soc], load_pulses=True, progress=False)
-                avgi = avgi[0][0]
-                avgq = avgq[0][0]
-                amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
-                phase = np.angle(avgi+1j*avgq) # Calculating the phase
-                data["avgi"][-1].append(avgi)
-                data["avgq"][-1].append(avgq)
-                data["amps"][-1].append(amp)
-                data["phases"][-1].append(phase)
-        
-        data["xpts"] = xpts
-        
-        for k, a in data.items():
-            data[k] = np.array(a)
-        
-        self.data = data
-        return data
-
-    def analyze(self, data=None, fit=True, highgain=None, lowgain=None, **kwargs):
-        if data is None:
-            data=self.data
-        
-        return data
-
-    def display(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data=self.data 
-
-        inner_sweep = data['xpts'] #float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband*(self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'])
-        outer_sweep = data['pts']
-        
-        y_sweep = outer_sweep
-        x_sweep = inner_sweep
-
-        # THIS IS CORRECT EXTENT LIMITS FOR 2D PLOTS
-        fig=plt.figure(figsize=(10,8))
-        plt.pcolormesh(x_sweep, y_sweep, data['amps'], cmap='viridis', shading='auto')
-        
-        plt.title(f"Resonator Spectroscopy Time Sweep")
-        plt.xlabel("Resonator Frequency [MHz]")
-        plt.ylabel("Time")
-        # plt.clim(vmin=-0.2, vmax=0.2)
-        #plt.clim(vmin=-10, vmax=5)
-        plt.colorbar(label='Amps/Avg [ADC level]')
-        plt.show()
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-        
-    def save_data(self, data=None):
-        print(f'Saving {self.fname}')
-        super().save_data(data=data)
-
-class ResonatorVoltSweepSpectroscopyExperiment(Experiment):
-    """Resonator Volt Sweep Spectroscopy Experiment
-       Experimental Config
-       expt_cfg={
-       "start_f": start frequency (MHz), 
-       "step_f": frequency step (MHz), 
-       "expts_f": number of experiments in frequency,
-       "start_volt": start volt, 
-       "step_volt": voltage step, 
-       "expts_volt": number of experiments in voltage sweep,
-       "reps": number of reps, 
-       "dc_ch": channel on dc_instr to sweep voltage
-        } 
-    """
-
-    def __init__(self, soccfg=None, path='', dc_instr=None, dc_ch=None, prefix='ResonatorVoltSweepSpectroscopy', config_file=None, progress=None):
-        super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress)
-        self.dc_instr = dc_instr
-
-    def acquire(self, progress=False):
-        xpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
-        voltpts = self.cfg.expt["start_volt"] + self.cfg.expt["step_volt"]*np.arange(self.cfg.expt["expts_volt"])
-        
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
-
-        data={"xpts":[], "voltpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
-
-        self.dc_instr.set_mode('CURR')
-        self.dc_instr.set_current_limit(max(abs(voltpts)*5))
-        print(f'Setting current limit {self.dc_instr.get_current_limit()*1e6} uA')
-        self.dc_instr.set_output(True)
-
-        for volt in tqdm(voltpts, disable=not progress):
-            # self.dc_instr.set_voltage(channel=self.cfg.expt.dc_ch, voltage=volt)
-            self.dc_instr.set_current(volt)
-            print(f'current set to {self.dc_instr.get_current() * 1e6} uA')
-            time.sleep(0.5)
-            data["avgi"].append([])
-            data["avgq"].append([])
-            data["amps"].append([])
-            data["phases"].append([])
-            
-            for f in tqdm(xpts, disable=True):
-                self.cfg.device.readout.frequency = f
-                rspec = ResonatorSpectroscopyProgram(soccfg=self.soccfg, cfg=self.cfg)
-                self.prog = rspec
-                avgi, avgq = rspec.acquire(self.im[self.cfg.aliases.soc], load_pulses=True, progress=False)
-                avgi = avgi[0][0]
-                avgq = avgq[0][0]
-                amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
-                phase = np.angle(avgi+1j*avgq) # Calculating the phase
-                
-                data["avgi"][-1].append(avgi)
-                data["avgq"][-1].append(avgq)
-                data["amps"][-1].append(amp)
-                data["phases"][-1].append(phase)
-            time.sleep(0.5)
-        # self.dc_instr.initialize()
-        # self.dc_instr.set_voltage(channel=self.cfg.expt.dc_ch, voltage=0)
-
-        self.dc_instr.set_current(0)
-        print(f'current set to {self.dc_instr.get_current() * 1e6} uA')
-        
-        data["xpts"] = xpts
-        data["voltpts"] = voltpts
-        
-        for k, a in data.items():
-            data[k] = np.array(a)
-        
-        self.data = data
-        return data
-
-    def analyze(self, data=None, **kwargs):
-        if data is None:
-            data=self.data
-        pass
-
-    def display(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data=self.data 
-        
-        plt.figure(figsize=(12, 8))
-        x_sweep = 1e3*data['voltpts']
-        y_sweep = data['xpts']
-        amps = data['amps']
-        # for amps_volt in amps:
-        #     amps_volt -= np.average(amps_volt)
-        
-        plt.pcolormesh(x_sweep, y_sweep, np.flip(np.rot90(data['amps']), 0), cmap='viridis')
-        if 'add_data' in kwargs:
-            for add_data in kwargs['add_data']:
-                plt.pcolormesh(
-                    1e3*add_data['voltpts'], add_data['xpts'], np.flip(np.rot90(add_data['amps']), 0), cmap='viridis')
-        if fit: pass
-            
-        plt.title(f"Resonator {self.cfg.expt.qubit} sweeping DAC box ch {self.cfg.expt.dc_ch}")
-        plt.ylabel("Resonator frequency")
-        plt.xlabel("DC current [mA]")
-        # plt.ylabel("DC voltage [V]")
-        plt.clim(vmin=None, vmax=None)
-        plt.colorbar(label='Amps [ADC level]')
-
-        # plt.plot(x_sweep, amps[1])
-        plt.show()
-        
-    def save_data(self, data=None):
-        print(f'Saving {self.fname}')
-        super().save_data(data=data)
-        return self.fname

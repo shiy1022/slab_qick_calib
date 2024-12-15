@@ -7,7 +7,8 @@ from qick.helpers import gauss
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
-import experiments.fitting as fitter
+import fitting as fitter
+from qick_experiment import QickExperiment
 
 class T1Program(RAveragerProgram):
     def __init__(self, soccfg, cfg):
@@ -109,7 +110,7 @@ class T1Program(RAveragerProgram):
         self.mathi(self.q_rp, self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update wait time
 
 
-class T1Experiment(Experiment):
+class T1Experiment(QickExperiment):
     """
     T1 Experiment
     Experimental Config:
@@ -122,125 +123,70 @@ class T1Experiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='T1', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict,  qi=0, go=True, params={},prefix=None, progress=None, style='', min_r2=None, max_err=None):
+
+        if prefix is None:
+            prefix = f"t1_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {'npts':60,  'span':3.7*self.cfg.device.qubit.T1[qi], 'reps':2*self.reps, 'rounds':self.rounds}
+        if style=='fine': 
+            params_def['rounds'] = params_def['rounds']*2
+        elif style=='fast':
+            params_def['npts'] = 30
+        params = {**params_def, **params}    
+        
+        step = params['span']/params['npts']
+        
+        self.cfg.expt = dict(
+            start=0, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
+            step=step, #step,
+            expts=params['npts'],
+            reps=params['reps'],
+            rounds=params['rounds'],
+            qubit=qi,
+            length_scan = params['span'], # length of the scan in us
+            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
+        )
+
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
+            
 
     def acquire(self, progress=False, debug=False):
-
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        
         q_ind = self.cfg.expt.qubit
+        self.update_config(q_ind=q_ind)                           
+
+        super().acquire(T1Program, progress=progress)
         
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
-
-        t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
-        xpts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
-
-        avgi = avgi[0][0]
-        avgq = avgq[0][0]
-        amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-        phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-        
-        shots_i, shots_q = t1.collect_shots()
-        #sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
-        hist, bin_edges = np.histogram(shots_i, bins=60)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-
-        current_time = current_time.encode('ascii','replace')
-        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time, 'hist':hist, 'bin_centers':bin_centers}
-        self.data=data
-        return data
+        #self.data=data
+        return self.data
 
     def analyze(self, data=None, **kwargs):
         if data is None:
             data=self.data
             
         # fitparams=[y-offset, amp, x-offset, decay rate]
-        # Remove the last point from fit in case weird edge measurements
         fitfunc = fitter.expfunc
         fitterfunc=fitter.fitexp
-        ydata_lab = ['amps', 'avgi', 'avgq']
-        for i, ydata in enumerate(ydata_lab):
-            data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'], data[ydata], fitparams=None)
-
-        fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
-        r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
-        data['r2']=r2
-        fit_err = np.mean(np.abs(fit_err/fit_pars))
-        data['new_t1']=fit_pars[2]
+        super().analyze(fitfunc, fitterfunc, data, **kwargs)
+        data['new_t1']=data['best_fit'][2]
         data['new_t1_i']=data['fit_avgi'][2]
-        i_best = i_best.encode("ascii", "ignore")
-        data['i_best']=i_best
-        fit_err = np.mean(np.abs(fit_err/fit_pars))
-        data['fit_err']=fit_err
-        print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
-        
         return data
 
     def display(self, data=None, fit=True,plot_all=False,ax=None, show_hist=False, **kwargs):
-        
-        if data is None:
-            data=self.data 
-        qubit = self.cfg.expt.qubit
+        qubit=self.cfg.expt.qubit
         title=f'$T_1$ Q{qubit}'
         xlabel = "Wait Time ($\mu$s)"
-
-        if ax is None: 
-            savefig = True
-        else:
-            savefig = False
+        captionStr = ['$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s']
+        var=[2]
+        fitfunc = fitter.expfunc
         
-
-        if plot_all:
-            fig, ax=plt.subplots(3, 1, figsize=(9, 11))
-            fig.suptitle(title)
-            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-            ydata_lab = ['amps', 'avgi', 'avgq']
-        else:
-            if ax is None:
-                fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
-                ax = [a]
-            ylabels = ["I [ADC units]"]
-            ydata_lab = ['avgi']
-            ax[0].set_title(title)
-        
-        for i, ydata in enumerate(ydata_lab):
-            ax[i].plot(data["xpts"], data[ydata],'o-')
-        
-            if fit:
-                p = data['fit_'+ydata]
-                pCov = data['fit_err_amps']
-                captionStr = f'$T_1$ fit: {p[2]:.3} $\pm$ {np.sqrt(pCov[2][2]):.2} $\mu$s'
-                ax[i].plot(data["xpts"], fitter.expfunc(data["xpts"], *p), label=captionStr)
-                ax[i].set_ylabel(ylabels[i])
-                ax[i].set_xlabel(xlabel)
-                ax[i].legend(loc='upper right')
-
-        if show_hist: 
-            fig, ax = plt.subplots(1, 1, figsize=(3, 3))
-            ax.plot(data['bin_centers'], data['hist'], 'o-')
-
-        if fit: 
-            data["err_ratio_amps"] = np.sqrt(data['fit_err_amps'][2][2])/data['fit_amps'][2]
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][2][2])/data['fit_avgi'][2] 
-            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][2][2])/data['fit_avgq'][2]
-
-        if savefig:
-            imname = self.fname.split("\\")[-1]
-            fig.tight_layout()
-            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-            plt.show()
+        super().display(data=data,ax=ax,plot_all=plot_all,title=title, xlabel=xlabel, fit=fit, show_hist=show_hist,fitfunc=fitfunc,captionStr=captionStr,var=var)
         
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
     
@@ -261,6 +207,9 @@ class T1Continuous(Experiment):
         super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
     
     def acquire(self, progress=False, debug=False):
+
+        q_ind = self.cfg.expt.qubit
+        self.update_config(q_ind=q_ind)  
         q_ind = self.cfg.expt.qubit
         for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
             for key, value in subcfg.items() :
@@ -275,7 +224,6 @@ class T1Continuous(Experiment):
         x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
 
         shots_i, shots_q = t1.collect_shots()
-
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]

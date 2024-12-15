@@ -16,7 +16,7 @@
 # from experiments.two_qubit.length_rabi_EgGf import LengthRabiEgGfProgram
 # from experiments.two_qubit.twoQ_state_tomography import ErrorMitigationStateTomo2QProgram
 
-# import experiments.fitting as fitter
+# import fitting as fitter
 
 # """
 # Define matrices representing (all) Clifford gates for single

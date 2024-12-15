@@ -7,7 +7,7 @@ from tqdm import tqdm_notebook as tqdm
 
 import scipy as sp
 
-import experiments.fitting as fitter
+import fitting as fitter
 
 """
 Averager program that takes care of the standard pulse loading for basic X, Y, Z +/- pi and pi/2 pulses.

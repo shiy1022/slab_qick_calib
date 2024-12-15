@@ -9,8 +9,9 @@ from tqdm import tqdm_notebook as tqdm
 import scipy as sp
 import matplotlib.pyplot as plt
 from datetime import datetime
+from qick_experiment import QickExperiment, QickExperiment2D
 
-import experiments.fitting as fitter
+import fitting as fitter
 
 # ====================================================== #
 
@@ -71,7 +72,7 @@ class AmplitudeRabiProgram(RAveragerProgram):
             else: self.pulse_ge = self.cfg.expt.pulse_ge
 
         self.num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        self.qubits = self.cfg.expt.qubits
+        self.qubits = self.cfg.expt.qubit
         
         if self.checkZZ: # [x, 1] means test Q1 with ZZ from Qx; [1, x] means test Qx with ZZ from Q1, sort by Qx in both cases
             assert len(self.qubits) == 2
@@ -270,7 +271,7 @@ class AmplitudeRabiProgram(RAveragerProgram):
         
 # ====================================================== #
                       
-class AmplitudeRabiExperiment(Experiment):
+class AmplitudeRabiExperiment(QickExperiment):
     """
     Amplitude Rabi Experiment
     Experimental Config:
@@ -286,35 +287,73 @@ class AmplitudeRabiExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='AmplitudeRabi', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, qi=0, prefix=None, progress=None, go=True, params={}, checkZZ=False, checkEF=False,
+                 checkCC=False,pulse_ge=True, style='', min_r2=None, max_err=None):
+
+        if checkEF:
+            if pulse_ge: 
+                prefix = f"amp_rabi_ef_qubit{qi}"
+            else:
+                prefix = f"amp_rabi_ef_noge_qubit{qi}"
+        else:
+            prefix = f"amp_rabi_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        if checkEF: 
+            sigma = self.cfg.device.qubit.pulses.pi_ef.sigma[qi]
+            gain = self.cfg.device.qubit.pulses.pi_ef.gain[qi]*2
+        else:
+            sigma = self.cfg.device.qubit.pulses.pi_ge.sigma[qi]
+            gain = self.cfg.device.qubit.pulses.pi_ge.gain[qi]*2
+        gain = int(np.min([gain, self.cfg.device.qubit.max_gain]))
+
+        params_def = {'npts':60, 'reps':self.reps, 'rounds':self.rounds, 'gain':gain, 'sigma':sigma}
+        if style=='fine': 
+            params_def['rounds'] = params_def['rounds']*2
+        elif style=='fast':
+            params_def['npts'] = 25
+        elif style=='temp':
+            params_def['reps'] = 40 *params_def['reps']
+            params_def['rounds'] = 40 *params_def['rounds']
+        params = {**params_def, **params}    
+        
+        step = int(params['gain']/params['npts'])
+        
+        self.cfg.expt = dict(
+            start=0, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
+            step=step, #step,
+            expts=params['npts'],
+            reps=params['reps'],
+            rounds=params['rounds'],
+            qubit=[qi],
+            sigma_test= params['sigma'],
+            checkZZ=checkZZ,
+            checkEF=checkEF, 
+            checkCC=checkCC,
+            pulse_ge=pulse_ge,
+            pulse_type='gauss',
+            num_pulses = 1,
+            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
+        )
+
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
         # expand entries in config that are length 1 to fill all qubits
-        num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if not(isinstance(value3, list)):
-                                value2.update({key3: [value3]*num_qubits_sample})                                
-                elif not(isinstance(value, list)):
-                    subcfg.update({key: [value]*num_qubits_sample})
 
-        # print('FUNKY WARNING')
-        # qZZ, qTest = self.cfg.expt.qubits
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        self.update_config()                           
+    
         self.checkZZ = self.cfg.expt.checkZZ
-        self.qubits = self.cfg.expt.qubits
+        self.qubit = self.cfg.expt.qubit
         if self.checkZZ: # [x, 1] means test Q1 with ZZ from Qx; [1, x] means test Qx with ZZ from Q1, sort by Qx in both cases
-            assert len(self.qubits) == 2
-            assert 1 in self.qubits
-            qZZ, qTest = self.qubits
+            assert len(self.qubit) == 2
+            assert 1 in self.qubit
+            qZZ, qTest = self.qubit
             qSort = qZZ # qubit by which to index for parameters on qTest
             if qZZ == 1: qSort = qTest
-        else: qTest = self.qubits[0]
+        else: qTest = self.qubit[0]
 
         if 'sigma_test' not in self.cfg.expt:
             if self.cfg.expt.checkZZ:
@@ -326,26 +365,9 @@ class AmplitudeRabiExperiment(Experiment):
                 print('here', self.cfg.device.qubit.pulses.pi_ge.sigma[qTest])
                 self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]
 
-        amprabi = AmplitudeRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
-        # from qick.helpers import progs2json
-        
-        xpts, avgi, avgq = amprabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)
+        super().acquire(AmplitudeRabiProgram, progress=progress)
 
-        # shots_i = amprabi.di_buf[adc_ch].reshape((self.cfg.expt.expts, self.cfg.expt.reps)) / amprabi.readout_length_adc
-        # shots_i = np.average(shots_i, axis=1)
-        # print(len(shots_i), self.cfg.expt.expts)
-        # shots_q = amprabi.dq_buf[adc_ch] / amprabi.readout_length_adc
-        # print(np.std(shots_i), np.std(shots_q))
-        
-        avgi = avgi[0][0]
-        avgq = avgq[0][0]
-        amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-        phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-        
-        current_time = current_time.encode('ascii','replace')
-        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}        
-        self.data=data
-        return data
+        return self.data
 
     def analyze(self, data=None, fit=True, **kwargs):
         if data is None:
@@ -353,49 +375,33 @@ class AmplitudeRabiExperiment(Experiment):
         
         if fit:
             # fitparams=[amp, freq (non-angular), phase (deg), decay time, amp offset]
-            # Remove the first and last point from fit in case weird edge measurements
-            fitparams=None
-
-            # print(abs(xdata[np.argwhere(ydata==max(ydata))[0,0]] - xdata[np.argwhere(ydata==min(ydata))[0,0]]))
-            # fitparams=[max(ydata)-min(ydata), 1/2 / abs(xdata[np.argwhere(ydata==max(ydata))[0,0]] - xdata[np.argwhere(ydata==min(ydata))[0,0]]), None, None, None]
-            # fitparams=[max(ydata)-min(ydata), 1/2 / (max(xdata) - min(xdata)), 0, None, None]
             fitterfunc = fitter.fitsin
             fitfunc=fitter.sinfunc
-            ydata_lab = ['amps', 'avgi', 'avgq']
-            for i, ydata in enumerate(ydata_lab):
-                data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'][1:], data[ydata][1:], fitparams=fitparams)
-
-            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
-            r2 = fitter.get_r2(data['xpts'],data[i_best], fitfunc, fit_pars)
-            data['r2']=r2
-            data['best_fit']=fit_pars
-
-            i_best = i_best.encode("ascii", "ignore")
-            data['i_best']=i_best
-            fit_err = np.mean(np.abs(fit_err/fit_pars))
-            data['fit_err']=fit_err
-            print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
+            data=super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, fit=fit, **kwargs)
+            
             pi_length = fitter.fix_phase(data['best_fit'])
             data['pi_length']=pi_length
 
         return data
 
-    def display(self, data=None, fit=True,plot_all=False, ax=None, savefig=False, **kwargs):
+    def display(self, data=None, fit=True,plot_all=False, ax=None, savefig=True,show_hist=False, **kwargs):
         if data is None:
             data=self.data 
 
         if self.cfg.expt.checkZZ: # [x, 1] means test Q1 with ZZ from Qx; [1, x] means test Qx with ZZ from Q1, sort by Qx in both cases
-            assert len(self.qubits) == 2
-            assert 1 in self.qubits
-            qZZ, qTest = self.qubits
+            assert len(self.qubit) == 2
+            assert 1 in self.qubit
+            qZZ, qTest = self.qubit
             qSort = qZZ # qubit by which to index for parameters on qTest
             if qZZ == 1: qSort = qTest
-        else: qTest = self.cfg.expt.qubits[0]
+        else: qTest = self.cfg.expt.qubit[0]
         if self.cfg.expt.checkCC:
-            qMeas = self.cfg.expt.qubits[1]
-
+            qMeas = self.cfg.expt.qubit[1]
 
         title = f"Amplitude Rabi Q{qTest} (Pulse Length {self.cfg.expt.sigma_test}"
+        xlabel = "Gain [DAC units]"
+        fitfunc=fitter.sinfunc
+
         if self.checkZZ:
             title=title + ', ZZ Q'+str(qZZ)+')'
         elif self.cfg.expt.checkEF: 
@@ -404,6 +410,9 @@ class AmplitudeRabiExperiment(Experiment):
             title=title + ', CC Meas Q' +str(qMeas)+')'
         else:
             title=title + ')'
+        
+        #super().display(data=data,ax=ax,plot_all=plot_all,title=title, xlabel=xlabel, fit=fit, show_hist=show_hist,fitfunc=fitfunc,captionStr=captionStr,var=var)
+
         if plot_all:
             fig, ax=plt.subplots(3, 1, figsize=(9, 11))
             fig.suptitle(title)
@@ -418,18 +427,15 @@ class AmplitudeRabiExperiment(Experiment):
             ydata_lab = ['avgi']
             
 
-        xlabel = "Gain [DAC units]"
-        
         for i, ydata in enumerate(ydata_lab):
             ax[i].plot(data["xpts"], data[ydata],'o-')
-
             if fit:
                 p = data['fit_'+ydata]
                 pi_gain = fitter.fix_phase(p)
                 pi2_gain = pi_gain/2
                 if pi_gain is not np.nan: 
                     caption = f'$\pi$ gain: {pi_gain:.0f}'
-                ax[i].plot(data["xpts"][1:], fitter.sinfunc(data["xpts"][1:], *p), label=caption)
+                ax[i].plot(data["xpts"][1:], fitfunc(data["xpts"][1:], *p), label=caption)
     
                 ax[i].axvline(pi_gain, color='0.2', linestyle='--')
                 ax[i].axvline(pi2_gain, color='0.2', linestyle='--')
@@ -449,7 +455,7 @@ class AmplitudeRabiExperiment(Experiment):
 
 # ====================================================== #
                       
-class AmplitudeRabiChevronExperiment(Experiment):
+class AmplitudeRabiChevronExperiment(QickExperiment2D):
     """
     Amplitude Rabi Experiment
     Experimental Config:
@@ -467,32 +473,71 @@ class AmplitudeRabiChevronExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='AmplitudeRabiChevron', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, checkZZ=False, checkEF=False,
+                 checkCC=False,pulse_ge=False, style=''):
+
+        if checkEF:
+            prefix = f"amp_rabi_chevron_ef_qubit{qi}"
+        else:
+            prefix = f"amp_rabi_chevron_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {'npts':60, 'reps':self.reps, 'rounds':self.rounds,'span_f':20, 'npts_f':40}
+
+        if style=='fine': 
+            params_def['rounds'] = params_def['rounds']*2
+        elif style=='fast':
+            params_def['npts'] = 25
+        params = {**params_def, **params}    
+        
+        if checkEF: 
+            sigma = 2*self.cfg.device.qubit.pulses.pi_ef.sigma[qi]
+            gain = self.cfg.device.qubit.pulses.pi_ef.gain[qi]*4
+            start_f = self.cfg.device.qubit.f_ef[qi]-params['span_f']/2
+        else:
+            sigma = self.cfg.device.qubit.pulses.pi_ge.sigma[qi]
+            gain = self.cfg.device.qubit.pulses.pi_ge.gain[qi]*4
+            start_f = self.cfg.device.qubit.f_ge[qi]-params['span_f']/2
+        gain = int(np.min([gain, self.cfg.device.qubit.max_gain]))
+        params_def ={'sigma':sigma, 'start_f':start_f, 'gain':gain}
+        params = {**params_def, **params}
+        step_f = params['span_f']/(params['npts_f']-1)
+        step = int(params['gain']/params['npts'])
+        
+        self.cfg.expt = dict(
+            start_gain=0, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
+            step_gain=step, #step,
+            expts_gain=params['npts'],
+            start_f=start_f,
+            step_f=step_f,
+            expts_f=params['npts_f'],
+            reps=params['reps'],
+            rounds=params['rounds'],
+            qubit=[qi],
+            sigma_test= params['sigma'],
+            checkZZ=checkZZ,
+            checkEF=checkEF, 
+            checkCC=checkCC,
+            pulse_ge=checkEF,
+            pulse_type='gauss',
+            num_pulses = 1,
+            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
+        )
+
+        if go:
+            super().run()
 
     def acquire(self, progress=False, debug=False):
         # expand entries in config that are length 1 to fill all qubits
-        num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if not(isinstance(value3, list)):
-                                value2.update({key3: [value3]*num_qubits_sample})                                
-                elif not(isinstance(value, list)):
-                    subcfg.update({key: [value]*num_qubits_sample})
+        self.update_config()
 
         if self.cfg.expt.checkZZ:
-            assert len(self.cfg.expt.qubits) == 2
-            qZZ, qTest = self.cfg.expt.qubits
+            assert len(self.cfg.expt.qubit) == 2
+            qZZ, qTest = self.cfg.expt.qubit
             assert qZZ != 1
             assert qTest == 1
-        else: qTest = self.cfg.expt.qubits[0]
-
-        freqpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
-        data={"xpts":[], "freqpts":[], "avgi":[], "avgq":[], "amps":[], "phases":[]}
-        adc_ch = self.cfg.hw.soc.adcs.readout.ch
+        else: qTest = self.cfg.expt.qubit[0]
 
         self.cfg.expt.start = self.cfg.expt.start_gain
         self.cfg.expt.step = self.cfg.expt.step_gain
@@ -505,28 +550,12 @@ class AmplitudeRabiChevronExperiment(Experiment):
             else:
                 self.cfg.expt.sigma_test = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]
 
-        for freq in tqdm(freqpts):
-            self.cfg.expt.f_pi_test = freq
-            amprabi = AmplitudeRabiProgram(soccfg=self.soccfg, cfg=self.cfg)
+        freqpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"]*np.arange(self.cfg.expt["expts_f"])
+        ysweep={'pts':freqpts, 'var':'f_pi_test'}
+        super().acquire(AmplitudeRabiProgram, ysweep, progress=progress)
+        self.cfg.expt['freqpts'] = freqpts
         
-            xpts, avgi, avgq = amprabi.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)
-        
-            avgi = avgi[0][0]
-            avgq = avgq[0][0]
-            amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-            phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-
-            data["avgi"].append(avgi)
-            data["avgq"].append(avgq)
-            data["amps"].append(amps)
-            data["phases"].append(phases)
-        
-        data['xpts'] = xpts
-        data['freqpts'] = freqpts
-        for k, a in data.items():
-            data[k] = np.array(a)
-        self.data=data
-        return data
+        return self.data
 
     def analyze(self, data=None, fit=True, **kwargs):
         if data is None:
@@ -537,44 +566,13 @@ class AmplitudeRabiChevronExperiment(Experiment):
         if data is None:
             data=self.data 
         
-        x_sweep = data['xpts']
-        y_sweep = data['freqpts']
-        avgi = data['avgi']
-        avgq = data['avgq']
+        title = f"Amplitude Rabi Chevron Q{self.cfg.expt.qubit[0]} (Pulse Length {self.cfg.expt.sigma_test} $\mu$s)"
+        xlabel="Gain [DAC units]"
+        ylabel="Frequency [MHz]"
         
-
-        title = f"Amplitude Rabi Chevron Q{self.cfg.expt.qubits[0]} (Pulse Length {self.cfg.expt.sigma_test} $\mu$s)"
-
-        if plot_both:
-            fig, ax =plt.subplots(2,1,figsize=(8,6))
-            ydata_lab = ['avgi', 'avgq']
-            ydata_labs = ['I [ADC level]', 'Q [ADC level]']
-            fig.sup_title(title)
-        else:
-            
-            fig, ax =plt.subplots(1,1,figsize=(6,4))
-            ax.set_title(title)
-            ydata_lab = ['avgi']
-            ax=[ax]
-            ydata_labs = ['I [ADC level]']
-
-        for i, ydata in enumerate(ydata_lab):
-            #ax[i].plot(211, xlabel="Gain [DAC units]", ylabel="Frequency [MHz]")
-        
-            ax[i].pcolormesh(x_sweep, y_sweep, avgi, cmap='viridis', shading='auto')
-               
-            
-            plt.colorbar(ax[i].collections[0], ax=ax[i], label=ydata_labs[i])
-            ax[i].set_xlabel("Gain [DAC units]")
-            ax[i].set_ylabel("Frequency [MHz]")
-
-        fig.tight_layout()
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-        plt.show()
+        super().display(title=title, xlabel=xlabel, ylabel=ylabel, data=data, fit=fit, plot_both=plot_both, **kwargs)
 
         
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname

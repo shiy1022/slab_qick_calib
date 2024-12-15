@@ -6,7 +6,7 @@ from qick import *
 from qick.helpers import gauss
 from slab import Experiment, dsfit, AttrDict
 
-import experiments.fitting as fitter
+import fitting as fitter
 
 """
 Rabi oscillations for pi pulses on qB with qA in the e state

@@ -6,8 +6,8 @@ from datetime import datetime
 
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
-
-import experiments.fitting as fitter
+from qick_experiment import QickExperiment
+import fitting as fitter
 
 class RamseyEchoProgram(RAveragerProgram):
     def __init__(self, soccfg, cfg):
@@ -198,8 +198,14 @@ class RamseyEchoProgram(RAveragerProgram):
         phase_step = self.deg2reg(360 * self.cfg.expt.ramsey_freq * self.cfg.expt.step, gen_ch=self.qubit_ch) # phase step [deg] = 360 * f_Ramsey [MHz] * tau_step [us]
         self.mathi(self.q_rp, self.r_phase2, self.r_phase2, '+', phase_step)
 
+    def collect_shots(self):
+        # collect shots for the relevant adc and I and Q channels
+        cfg=AttrDict(self.cfg)
+        shots_i0 = self.di_buf[0] / self.readout_length_adc #[self.cfg.expt.qubit]
+        shots_q0 = self.dq_buf[0] / self.readout_length_adc #[self.cfg.expt.qubit]
+        return shots_i0, shots_q0
 
-class RamseyEchoExperiment(Experiment):
+class RamseyEchoExperiment(QickExperiment):
     """
     Ramsey Echo Experiment
     Experimental Config:
@@ -216,69 +222,65 @@ class RamseyEchoExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='RamseyEcho', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, style='', min_r2=None, max_err=None):
+            #span=None, npts=100, ramsey_freq=0.1, reps=None, rounds=None,
+        if prefix is None:
+            prefix = f"echo_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {'npts':100, 'ramsey_freq':0.1, 'span':3*self.cfg.device.qubit.T2e[qi], 'reps':2*self.reps, 'rounds':2*self.rounds}
+        params = {**params_def, **params}    
+        step = params['span']/params['npts']
+        if params['ramsey_freq']=='smart':
+            params['ramsey_freq'] = np.pi/2/self.cfg.device.qubit.T2e[qi]
+
+        self.cfg.expt = dict(
+            start=0.1, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
+            step=step, #step,
+            expts=params['npts'],
+            ramsey_freq=params['ramsey_freq'], # frequency by which to advance phase [MHz]
+            num_pi=1, # number of pi pulses
+            cpmg=False, # set either cp or cpmg to True
+            cp=True, # set either cp or cpmg to True
+            reps=params['reps'],
+            rounds=params['rounds'],
+            qubit=qi,
+            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
+        )
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
-        assert self.cfg.expt.cp != self.cfg.expt.cpmg, 'Must select either CP or CPMG experiment!'
-
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
-
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        prog = RamseyEchoProgram(soccfg=self.soccfg, cfg=self.cfg)
-        xpts, avgi, avgq = prog.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)
-
-        avgi = avgi[0][0]
-        avgq = avgq[0][0]
-        amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-        phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-
-        current_time = current_time.encode('ascii','replace')
-        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}
-        self.data=data
-        return data
+        self.update_config(q_ind=self.cfg.expt.qubit)    
+        
+        if self.cfg.expt.ramsey_freq >0: 
+            self.cfg.expt.ramsey_freq_sign=1
+        else:
+            self.cfg.expt.ramsey_freq_sign=-1
+        self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
+        
+        super().acquire(RamseyEchoProgram, progress=progress)
+        
+        return self.data
 
     def analyze(self, data=None, fit=True, debug=False, **kwargs):
         if data is None:
             data=self.data
         if fit:
-            fitparams = None
+            fitfunc = fitter.decaysin
+            fitterfunc = fitter.fitdecaysin
+            super().analyze(fitfunc, fitterfunc, data, **kwargs)
+            data=self.data
             
-            fitfunc = fitter.fitdecaysin
-
             ydata_lab = ['amps', 'avgi', 'avgq']
             for i, ydata in enumerate(ydata_lab):
-                data['fit_' + ydata], data['fit_err_' + ydata], data['init_guess_'+ydata] = fitfunc(data['xpts'], data[ydata], fitparams=fitparams, debug=debug)
                 if isinstance(data['fit_'+ydata], (list, np.ndarray)): 
                     data['f_adjust_ramsey_'+ydata] = sorted((self.cfg.expt.ramsey_freq - data['fit_'+ydata][1], -self.cfg.expt.ramsey_freq - data['fit_'+ydata][1]), key=abs)              
                         
             fit_pars, fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
-
-            r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, fit_pars)
-            print('R2:', r2)
-            data['r2']=r2
-
-            data['best_fit'] = data['fit_'+i_best]
-
-            i_best = i_best.encode("ascii", "ignore")
-            data['i_best']=fit_pars
             
             f_pi_test = self.cfg.device.qubit.f_ge
-
-            fit_err = np.mean(np.abs(fit_err/fit_pars))
-            data['fit_err']=fit_err
-            print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
-
             if t2r_adjust[0] < np.abs(t2r_adjust[1]):
                 new_freq = f_pi_test + t2r_adjust[0]
             else:       
@@ -287,7 +289,7 @@ class RamseyEchoExperiment(Experiment):
 
         return data
 
-    def display(self, data=None, fit=True, debug=False,plot_all=False,ax=None,savefig=True, **kwargs):
+    def display(self, data=None, fit=True, debug=False,plot_all=False,ax=None,savefig=True,show_hist=False, **kwargs):
         if data is None:
             data=self.data
         qubit = self.cfg.expt.qubit
@@ -295,62 +297,16 @@ class RamseyEchoExperiment(Experiment):
         xlabel = "Wait Time ($\mu$s)"
         title=f"Ramsey Echo Q{qubit} (Freq: {self.cfg.expt.ramsey_freq:.4} MHz)"
         fitfunc=fitter.decaysin
+        captionStr = ['$T_2$ Echo : {val:.4} $\pm$ {err:.2g} $\mu$s','Freq. : {val:.3} $\pm$ {err:.1} MHz']
+        var=[3,1]
+        super().display(data=data,ax=ax,plot_all=plot_all,title=title, xlabel=xlabel, fit=fit, show_hist=show_hist,fitfunc=fitfunc,captionStr=captionStr,var=var)
 
+        # # Plot the decaying exponential
+        # x0 = -(p[2]+180)/360/p[1]
+        # ax[i].plot(data["xpts"], fitter.expfunc2(data['xpts'], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
+        # ax[i].plot(data["xpts"], fitter.expfunc2(data['xpts'], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
 
-        print(f'Current qubit frequency: {self.cfg.device.qubit.f_ge}')
-        fitfunc=fitter.decaysin
-
-        if plot_all:
-            fig, ax=plt.subplots(3, 1, figsize=(9, 11))
-            fig.suptitle(title)
-            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-            ydata_lab = ['amps', 'avgi', 'avgq']
-        else:
-            if ax is None:
-                fig, a=plt.subplots(1, 1, figsize=(7.5, 4))
-                ax = [a]
-            ylabels = ["I [ADC units]"]
-            ydata_lab = ['avgi']
-            
-            ax[0].set_title(title)
-        
-        for i, ydata in enumerate(ydata_lab):
-            ax[i].plot(data["xpts"], data[ydata],'o-')
-        
-            if fit:
-                p = data['fit_'+ydata]
-                pCov = data['fit_err_amps']
-                captionStr = f'$T_2$ Echo : {p[3]:.4} $\pm$ {np.sqrt(pCov[3][3]):.2g} $\mu$s \n'
-                captionStr += f'Freq. : {p[1]:.3} $\pm$ {np.sqrt(pCov[1][1]):.1} MHz'
-                ax[i].plot(data["xpts"], fitfunc(data["xpts"], *p), label=captionStr)
-
-                # Plot the decaying exponential
-                x0 = -(p[2]+180)/360/p[1]
-                ax[i].plot(data["xpts"], fitter.expfunc2(data['xpts'], p[4], p[0], x0, p[3]), color='0.2', linestyle='--')
-                ax[i].plot(data["xpts"], fitter.expfunc2(data['xpts'], p[4], -p[0], x0, p[3]), color='0.2', linestyle='--')
-
-                ax[i].set_ylabel(ylabels[i])
-                ax[i].set_xlabel(xlabel)
-                ax[i].legend(loc='upper right')
-                
-                if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the real pi pulse frequency!')
-         
-            if debug: 
-                pinit = data['init_guess_'+ydata]
-                print(pinit)
-                plt.plot(data["xpts"], fitfunc(data["xpts"], *pinit), label='Initial Guess')
-
-            #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], p[0], p[5], p[3]), color='0.2', linestyle='--')
-            #plt.plot(data["xpts"][:-1], fitter.expfunc(data['xpts'][:-1], p[4], -p[0], p[5], p[3]), color='0.2', linestyle='--')
-            # if p[1] > 2*self.cfg.expt.ramsey_freq: print('WARNING: Fit frequency >2*wR, you may be too far from the qubit frequency!')
-            
-        plt.show()
-        imname = self.fname.split("\\")[-1]
-        if savefig:
-            fig.tight_layout()
-            fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
 
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname

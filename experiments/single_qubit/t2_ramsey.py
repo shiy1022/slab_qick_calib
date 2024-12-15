@@ -6,8 +6,8 @@ from datetime import datetime
 
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
-
-import experiments.fitting as fitter
+from qick_experiment import QickExperiment
+import fitting as fitter
 
 class RamseyProgram(RAveragerProgram):
     def __init__(self, soccfg, cfg):
@@ -28,7 +28,7 @@ class RamseyProgram(RAveragerProgram):
         self.acStark = self.cfg.expt.acStark    
 
         self.num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        self.qubits = self.cfg.expt.qubits
+        self.qubits = self.cfg.expt.qubit
         
         if self.checkZZ: # [x, 1] means test Q1 with ZZ from Qx; [1, x] means test Qx with ZZ from Q1, sort by Qx in both cases
             assert len(self.qubits) == 2
@@ -215,8 +215,15 @@ class RamseyProgram(RAveragerProgram):
         self.mathi(self.q_rps[qTest], self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update the time between two π/2 pulses
         self.mathi(self.q_rps[qTest], self.r_phase2, self.r_phase2, '+', phase_step) # advance the phase of the LO for the second π/2 pulse
 
+    def collect_shots(self):
+        # collect shots for the relevant adc and I and Q channels
+        cfg=AttrDict(self.cfg)
+        shots_i0 = self.di_buf[0] / self.readout_length_adc #[self.cfg.expt.qubit]
+        shots_q0 = self.dq_buf[0] / self.readout_length_adc #[self.cfg.expt.qubit]
+        return shots_i0, shots_q0
 
-class RamseyExperiment(Experiment):
+
+class RamseyExperiment(QickExperiment):
     """
     Ramsey experiment
     Experimental Config:
@@ -233,43 +240,48 @@ class RamseyExperiment(Experiment):
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='Ramsey', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={},check_ef=False, style='', min_r2=None, max_err=None):
+            #span=None, npts=100, ramsey_freq=0.1, reps=None, rounds=None,
+        if check_ef: 
+            prefix = f"ramsey_ef_qubit{qi}"
+        else:
+            prefix = f"ramsey_qubit{qi}"
+                
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
+        params_def = {'npts':100, 'ramsey_freq':0.1, 'span':3*self.cfg.device.qubit.T2e[qi], 'reps':2*self.reps, 'rounds':2*self.rounds}
+        params = {**params_def, **params}    
+        step = params['span']/params['npts']
+        if params['ramsey_freq']=='smart':
+            params['ramsey_freq'] = np.pi/2/self.cfg.device.qubit.T2e[qi]
+
+        self.cfg.expt = dict(
+            start=0.1, #soc.cycles2us(150), # total wait time b/w the two pi/2 pulses [us]
+            step=step, #step,
+            expts=params['npts'],
+            ramsey_freq=params['ramsey_freq'], # frequency by which to advance phase [MHz]
+            reps=params['reps'],
+            rounds=params['rounds'],
+            checkZZ=False, 
+            checkEF=check_ef,
+            acStark=False,
+            qubit=[qi],
+            qubit_chan = self.cfg.hw.soc.adcs.readout.ch[qi],
+        )
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
     def acquire(self, progress=False, debug=False):
-        # expand entries in config that are length 1 to fill all qubits
-        num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if not(isinstance(value3, list)):
-                                value2.update({key3: [value3]*num_qubits_sample})                                
-                elif not(isinstance(value, list)):
-                    subcfg.update({key: [value]*num_qubits_sample})
+        self.update_config()    
         
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         if self.cfg.expt.ramsey_freq >0: 
             self.cfg.expt.ramsey_freq_sign=1
         else:
             self.cfg.expt.ramsey_freq_sign=-1
         self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
-        ramsey = RamseyProgram(soccfg=self.soccfg, cfg=self.cfg)
-        #print(ramsey)
         
-        xpts, avgi, avgq = ramsey.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress)        
- 
-        avgi = avgi[0][0]
-        avgq = avgq[0][0]
-        amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-        phases = np.angle(avgi+1j*avgq) # Calculating the phase
-
-        current_time = current_time.encode('ascii','replace')
-        data={'xpts': xpts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time} 
-        self.data=data
-        return data
+        super().acquire(RamseyProgram, progress=progress)
+        
+        return self.data
 
     def analyze(self, data=None, fit=True, fit_twofreq=False,debug=False, **kwargs):
         if data is None:
@@ -282,7 +294,6 @@ class RamseyExperiment(Experiment):
             fitparams = None
             if fit_twofreq: fitfunc = fitter.fittwofreq_decaysin
             else: fitfunc = fitter.fitdecaysin
-
 
             ydata_lab = ['amps', 'avgi', 'avgq']
             for i, ydata in enumerate(ydata_lab):
@@ -298,7 +309,6 @@ class RamseyExperiment(Experiment):
             r2 = fitter.get_r2(data['xpts'], data[i_best], fitter.decaysin, fit_pars)
             data['r2']=r2
 
-
             data['best_fit'] = fit_pars
             i_best = i_best.encode("ascii", "ignore")
             data['i_best']=i_best
@@ -308,9 +318,9 @@ class RamseyExperiment(Experiment):
             print(f'R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}')
 
             if self.cfg.expt.checkEF: 
-                f_pi_test = self.cfg.device.qubit.f_ef[self.cfg.expt.qubits[0]]
+                f_pi_test = self.cfg.device.qubit.f_ef[self.cfg.expt.qubit[0]]
             else:
-                f_pi_test = self.cfg.device.qubit.f_ge[self.cfg.expt.qubits[0]]
+                f_pi_test = self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]
             
             print(f'Possible errors are {t2r_adjust[0]:.3f} and {t2r_adjust[1]:.3f} for Ramsey frequency {self.cfg.expt.ramsey_freq:.3f} MHz')
             data['f_err']=t2r_adjust[0]
@@ -326,7 +336,7 @@ class RamseyExperiment(Experiment):
         if data is None:
             data=self.data
 
-        self.qubits = self.cfg.expt.qubits
+        self.qubits = self.cfg.expt.qubit
         self.checkZZ = self.cfg.expt.checkZZ
         self.checkEF = self.cfg.expt.checkEF
 

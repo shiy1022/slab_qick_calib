@@ -8,7 +8,7 @@ from qick import *
 from qick.helpers import gauss
 from slab import Experiment, dsfit, AttrDict
 
-import experiments.fitting as fitter
+import fitting as fitter
 from experiments.single_qubit.single_shot import HistogramProgram
 from scipy.signal import find_peaks
 

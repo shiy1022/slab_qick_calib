@@ -8,7 +8,7 @@ from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import copy
-import experiments.fitting as fitter
+import fitting as fitter
 
 class T1StarkProgram(AveragerProgram):
     def __init__(self, soccfg, cfg):

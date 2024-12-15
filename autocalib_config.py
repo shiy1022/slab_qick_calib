@@ -1,19 +1,17 @@
 import experiments as meas
 import config
 import matplotlib.pyplot as plt
-import experiments.fitting as fitter
+import fitting as fitter
 import numpy as np
-max_gain = 32768
-reps_base=150 
+max_gain=32768
+reps_base=100
 rounds_base=1
-reps_base_spec=300
-rounds_base_spec=1
 
 def safe_gain(gain):
     gain = np.min([gain, max_gain])
     return gain
 
-def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True):
+def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True, trig_offset=160, reps=None):
 
     tof = meas.ToFCalibrationExperiment(soccfg=soc,
     path=expt_path,
@@ -33,8 +31,7 @@ def make_tof(soc, expt_path, cfg_file, qubit_i, im=None, go=True):
 
     if go: 
         tof.go(analyze=False, display=False, progress=True, save=True)
-        tof.display(adc_trig_offset=160) 
-    
+        tof.display(adc_trig_offset=trig_offset) 
     return tof
 
 def make_rspec_coarse(soc, expt_path, cfg_file, qubit_i, im=None, start=7000, span=250, reps=800, npts=5000, gain=0.2, rounds=1, go=True):
@@ -214,7 +211,7 @@ def make_qspec(soc, expt_path, cfg_file, qubit_i, im=None, go=True, span=None, n
         prefix = prefix+'_ef'
     prefix = prefix+f"_qubit{qubit_i}"
 
-    prog = meas.PulseProbeEFSpectroscopyExperiment(
+    prog = meas.PulseProbeSpectroscopyExperiment(
     soccfg=soc,
     path = expt_path, 
     prefix = prefix,
