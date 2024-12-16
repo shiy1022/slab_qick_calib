@@ -149,18 +149,27 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
         # ef: coarse: medium span, extra high gain, centered at the ef frequency  
         # otherwise, narrow span, low gain, centered at ge frequency 
         max_len = 150 # Based on qick error messages, but not investigated 
+        spec_gain = self.cfg.device.readout.spec_gain[qi]
         if style == 'coarse': 
-            params_def = {'gain':1500*self.cfg.device.readout.spec_gain[qi], 'span':500, 'expts':500}
+            params_def = {'gain':1500*spec_gain, 'span':500, 'expts':500}
         elif style == 'fine':
-            params_def = {'gain':100*self.cfg.device.readout.spec_gain[qi], 'span':5, 'expts':100}
+            params_def = {'gain':100*spec_gain, 'span':5, 'expts':100}
         else: 
-            params_def = {'gain':500*self.cfg.device.readout.spec_gain[qi], 'span':50, 'expts':200}
+            params_def = {'gain':500*spec_gain, 'span':50, 'expts':200}
         if checkEF: 
             params_def['gain']=2*params_def['gain']
-        params_def2={'relax_delay':10, 'len':50, 'reps':self.reps, 'rounds':self.rounds}
+        params_def2={
+            'relax_delay':10, 
+            'len':50, 
+            'reps':self.reps, 
+            'rounds':self.rounds,
+            'pulse_type':'const',
+            'checkEF':checkEF, 
+            'qubit':qi, 
+            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
         params_def = {**params_def, **params_def2}
         
-        # combine params and params_Def, preferreing params 
+        # combine params and params_Def, preferring params 
         params = {**params_def, **params}
         
         if checkEF: 
@@ -169,7 +178,6 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
             params_def['start']=self.cfg.device.qubit.f_ge[qi]-params['span']/2
         params = {**params_def, **params}
         
-
         if params['length']=='t1' and not checkEF:
             params['length']=3*self.cfg.device.qubit.T1[qi]
         else:
@@ -177,8 +185,8 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
         if params['length']>max_len:
             params['length']=max_len
         params['step'] = params['span']/params['expts']
-        params_exp = {'pulse_type':'const', 'checkEF':checkEF, 'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
-        self.cfg.expt = {**params, **params_exp}
+        
+        self.cfg.expt = params
         
         if go: 
             super().run(min_r2=min_r2, max_err=max_err)
@@ -265,7 +273,19 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
             params_def = { 'span':120, 'expts':200}
         if checkEF: 
             params_def['gain']=2*params_def['gain']
-        params_def2={'relax_delay':10, 'length':25, 'reps':self.reps, 'rounds':self.rounds, 'rng':50, 'max_gain':self.cfg.device.qubit.max_gain, 'expts_gain':10}
+        params_def2={
+            'relax_delay':10, 
+            'length':25, 
+            'reps':self.reps, 
+            'rounds':self.rounds, 
+            'rng':50, 
+            'max_gain':self.cfg.device.qubit.max_gain, 
+            'expts_gain':10,
+            'pulse_type':'const', 
+            'checkEF':checkEF, 
+            'qubit':qi, 
+            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi], 
+            'log':log}
         params_def = {**params_def, **params_def2}
         
         # combine params and params_Def, preferreing params 
@@ -277,7 +297,6 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
             params_def['start']=self.cfg.device.qubit.f_ge[qi]-params['span']/2
         params = {**params_def, **params}
         
-
         if params['length']=='t1' and not checkEF:
             params['length']=3*self.cfg.device.qubit.T1[qi]
         else:
@@ -285,8 +304,7 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
         if params['length']>max_len:
             params['length']=max_len
         params['step'] = params['span']/params['expts']
-        exp_params = {'pulse_type':'const', 'checkEF':checkEF, 'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi], 'log':log}
-        params = {**params, **exp_params}
+        
         self.cfg.expt = params
         if go: 
             self.go(progress=progress, display=True, analyze=True, save=True)

@@ -8,6 +8,7 @@ from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import fitting as fitter
+from qick_experiment import QickExperiment
 
 class T1DoubProgram(RAveragerProgram):
     def __init__(self, soccfg, cfg):
@@ -234,7 +235,7 @@ class T1DoubExperiment(Experiment):
     
 # ====================================================== #
 
-class T1ContinuousDoub(Experiment):
+class T1ContinuousDoub(QickExperiment):
     """
     T1 Continuous
     Experimental Config:
@@ -246,25 +247,35 @@ class T1ContinuousDoub(Experiment):
         rounds: number rounds to repeat experiment sweep
     )
     """
-    def __init__(self, soccfg=None, path='', prefix='T1Continuous', config_file=None, progress=None, im=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress, im=im)
+    def __init__(self, cfg_dict, qi=0, go=True, params={},prefix=None, progress=None, style='', min_r2=None, max_err=None):
+
+        if prefix is None:
+            f"t1cont_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {
+            'expts':1,  
+            'span':3.7*self.cfg.device.qubit.T1[qi], 
+            'reps':1e5, 
+            'rounds':1, 
+            'start':0,
+            'qubit':qi,
+            'step': self.cfg.device.qubit.T1[qi],
+            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        
+        params = {**params_def, **params}     
+        self.cfg.expt = params
+
+        if go:
+            self.go(analyze=False, display=False, progress=True, save=True)
     
     def acquire(self, progress=False, debug=False):
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
+        self.update_config(self.cfg.expt.qubit)                       
         t1 = T1DoubProgram(soccfg=self.soccfg, cfg=self.cfg)
         x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug, readouts_per_experiment=2)        
 
         shots_i, shots_q = t1.collect_shots()
-
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]
@@ -281,54 +292,12 @@ class T1ContinuousDoub(Experiment):
         return data
 
     def analyze(self, data=None, **kwargs):
-        if data is None:
-            data=self.data
-            
-        # fitparams=[y-offset, amp, x-offset, decay rate]
-        # Remove the last point from fit in case weird edge measurements
-        data['fit_amps'], data['fit_err_amps'] = fitter.fitexp(data['xpts'][:-1], data['amps'][:-1], fitparams=None)
-        data['fit_avgi'], data['fit_err_avgi'] = fitter.fitexp(data['xpts'][:-1], data['avgi'][:-1], fitparams=None)
-        data['fit_avgq'], data['fit_err_avgq'] = fitter.fitexp(data['xpts'][:-1], data['avgq'][:-1], fitparams=None)
-                
-        return data
+        pass
 
-        
     def display(self, data=None, fit=True, show = False, **kwargs):
-        if data is None:
-            data=self.data 
-    
-        plt.figure(figsize=(10,10))
-        plt.subplot(211, title="$T_1$", ylabel="I [ADC units]")
-        plt.plot(data["xpts"], data["avgi"],'o-', label = 'Current Data')
-        plt.plot(self.cfg.expt.prev_data_x, self.cfg.expt.prev_data_i,'o-', label = 'Previous Data')
-        if fit:
-            p = data['fit_avgi']
-            pCov = data['fit_err_avgi']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgi"]), label=captionStr)
-            plt.legend()
-            print(f'Fit T1 avgi [us]: {data["fit_avgi"][3]}')
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][3][3])/data['fit_avgi'][3]
-        plt.legend()
-        plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC units]")
-        plt.plot(data["xpts"], data["avgq"],'o-', label = 'Current Data')
-        plt.plot(self.cfg.expt.prev_data_x, self.cfg.expt.prev_data_q,'o-', label = 'Previous Data')
-        if fit:
-            p = data['fit_avgq']
-            pCov = data['fit_err_avgq']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgq"]), label=captionStr)
-            plt.legend()
-            print(f'Fit T1 avgq [us]: {data["fit_avgq"][3]}')
-            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][3][3])/data['fit_avgq'][3]
+        pass
 
-        plt.legend()
-        if show:
-            plt.show() 
-
-    
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
         super().save_data(data=data)
         return self.fname
     

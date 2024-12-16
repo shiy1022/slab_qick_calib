@@ -86,46 +86,7 @@ def make_t2r_stark_freq(soc, expt_path, cfg_file, qubit_i, im=None, go=True, npt
         prog.go(analyze=True, display=True, progress=True, save=True)
 
     return prog
-
-def make_t1_stark_amp(soc, expt_path, cfg_file, qubit_i, im=None, go=True, npts = 60, reps = None, rounds=None,  freq=None, df=20, span=None, acStark=True,  span_gain=10000, npts_gain=10, start_gain=0):
-    prog = meas.T1StarkPowerExperiment(
-        soccfg=soc,
-        path=expt_path,
-        prefix=f"t1_stark_qubit{qubit_i}",
-        config_file=cfg_file,
-        im=im
-    )
-
-    if span is None: 
-        span = 3*prog.cfg.device.qubit.T1[qubit_i]
-    if reps is None:
-        reps = int(prog.cfg.device.readout.reps[qubit_i]*reps_base)
-    if rounds is None:
-        rounds = int(prog.cfg.device.readout.rounds[qubit_i]*rounds_base)
-    if freq is None: 
-        freq = prog.cfg.device.qubit.f_ge[qubit_i]+df
-
-    prog.cfg.expt = dict(
-        start=0.05, # wait time tau [us]
-        step= span/npts, # [us]
-        expts=npts,
-        reps=reps,
-        rounds=rounds, 
-        qubit=qubit_i,
-        start_gain=start_gain,
-        step_gain=span_gain/(npts_gain-1),
-        expts_gain=npts_gain,  
-        stark_freq=freq,
-        acStark=acStark,
-        checkZZ=False,
-        checkEF=False,
-        length_scan = span, # length of the scan in us
-        qubit_chan = prog.cfg.hw.soc.adcs.readout.ch[qubit_i],
-    )
-    if go:
-        prog.go(analyze=True, display=True, progress=True, save=True)
-
-    return prog
+   
 
 def make_t1_stark_amp_cont(soc, expt_path, cfg_file, qubit_i, im=None, go=True, npts = 200, reps = None, rounds=None,  freq=None, df=40, acStark=True, stop_gain=32768, start_gain=0, delay_time=None):
     prog = meas.T1StarkPowerContExperiment(
@@ -165,33 +126,7 @@ def make_t1_stark_amp_cont(soc, expt_path, cfg_file, qubit_i, im=None, go=True, 
         prog.go(analyze=True, display=True, progress=True, save=True)
 
     return prog
-
-def make_t1doub(soc, expt_path, cfg_file, qubit_i, im=None, go=True, delay_time=150, npts=1, reps=1000, rounds=1):
-
-    t1 = meas.T1ContinuousDoub(
-      soccfg=soc,
-      path=expt_path,
-      prefix=f"t1cont2_qubit{qubit_i}",
-      config_file= cfg_file,
-      im=im
-    )
-
-    t1.cfg.expt = dict(
-        start=0, # wait time [us]
-        step=delay_time/npts, 
-        expts=npts,
-        reps=reps, # number of times we repeat a time point 
-        rounds=rounds, # number of start to finish sweeps to average over
-        qubit=qubit_i,
-        length_scan = delay_time, # length of the scan in us
-        num_saved_points = 10, # number of points to save for the T1 continuous scan 
-    )
-
-    if go:
-        t1.go(analyze=False, display=False, progress=True, save=True)
-
-    return t1    
-
+ 
 def make_t1_cont(soc, expt_path, cfg_file, qubit_i, reps=2000000, norm=False, delay_time=150, rounds=1):
     if norm:
         prefix = f"t1_continuous_qubit_norm{qubit_i}"

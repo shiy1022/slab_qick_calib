@@ -132,16 +132,21 @@ class T1Experiment(QickExperiment):
             
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        params_def = {'expts':60,  'span':3.7*self.cfg.device.qubit.T1[qi], 'reps':2*self.reps, 'rounds':self.rounds, 'start':0}
+        params_def = {
+            'expts':60,  
+            'span':3.7*self.cfg.device.qubit.T1[qi], 
+            'reps':2*self.reps, 
+            'rounds':self.rounds, 
+            'start':0,'qubit':qi, 
+            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        
         if style=='fine': 
             params_def['rounds'] = params_def['rounds']*2
         elif style=='fast':
             params_def['expts'] = 30
-        params = {**params_def, **params}    
         
+        params = {**params_def, **params}     
         params['step'] = params['span']/params['expts']
-        params_exp = {'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
-        params = {**params, **params_exp}
         self.cfg.expt = params
 
         if go:
@@ -182,7 +187,7 @@ class T1Experiment(QickExperiment):
         return self.fname
     
 
-class T1Continuous(Experiment):
+class T1Continuous(QickExperiment):
     """
     T1 Continuous
     Experimental Config:
@@ -199,18 +204,7 @@ class T1Continuous(Experiment):
     
     def acquire(self, progress=False, debug=False):
 
-        q_ind = self.cfg.expt.qubit
-        self.update_config(q_ind=q_ind)  
-        q_ind = self.cfg.expt.qubit
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
-                if isinstance(value, list):
-                    subcfg.update({key: value[q_ind]})
-                elif isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
+        self.update_config(q_ind=self.cfg.expt.qubit)      
         t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
         x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug)        
 
@@ -231,50 +225,11 @@ class T1Continuous(Experiment):
         return data
 
     def analyze(self, data=None, **kwargs):
-        if data is None:
-            data=self.data
-            
-        # fitparams=[y-offset, amp, x-offset, decay rate]
-        # Remove the last point from fit in case weird edge measurements
-        data['fit_amps'], data['fit_err_amps'] = fitter.fitexp(data['xpts'][:-1], data['amps'][:-1], fitparams=None)
-        data['fit_avgi'], data['fit_err_avgi'] = fitter.fitexp(data['xpts'][:-1], data['avgi'][:-1], fitparams=None)
-        data['fit_avgq'], data['fit_err_avgq'] = fitter.fitexp(data['xpts'][:-1], data['avgq'][:-1], fitparams=None)
+        pass
                 
-        return data
-
         
     def display(self, data=None, fit=True, show = False, **kwargs):
-        if data is None:
-            data=self.data 
-    
-        plt.figure(figsize=(10,10))
-        plt.subplot(211, title="$T_1$", ylabel="I [ADC units]")
-        plt.plot(data["xpts"], data["avgi"],'o-', label = 'Current Data')
-        plt.plot(self.cfg.expt.prev_data_x, self.cfg.expt.prev_data_i,'o-', label = 'Previous Data')
-        if fit:
-            p = data['fit_avgi']
-            pCov = data['fit_err_avgi']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgi"]), label=captionStr)
-            plt.legend()
-            print(f'Fit T1 avgi [us]: {data["fit_avgi"][3]}')
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][3][3])/data['fit_avgi'][3]
-        plt.legend()
-        plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC units]")
-        plt.plot(data["xpts"], data["avgq"],'o-', label = 'Current Data')
-        plt.plot(self.cfg.expt.prev_data_x, self.cfg.expt.prev_data_q,'o-', label = 'Previous Data')
-        if fit:
-            p = data['fit_avgq']
-            pCov = data['fit_err_avgq']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgq"]), label=captionStr)
-            plt.legend()
-            print(f'Fit T1 avgq [us]: {data["fit_avgq"][3]}')
-            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][3][3])/data['fit_avgq'][3]
-
-        plt.legend()
-        if show:
-            plt.show() 
+        pass
 
     
     def save_data(self, data=None):
@@ -295,16 +250,22 @@ class T1_2D(QickExperiment2D):
             
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        params_def = {'expts':60,  'span':3.7*self.cfg.device.qubit.T1[qi], 'reps':2*self.reps, 'rounds':self.rounds, 'start':0, 'sweep_pts':200}
+        params_def = {
+            'expts':60,  
+            'span':3.7*self.cfg.device.qubit.T1[qi], 
+            'reps':2*self.reps, 
+            'rounds':self.rounds, 
+            'start':0, 
+            'sweep_pts':200,
+            'qubit':qi, 
+            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
         if style=='fine': 
             params_def['rounds'] = params_def['rounds']*2
         elif style=='fast':
             params_def['expts'] = 30
         params = {**params_def, **params}    
-        
+    
         params['step'] = params['span']/params['expts']
-        params_exp = {'qubit':qi, 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
-        params = {**params, **params_exp}
         self.cfg.expt = params
 
         if go:
