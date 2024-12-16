@@ -148,7 +148,7 @@ class PulseProbeSpectroscopyExperiment(QickExperiment):
         # coarse: wide span, medium gain, centered at ge freq
         # ef: coarse: medium span, extra high gain, centered at the ef frequency  
         # otherwise, narrow span, low gain, centered at ge frequency 
-        max_len = 150 
+        max_len = 150 # Based on qick error messages, but not investigated 
         if style == 'coarse': 
             params_def = {'gain':1500*self.cfg.device.readout.spec_gain[qi], 'span':500, 'expts':500}
         elif style == 'fine':
@@ -303,10 +303,6 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
         else:
             gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"]*np.arange(self.cfg.expt["expts_gain"])
         
-        # self.cfg.expt.start = self.cfg.expt.start_f
-        # self.cfg.expt.step = self.cfg.expt.step_f
-        # self.cfg.expt.expts = self.cfg.expt.expts_f
-        
         ysweep=[{'pts':gainpts, 'var':'gain'}]
         super().acquire(PulseProbeSpectroscopyProgram, ysweep, progress=progress)
         self.data["gainpts"] = gainpts
@@ -316,20 +312,10 @@ class PulseProbePowerSweepSpectroscopyExperiment(QickExperiment2D):
         if data is None:
             data=self.data
         
-        par_list =[]
-        # Lorentzian fit at 
-        if fit:
-            for i in range(len(data['gainpts'])):
-                try:
-                    fit_pars, fit_errs, fitparams=fitter.fitlor(data["xpts"], data["amps"][i])
-                    par_list.append(fit_pars)
-                except:
-                    par_list.append([np.nan, np.nan, np.nan, np.nan])
-            freqs = [par[2] for par in par_list]
-            data['freqs']=freqs
-            print(data['freqs'])
+        fitfunc=fitter.lorfunc
+        super().analyze(fitfunc)
             
-        return data
+        return self.data
 
     def display(self, data=None, fit=True, plot_amps=True, ax=None, **kwargs):
 

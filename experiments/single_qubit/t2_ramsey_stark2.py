@@ -240,11 +240,22 @@ class RamseyStark2Experiment(QickExperimentLoop):
             
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        params_def = {'expts':100, 'step':0.0023251488095238095, 'reps':2*self.reps, 'rounds':self.rounds, 'gain':20000, 'df':70,'ramsey_freq':0.1,'start':0.01, 'checkEF':False, 'checkZZ':False, 'acStark':True}
+        params_def = {'expts':100,
+                       'step':0.0023251488095238095,
+                         'reps':2*self.reps, 
+                         'rounds':self.rounds, 
+                         'stark_gain':20000, 
+                         'df':70,
+                         'ramsey_freq':0.1,
+                         'start':0.01, 
+                         'checkEF':False, 
+                         'checkZZ':False, 
+                         'acStark':True,
+                         'qubit':[qi],
+                         'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi] }
         params = {**params_def, **params}
-        params['freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
-        params_exp = {'qi':[qi], 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
-        self.cfg.expt = {**params, **params_exp}
+        params['stark_freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
+        self.cfg.expt = params
         
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
@@ -483,7 +494,8 @@ class RamseyStarkPower2Experiment(QickExperiment2DLoop):
             'reps':self.reps, 
             'rounds':self.rounds, 
             'end_gain':self.cfg.device.qubit.max_gain,
-            'expts_gain':20,'start_gain':5000, 
+            'expts_gain':20,
+            'start_gain':5000, 
             'df':70,
             'ramsey_freq':0.1,
             'start':0.01}
@@ -517,12 +529,12 @@ class RamseyStarkPower2Experiment(QickExperiment2DLoop):
         if data is None:
             data=self.data
 
-        fitterfunc=fitter.fitdecaysin
+        fitterfunc=fitter.fitsin
         super().analyze(fitfunc=fitter.decaysin, fitterfunc=fitterfunc, data=data)
 
         from scipy.optimize import curve_fit
-        def quad_fit(x, a, b, c):
-                return a*x**2 + b*x + c
+        def quad_fit(x, a,b,c):
+                return a*x**2+b*x+c
         freq = [data['fit_avgi'][i][1] for i in range(len(data['stark_gain_pts']))]
         popt, pcov = curve_fit(quad_fit, data['stark_gain_pts'], freq)
         data['quad_fit']=popt
@@ -538,17 +550,18 @@ class RamseyStarkPower2Experiment(QickExperiment2DLoop):
         xlabel = "Wait Time ($\mu$s)"
         super().display(plot_both=False,title=title, xlabel=xlabel, ylabel=ylabel)
 
-        def quad_fit(x, a, b, c): return a*x**2 + b*x + c
+        def quad_fit(x, a,b,c): return a*x**2+b*x+c
         fig, ax = plt.subplots(1,1, figsize=(6,4))
         ax=[ax]
         if fit: 
             freq = [data['fit_avgi'][i][1] for i in range(len(data['stark_gain_pts']))]
             ax[0].plot(data['stark_gain_pts'], freq)
             
-            ax[0].plot(data['stark_gain_pts'], quad_fit(data['stark_gain_pts'], *data['quad_fit']), label='Fit: {:.3g}$x^2$ + {:.3g}$x$ + {:.3g}'.format(*data['quad_fit']))
+            ax[0].plot(data['stark_gain_pts'], quad_fit(data['stark_gain_pts'], *data['quad_fit']), label='Fit: {:.3g}$x^2$+{:.3g}$x$+{:.3g}'.format(*data['quad_fit']))
             ax[0].set_xlabel('Gain [DAC units]')
             ax[0].set_ylabel('Frequency [MHz]')
             ax[0].legend()
+            ax[0].set_title(f'Stark Power Ramsey Q{qubit} Freq: {df}')
             #print(f'Quadratic Fit: {data['quad_fit'][0]:.3g}x^2 + {data['quad_fit'][1]:.3g}x + {data['quad_fit'][2]:.3g}')
 
         # for i in range(len(data['stark_gain_pts'])):

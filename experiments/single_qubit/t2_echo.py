@@ -272,11 +272,7 @@ class RamseyEchoExperiment(QickExperiment):
             fit_pars, fit_err, t2r_adjust, i_best = fitter.get_best_fit(self.data, get_best_data_params=['f_adjust_ramsey'])
             
             f_pi_test = self.cfg.device.qubit.f_ge
-            if t2r_adjust[0] < np.abs(t2r_adjust[1]):
-                new_freq = f_pi_test + t2r_adjust[0]
-            else:       
-                new_freq = f_pi_test + t2r_adjust[1]
-            data['new_freq']=new_freq
+            data['new_freq'] = f_pi_test + t2r_adjust[0]
 
         return data
 

@@ -127,7 +127,6 @@ class T1StarkProgram(AveragerProgram):
         return shots_i0, shots_q0
 
 
-
 class T1StarkExperiment(QickExperimentLoop):
     """
     T1 Experiment
@@ -518,12 +517,14 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
             'expts_gain':200,
             'df':70,
             'delay_time':self.cfg.device.qubit.T1[qi],
-            'start':0}
+            'start':0,
+            'acStark':acStark,
+            'qubit':[qi], 
+            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
         params = {**params_def, **params}
         params['stark_freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
 
-        expt_params = {'acStark':acStark, 'qubit':[qi], 'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
-        self.cfg.expt = {**params, **expt_params}
+        self.cfg.expt =params
         
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
@@ -533,8 +534,8 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
         self.update_config(q_ind)
 
         span_gain = self.cfg.expt.stop_gain - self.cfg.expt.start_gain
-        coef = span_gain / np.sqrt(self.cfg.expt["count"])
-        gainpts = self.cfg.expt["start_gain"] + coef*np.sqrt(np.arange(self.cfg.expt["count"]))
+        coef = span_gain / np.sqrt(self.cfg.expt["expts_gain"])
+        gainpts = self.cfg.expt["start_gain"] + coef*np.sqrt(np.arange(self.cfg.expt["expts_gain"]))
         gainpts = gainpts.astype(int)
         data={"xpts":[],"time":[], "avgi":[], "avgq":[], "amps":[], "phases":[], 'avgi_e':[], 'avgq_e':[], 'amps_e':[], 'phases_e':[],'avgi_g':[], 'avgq_g':[], 'amps_g':[], 'phases_g':[]}
 
@@ -569,11 +570,10 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
             data["amps"].append([])
             data["phases"].append([])
             for gain in gainpts:
-                     
                 self.cfg.expt=copy.deepcopy(self.cfg.Gexpt)
                 self.cfg.expt.do_exp = False 
                 t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
-                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
+                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)      
                 avgi = avgi[0][0]
                 avgq = avgq[0][0]
                 amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
@@ -583,10 +583,13 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
                 data["amps_g"][-1].append(amp)
                 data["phases_g"][-1].append(phases)
                 
+                # Check excited state
                 self.cfg.expt=copy.deepcopy(self.cfg.Eexpt)
                 self.cfg.expt.do_exp = True
+                
                 t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
-                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
+                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)  
+                    
                 avgi = avgi[0][0]
                 avgq = avgq[0][0]
                 amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
@@ -599,8 +602,10 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
                 self.cfg.expt=copy.deepcopy(self.cfg.T1expt)
                 self.cfg.expt.do_exp = True 
                 self.cfg.expt.stark_gain = gain 
+                
                 t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
-                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)        
+                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False) 
+                     
                 avgi = avgi[0][0]
                 avgq = avgq[0][0]
                 amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
@@ -610,9 +615,11 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
                 data["avgq"][-1].append(avgq)
                 data["amps"][-1].append(amp)
                 data["phases"][-1].append(phases)
-  
+
+        data['xpts']=data['xpts'][0]
         for k, a in data.items():
             data[k] = np.array(a)
+        
         data['ypts'] = (data['time']-np.min(data['time']))/3600
 
         self.data=data
@@ -650,3 +657,196 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
     def save_data(self, data=None):
         super().save_data(data=data)
         return self.fname
+    
+
+class T1StarkPowerContTime(QickExperiment2DLoop):
+    """
+    Stark Power Rabi Experiment
+    Experimental Config:
+    expt = dict(
+        start_f: start qubit frequency (MHz), 
+        step_f: frequency step (MHz), 
+        expts_f: number of experiments in frequency,
+        start_gain: qubit gain [dac level]
+        step_gain: gain step [dac level]
+        expts_gain: number steps
+        reps: number averages per expt
+        rounds: number repetitions of experiment sweep
+        sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
+        pulse_type: 'gauss' or 'const'
+    )
+    """
+
+    def __init__(self, cfg_dict,  qi=0, go=True, params={},prefix='', progress=False, style='', min_r2=None,acStark=True, max_err=None):
+        
+        if prefix=='':
+            prefix = f"t1_stark_amp_cont_qubit{qi}"
+            
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        params_def = {
+            'count':1000, 
+            'repsT1':10*self.reps, 
+            'repsE':2*self.reps,
+            'repsG':self.reps,
+            'rounds':self.rounds, 
+            'expts_f':200,
+            'stop_f':25,
+            'quad_fit_pos':[3e-8,3e-4,0],
+            'quad_fit_neg':[3e-8,3e-4,0],
+            'df_pos':70,
+            'df_neg':-70, 
+            'delay_time':self.cfg.device.qubit.T1[qi],
+            'start':0,
+            'acStark':acStark,
+            'qubit':[qi], 
+            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
+        self.cfg.expt = {**params_def, **params}
+        self.cfg.expt['stark_freq_pos']=self.cfg.device.qubit.f_ge[qi]+params['df_pos']
+        self.cfg.expt['stark_freq_neg']=self.cfg.device.qubit.f_ge[qi]+params['df_neg']
+        
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
+
+    def acquire(self, progress=False, debug=False):
+        q_ind = self.cfg.expt.qubit[0]
+        self.update_config(q_ind)
+
+        f_pts_pos = np.linspace(0, self.cfg.expt.stop_f, int(self.cfg.expt.expts_f/2))
+        gain_pos = find_inverse_quad_fit(f_pts_pos, *self.cfg.expt.quad_fit_pos)
+        f_pts_neg = np.linspace(-self.cfg.expt.stop_f, 0,  int(self.cfg.expt.expts_f/2))
+        gain_neg = find_inverse_quad_fit(-f_pts_neg, *self.cfg.expt.quad_fit_neg)
+        gain_pts = np.concatenate((gain_neg[0:-1], gain_pos))
+        f_pts = np.concatenate((f_pts_neg[0:-1], f_pts_pos))
+
+        gain_pts = gain_pts.astype(int)
+        data={"xpts":[],"time":[], "avgi":[], "avgq":[], "amps":[], "phases":[], 'avgi_e':[], 'avgq_e':[], 'amps_e':[], 'phases_e':[],'avgi_g':[], 'avgq_g':[], 'amps_g':[], 'phases_g':[]}
+
+        self.cfg.T1expt = copy.deepcopy(self.cfg.expt)
+        self.cfg.Eexpt = copy.deepcopy(self.cfg.expt)
+        self.cfg.Gexpt = copy.deepcopy(self.cfg.expt)
+
+        self.cfg.Eexpt.reps = self.cfg.expt.repsE
+        self.cfg.T1expt.reps = self.cfg.expt.repsT1
+        self.cfg.Gexpt.reps = self.cfg.expt.repsG
+
+        self.cfg.Eexpt.length=0
+        self.cfg.Gexpt.length=0
+        self.cfg.T1expt.length=self.cfg.expt.delay_time
+        self.cfg.Eexpt.acStark = False
+        self.cfg.Gexpt.acStark = False
+        for tm in tqdm(np.arange(self.cfg.expt.count)):
+            self.cfg.expt=copy.deepcopy(self.cfg.Gexpt)
+            self.cfg.expt.do_exp = False 
+            t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
+            avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)      
+            avgi = avgi[0][0]
+            avgq = avgq[0][0]
+            amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
+            phases = np.angle(avgi+1j*avgq) # Calculating the phase
+            data["avgi_g"].append(avgi)
+            data["avgq_g"].append(avgq)
+            data["amps_g"].append(amp)
+            data["phases_g"].append(phases)
+            
+            # Check excited state
+            self.cfg.expt=copy.deepcopy(self.cfg.Eexpt)
+            self.cfg.expt.do_exp = True
+            
+            t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
+            avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False)  
+                
+            avgi = avgi[0][0]
+            avgq = avgq[0][0]
+            amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
+            phases = np.angle(avgi+1j*avgq) # Calculating the phase
+            data["avgi_e"].append(avgi)
+            data["avgq_e"].append(avgq)
+            data["amps_e"].append(amp)
+            data["phases_e"].append(phases)
+
+            self.cfg.expt=copy.deepcopy(self.cfg.T1expt)
+            self.cfg.expt.do_exp = True 
+            
+            data['time'].append(time.time())
+            data["xpts"].append([])
+            data["avgi"].append([])
+            data["avgq"].append([])
+            data["amps"].append([])
+            data["phases"].append([])
+            for i in range(len(gain_pts)):
+                if f_pts[i]<0:
+                    self.cfg.expt.stark_freq = self.cfg.expt.stark_freq_neg
+                else:
+                    self.cfg.expt.stark_freq = self.cfg.expt.stark_freq_pos
+                
+                self.cfg.expt.stark_gain=gain_pts[i]
+                t1 = T1StarkProgram(soccfg=self.soccfg, cfg=self.cfg)
+                avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=False) 
+                     
+                avgi = avgi[0][0]
+                avgq = avgq[0][0]
+                amp = np.abs(avgi+1j*avgq) # Calculating the magnitude
+                phases = np.angle(avgi+1j*avgq) # Calculating the phase
+                data["xpts"][-1].append(gain_pts[i])
+                data["avgi"][-1].append(avgi)
+                data["avgq"][-1].append(avgq)
+                data["amps"][-1].append(amp)
+                data["phases"][-1].append(phases)
+
+        data['xpts']=data['xpts'][0]
+        for k, a in data.items():
+            data[k] = np.array(a)
+        data['fpts'] = f_pts
+        data['ypts'] = (data['time']-np.min(data['time']))/3600
+
+        self.data=data
+        return data
+
+    def analyze(self, data=None, fit=True, **kwargs):
+        pass
+
+    def display(self, data=None, fit=True,plot_both=False, **kwargs):
+        if data is None:
+            data=self.data 
+        
+        dv = data['avgi_e']-data['avgi_g']
+        norm_data = (data['avgi']-data['avgi_g'][:,np.newaxis])/dv[:,np.newaxis]
+        qubit=self.cfg.expt.qubit
+        df = self.cfg.expt.stark_freq-self.cfg.device.qubit.f_ge
+        y_sweep = data['ypts']
+        xlabel = "Gain Sq"
+        ylabel = 'Time (hrs)'
+        title=f'$T_1$ Stark Q{qubit[0]} Freq: {df}'
+        fig, ax = plt.subplots(1,1, figsize=(6,6))
+        plt.pcolormesh(data['fpts'],y_sweep, norm_data, label='I')
+        plt.colorbar()
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+
+        plt.tight_layout()
+        plt.show()
+
+        imname = self.fname.split("\\")[-1]
+        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
+
+        
+    def save_data(self, data=None):
+        super().save_data(data=data)
+        return self.fname
+    
+def find_inverse_quad_fit(y, a, b, c):
+        rt =[]
+        for yt in y:
+            # Solving the quadratic equation a*x^2 + b*x + (c - y) = 0
+            discriminant = b**2 - 4*a*(c - yt)
+            if discriminant < 0:
+                return None  # No real roots
+            elif discriminant == 0:
+                return -b / (2*a)  # One real root
+            else:
+                root1 = (-b + np.sqrt(discriminant)) / (2*a)
+                root2 = (-b - np.sqrt(discriminant)) / (2*a)
+            rt.append(root1)
+        return rt
