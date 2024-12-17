@@ -87,7 +87,6 @@ def make_t2r_stark_freq(soc, expt_path, cfg_file, qubit_i, im=None, go=True, npt
 
     return prog
    
-
 def make_t1_stark_amp_cont(soc, expt_path, cfg_file, qubit_i, im=None, go=True, npts = 200, reps = None, rounds=None,  freq=None, df=40, acStark=True, stop_gain=32768, start_gain=0, delay_time=None):
     prog = meas.T1StarkPowerContExperiment(
         soccfg=soc,

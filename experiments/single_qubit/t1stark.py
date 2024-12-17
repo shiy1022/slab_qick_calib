@@ -10,6 +10,7 @@ from datetime import datetime
 import copy
 import fitting as fitter
 from qick_experiment import QickExperimentLoop, QickExperiment2DLoop
+import seaborn as sns 
 
 class T1StarkProgram(AveragerProgram):
     def __init__(self, soccfg, cfg):
@@ -203,7 +204,7 @@ class T1StarkExperiment(QickExperimentLoop):
         super().save_data(data=data)
         return self.fname
     
-        
+     
 class T1StarkPowerExperiment(QickExperiment2DLoop):
     """
     Stark Power Rabi Experiment
@@ -246,8 +247,11 @@ class T1StarkPowerExperiment(QickExperiment2DLoop):
             params_def['rounds'] = params_def['rounds']*2
         elif style=='fast':
             params_def['expts'] = 30
-        params['stark_freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
+        
         params = {**params_def, **params}    
+        params['stark_freq']=self.cfg.device.qubit.f_ge[qi]+params['df']
+        params['step_gain']= (params['stop_gain']-params['start_gain'])/params['expts_gain']
+        
     
         params['step'] = params['span']/params['expts']
         self.cfg.expt = params
@@ -262,9 +266,11 @@ class T1StarkPowerExperiment(QickExperiment2DLoop):
         lengths = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(self.cfg.expt["expts"])
         x_sweep = [{"var": "length", "pts": lengths}]
         gain_pts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"] * np.arange(self.cfg.expt["expts_gain"])
-        y_sweep = [{"var": "gain", "pts": gain_pts}]
+        gain_pts = gain_pts.astype(int)
+        y_sweep = [{"var": "stark_gain", "pts": gain_pts}]
+        self.cfg.expt.do_exp=True
         super().acquire(
-            T1StarkPowerExperiment, x_sweep, y_sweep, progress=progress
+            T1StarkProgram, x_sweep, y_sweep, progress=progress
         )
 
         return self.data
@@ -277,7 +283,8 @@ class T1StarkPowerExperiment(QickExperiment2DLoop):
         fitfunc = fitter.expfunc
         fitterfunc=fitter.fitexp
         super().analyze(fitfunc, fitterfunc, data)
-        #data['t1_fits']= [self.cfg.expt['fit_avgi'] ]
+        #data['t1_fits']= [self.data['fit_avgi'] ]
+        self.data['t1_fits'] = np.array([self.data['fit_avgi'][i][2] for i in range(len(self.data['fit_avgi']))])
 
     def display(self, data=None, fit=True,plot_both=False, **kwargs):
         if data is None:
@@ -285,23 +292,23 @@ class T1StarkPowerExperiment(QickExperiment2DLoop):
         ylabel="Gain [DAC units]"
         title = f'Amplitude Stark T1, Frequency: {self.cfg.expt.stark_freq-self.cfg.device.qubit.f_ge} MHz' 
         xlabel = "Wait Time ($\mu$s)"
-        
+        super().display(data=data, title=title, xlabel=xlabel, ylabel=ylabel, fit=fit,plot_both=plot_both)
 
         fig2=plt.figure()
-        plt.plot(data['gain_pts']**2/np.max(data['gain_pts']**2), data['t1_fits'])
+        plt.plot(data['stark_gain_pts']**2/np.max(data['stark_gain_pts']**2), data['t1_fits'])
         plt.xlabel('Gain Sq')
-        plt.ylabel('T1 (us)')
-
-        plt.figure()
-        for i in range(len(data['gain_pts'])):
-            plt.plot(data['xpts'][i], data['avgi'][i]+i, label=f'Gain {data["gain_pts"][i]}')        
+        plt.ylabel('T1 (us)')    
         
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'.png')
-
         imname = self.fname.split("\\")[-1]
         fig2.savefig(self.fname[0:-len(imname)]+'images\\'+imname[0:-3]+'_t1.png')
         plt.show()
+
+        sns.set_palette('coolwarm', n_colors=len(data['t1_fits']))
+        fig3=plt.figure()
+        for i in range(len(data['t1_fits'])):
+            plt.plot(data['xpts'], data['avgi'][i], label=f'Gain: {data["stark_gain_pts"][i]}')
+
+        plt.legend()
         
     def save_data(self, data=None):
         super().save_data(data=data)
