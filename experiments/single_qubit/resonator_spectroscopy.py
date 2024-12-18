@@ -7,8 +7,11 @@ from qick import *
 from qick.helpers import gauss
 from slab import Experiment, AttrDict
 from scipy.signal import find_peaks
-from qick_experiment import QickExperimentLoop, QickExperiment2DLoop
+from qick_experiment import QickExperiment, QickExperiment2D
+from qick_program import QickProgram
 import fitting as fitter
+from qick.asm_v2 import QickSweep1D
+
 
 """
 Measures the resonant frequency of the readout resonator when the qubit is in its ground state: sweep readout pulse frequency and look for the frequency with the maximum measured amplitude.
@@ -19,154 +22,52 @@ Note that harmonics of the clock frequency (6144 MHz) will show up as "infinitel
 """
 
 
-class ResonatorSpectroscopyProgram(AveragerProgram):
-    def __init__(self, soccfg, cfg):
-        self.cfg = AttrDict(cfg)
-        self.cfg.update(self.cfg.expt)
-        # copy over parameters for the acquire method
-        self.cfg.reps = cfg.expt.reps
-        self.cfg.rounds = cfg.expt.rounds
+class ResSpecProgram(QickProgram):
+    def __init__(self, soccfg, final_delay, cfg):
+        super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
 
-        super().__init__(soccfg, self.cfg)
-
-    def initialize(self):
+    def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
-        self.cfg.update(self.cfg.expt)
-
-        self.adc_ch = cfg.hw.soc.adcs.readout.ch
-        self.res_ch = cfg.hw.soc.dacs.readout.ch
-        self.res_ch_type = cfg.hw.soc.dacs.readout.type
-        self.qubit_ch = cfg.hw.soc.dacs.qubit.ch
-        self.qubit_ch_type = cfg.hw.soc.dacs.qubit.type
-
         self.frequency = cfg.expt.frequency
-        self.freqreg = self.freq2reg(
-            self.frequency, gen_ch=self.res_ch, ro_ch=self.adc_ch
-        )
-        self.f_ge = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_ch)
-        if self.cfg.expt.pulse_f:
-            self.f_ef = self.freq2reg(cfg.device.qubit.f_ef, gen_ch=self.qubit_ch)
-        self.res_gain = cfg.expt.gain
-        self.readout_length_dac = self.us2cycles(
-            cfg.device.readout.readout_length, gen_ch=self.res_ch
-        )
-        self.readout_length_adc = self.us2cycles(
-            cfg.device.readout.readout_length, ro_ch=self.adc_ch
-        )
-        self.readout_length_adc += 1  # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
+        self.gain = cfg.expt.gain
+        q = cfg.expt.qubit[0]
+        self.readout_length = cfg.device.readout.readout_length[q]
+        self.phase = cfg.device.readout.phase[q]
 
-        mask = None
-        mixer_freq = 0  # MHz
-        mux_freqs = None  # MHz
-        mux_gains = None
-        ro_ch = self.adc_ch
-        if self.res_ch_type == "int4":
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-        elif self.res_ch_type == "mux4":
-            assert self.res_ch == 6
-            mask = [0, 1, 2, 3]  # indices of mux_freqs, mux_gains list to play
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-            mux_freqs = [0] * 4
-            mux_freqs[cfg.expt.qubit_chan] = self.frequency
-            mux_gains = [0] * 4
-            mux_gains[cfg.expt.qubit_chan] = self.res_gain
-        self.declare_gen(
-            ch=self.res_ch,
-            nqz=cfg.hw.soc.dacs.readout.nyquist,
-            mixer_freq=mixer_freq,
-            mux_freqs=mux_freqs,
-            mux_gains=mux_gains,
-            ro_ch=ro_ch,
-        )
-        # print(f'readout freq {mixer_freq} +/- {self.frequency}')
-        mixer_freq = 0
-        if self.qubit_ch_type == "int4":
-            mixer_freq = cfg.hw.soc.dacs.qubit.mixer_freq
-        self.declare_gen(
-            ch=self.qubit_ch, nqz=cfg.hw.soc.dacs.qubit.nyquist, mixer_freq=mixer_freq
-        )
+        cfg_qub = cfg.device.qubit.pulses
+        self.qubit_freq = cfg.device.qubit.f_ge[q]
+        self.qubit_length = cfg_qub.pi_ge.sigma[q] * cfg_qub.pi_ge.sigma_inc[q]
+        self.qubit_gain = cfg_qub.pi_ge.gain[q]
+        self.qubit_ramp = cfg_qub.pi_ge.sigma[q]
+        self.qubit_phase = 0
+        self.pulse_type = cfg_qub.pi_ge.type[q]
 
-        self.declare_readout(
-            ch=self.adc_ch,
-            length=self.readout_length_adc,
-            freq=self.frequency,
-            gen_ch=self.res_ch,
-        )
+        super()._initialize(cfg)
+        self.add_loop("freq_loop", cfg.expt.expts)
 
-        self.pi_sigma = self.us2cycles(
-            cfg.device.qubit.pulses.pi_ge.sigma, gen_ch=self.qubit_ch
-        )
-        self.pi_gain = cfg.device.qubit.pulses.pi_ge.gain
-        if self.cfg.expt.pulse_f:
-            self.pi_ef_sigma = self.us2cycles(
-                cfg.device.qubit.pulses.pi_ef.sigma, gen_ch=self.qubit_ch
-            )
-            self.pi_ef_gain = cfg.device.qubit.pulses.pi_ef.gain
+        if cfg.expt.pulse_e:
+            self.f_ef = cfg.device.qubit.f_ef[q]
+            self.pi_ef_sigma = cfg_qub.pi_ef.sigma[q]
+            self.pi_ef_gain = cfg_qub.pi_ef.gain[q]
 
-        if self.cfg.expt.pulse_e or self.cfg.expt.pulse_f:
-            self.add_gauss(
-                ch=self.qubit_ch,
-                name="pi_qubit",
-                sigma=self.pi_sigma,
-                length=self.pi_sigma * 4,
-            )
-        if self.cfg.expt.pulse_f:
-            self.add_gauss(
-                ch=self.qubit_ch,
-                name="pi_ef_qubit",
-                sigma=self.pi_ef_sigma,
-                length=self.pi_ef_sigma * 4,
-            )
-
-        if self.res_ch_type == "mux4":
-            self.set_pulse_registers(
-                ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask
-            )
-        else:
-            self.set_pulse_registers(
-                ch=self.res_ch,
-                style="const",
-                freq=self.freqreg,
-                phase=0,
-                gain=self.res_gain,
-                length=self.readout_length_dac,
-            )
-        self.synci(200)  # give processor some time to configure pulses
-
-    def body(self):
-        # pass
+    def _body(self, cfg):
         cfg = AttrDict(self.cfg)
-        if self.cfg.expt.pulse_e or self.cfg.expt.pulse_f:
-            self.setup_and_pulse(
-                ch=self.qubit_ch,
-                style="arb",
-                freq=self.f_ge,
-                phase=0,
-                gain=self.pi_gain,
-                waveform="pi_qubit",
-            )
-            self.sync_all()  # align channels
-        if self.cfg.expt.pulse_f:
-            self.setup_and_pulse(
-                ch=self.qubit_ch,
-                style="arb",
-                freq=self.f_ef,
-                phase=0,
-                gain=self.pi_ef_gain,
-                waveform="pi_ef_qubit",
-            )
-            self.sync_all()  # align channels
-
-        self.measure(
-            pulse_ch=self.res_ch,
-            adcs=[self.adc_ch],
-            adc_trig_offset=cfg.device.readout.trig_offset,
-            wait=True,
-            syncdelay=self.us2cycles(cfg.device.readout.relax_delay),
+        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if cfg.expt.pulse_e:
+            self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
+            self.delay_auto(t=0.02, tag="waiting")
+            if cfg.expt.pulse_f:
+                self.pulse(ch=self.qubit_ch, name="qubit_pulse_f", t=0)
+                self.delay_auto(t=0.02, tag="waiting")
+        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        self.trigger(
+            ros=[self.adc_ch],
+            pins=[0],
+            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
         )
 
 
-class ResonatorSpectroscopyExperiment(QickExperimentLoop):
+class ResSpec(QickExperiment):
     """
     Resonator Spectroscopy Experiment
     Experimental Config
@@ -175,7 +76,7 @@ class ResonatorSpectroscopyExperiment(QickExperimentLoop):
         step: frequency step (MHz),
         expts: number of experiments,
         gain: gain of the readout resonator,
-        relax_delay: delay time between repetitions in us,
+        final_delay: delay time between repetitions in us,
         pulse_e: boolean to add e pulse prior to measurement
         pulse_f: boolean to add f pulse prior to measurement
         reps: number of reps
@@ -183,25 +84,36 @@ class ResonatorSpectroscopyExperiment(QickExperimentLoop):
     """
 
     def __init__(
-        self, cfg_dict, prefix="", progress=None, qi=0, go=True, params={}, style="fine", pulse_e=False,
+        self,
+        cfg_dict,
+        prefix="",
+        progress=None,
+        qi=0,
+        go=True,
+        params={},
+        style="fine",
+        pulse_e=False,
+        pulse_f=False,
     ):
 
         prefix = "resonator_spectroscopy_"
         if style == "coarse":
             prefix = prefix + "coarse"
-        elif style == "chi":
-            prefix = prefix + "chi"
+        elif pulse_e:
+            prefix = prefix + "chi_"
+        elif pulse_f:
+            prefix = prefix + "f_"
         prefix += style + f"_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         params_def = {
             "gain": self.cfg.device.readout.gain[qi],
             "reps": self.reps,
-            "rounds": self.rounds,
-            "relax_delay": 5,
+            "soft_avgs": self.soft_avgs,
+            "final_delay": 5,
             "pulse_e": pulse_e,
-            "pulse_f": False,
-            "qubit": qi,
+            "pulse_f": pulse_f,
+            "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         if style == "coarse":
@@ -221,7 +133,6 @@ class ResonatorSpectroscopyExperiment(QickExperimentLoop):
         params = {**params_def, **params}
         if "center" in params:
             params["start"] = params["center"] - params["span"] / 2
-        params["step"] = params["span"] / params["expts"]
         self.cfg.expt = params
 
         if go:
@@ -233,13 +144,15 @@ class ResonatorSpectroscopyExperiment(QickExperimentLoop):
                 super().run()
 
     def acquire(self, progress=False):
-        q_ind = self.cfg.expt.qubit
-        self.update_config(q_ind)
-        xpts = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(
-            self.cfg.expt["expts"]
+
+        self.param = {"label": "readout_pulse", "param": "freq", "param_type": "pulse"}
+        q = self.cfg.expt.qubit[0]
+        self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
+
+        self.cfg.expt.frequency = QickSweep1D(
+            "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
-        x_sweep = [{"var": "frequency", "pts": xpts}]
-        super().acquire(ResonatorSpectroscopyProgram, x_sweep, progress=progress)
+        super().acquire(ResSpecProgram, progress=progress)
 
         return self.data
 
@@ -332,13 +245,12 @@ class ResonatorSpectroscopyExperiment(QickExperimentLoop):
             max_width_inds = int(max_width / df)
             print(max_width_inds)
 
-
             coarse_peaks, props = find_peaks(
                 -ydata,
                 distance=min_dist_inds,
                 prominence=prom,
                 width=[0, max_width_inds],
-            )  
+            )
 
             data["coarse_peaks_index"] = coarse_peaks
             data["coarse_peaks"] = xdata[coarse_peaks]
@@ -448,12 +360,12 @@ class ResonatorSpectroscopyExperiment(QickExperimentLoop):
         super().save_data(data=data)
 
 
-class ResonatorPowerSweepSpectroscopyExperiment(QickExperiment2DLoop):
+class ResSpecPower(QickExperiment2D):
     """
     Keys:
-        relax_delay (float): Delay time between repetitions in seconds.
+        final_delay (float): Delay time between repetitions in seconds.
         reps (int): Number of repetitions for each experiment.
-        rounds (int): Number of rounds for the experiment.
+        soft_avgs (int): Number of soft_avgs for the experiment.
         rng (int): Range for the gain sweep.
         max_gain (int): Maximum gain value.
         expts_gain (int): Number of gain points in the sweep.
@@ -473,7 +385,16 @@ class ResonatorPowerSweepSpectroscopyExperiment(QickExperiment2DLoop):
         qubit_chan (int): Qubit channel index.
     """
 
-    def __init__(self, cfg_dict, prefix="", progress=None, qi=0, go=True, params={}, pulse_e=False):
+    def __init__(
+        self,
+        cfg_dict,
+        prefix="",
+        progress=None,
+        qi=0,
+        go=True,
+        params={},
+        pulse_e=False,
+    ):
         if pulse_e:
             prefix = f"resonator_spectroscopy_power_sweep_ef_qubit{qi}"
         else:
@@ -481,35 +402,34 @@ class ResonatorPowerSweepSpectroscopyExperiment(QickExperiment2DLoop):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         params_def = {
-            "relax_delay": 5,
+            "final_delay": 5,
             "reps": self.reps / 1000,
-            "rounds": self.rounds,
+            "soft_avgs": self.soft_avgs,
             "rng": 100,
             "max_gain": self.cfg.device.qubit.max_gain,
-            "expts_gain": 10,
-            "span_f": 15,
-            "expts_f": 200,
+            "span": 15,
+            "expts": 200,
             "start_gain": 50,
             "step_gain": 1000,
+            "expts_gain": 20,
             "f_off": 4,
             "min_reps": 100,
             "log": True,
-            "qubit": qi,
+            "qubit": [qi],
             "pulse_e": pulse_e,
             "pulse_f": False,
             "pulse_type": "const",
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
-        params_def["start_f"] = (
+        params_def["start"] = (
             self.cfg.device.readout.frequency[qi]
-            - params_def["span_f"] / 2
+            - params_def["span"] / 2
             - params_def["f_off"]
         )
 
         # combine params and params_Def, preferreing params
         params = {**params_def, **params}
-        params["step_f"] = params["span_f"] / (params["expts_f"] - 1)
-        
+
         self.cfg.expt = params
 
         if go:
@@ -518,21 +438,15 @@ class ResonatorPowerSweepSpectroscopyExperiment(QickExperiment2DLoop):
             self.display(fit=True)
 
     def acquire(self, progress=False):
-        q_ind = self.cfg.expt.qubit
-        super().update_config(q_ind)
-        xpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"] * np.arange(
-            self.cfg.expt["expts_f"]
-        )
-        x_sweep = [{"var": "frequency", "pts": xpts}]
-
+        
         if "log" in self.cfg.expt and self.cfg.expt.log == True:
             rng = self.cfg.expt.rng
             rat = rng ** (-1 / (self.cfg.expt["expts_gain"] - 1))
 
-            gainpts = self.cfg.expt["max_gain"] * rat ** (
+            gain_pts = self.cfg.expt["max_gain"] * rat ** (
                 np.arange(self.cfg.expt["expts_gain"])
             )
-            gainpts = [int(g) for g in gainpts]
+
             rep_list = np.round(
                 self.cfg.expt["reps"]
                 * (1 / rat ** np.arange(self.cfg.expt["expts_gain"])) ** 2
@@ -543,14 +457,20 @@ class ResonatorPowerSweepSpectroscopyExperiment(QickExperiment2DLoop):
                 if rep_list[i] < self.cfg.expt.min_reps:
                     rep_list[i] = self.cfg.expt.min_reps
         else:
-            gainpts = self.cfg.expt["start_gain"] + self.cfg.expt[
+            gain_pts = self.cfg.expt["start_gain"] + self.cfg.expt[
                 "step_gain"
             ] * np.arange(self.cfg.expt["expts_gain"])
             rep_list = self.cfg.expt["reps"] * np.ones(self.cfg.expt["expts_gain"])
-        y_sweep = [{"var": "gain", "pts": gainpts}, {"var": "reps", "pts": rep_list}]
-        super().acquire(
-            ResonatorSpectroscopyProgram, x_sweep, y_sweep, progress=progress
+        y_sweep = [{"var": "gain", "pts": gain_pts}, {"var": "reps", "pts": rep_list}]
+
+        self.qubit = self.cfg.expt.qubit[0]
+        self.cfg.device.readout.final_delay[self.qubit] = self.cfg.expt.final_delay
+        self.param = {"label": "readout_pulse", "param": "freq", "param_type": "pulse"}
+        self.cfg.expt.frequency = QickSweep1D(
+            "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
+
+        super().acquire(ResSpecProgram, y_sweep, progress=progress)
 
         return self.data
 

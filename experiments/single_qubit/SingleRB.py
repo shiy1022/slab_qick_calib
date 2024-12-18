@@ -31,18 +31,18 @@
 # ## Calculate inverse rotation
 # matrix_ref = {}
 # # Z, X, Y, -Z, -X, -Y
-# matrix_ref['0'] = np.matrix([[1, 0, 0, 0, 0, 0],  
+# matrix_ref['0'] = np.matrix([[1, 0, 0, 0, 0, 0],
 #                                 [0, 1, 0, 0, 0, 0],
 #                                 [0, 0, 1, 0, 0, 0],
 #                                 [0, 0, 0, 1, 0, 0],
 #                                 [0, 0, 0, 0, 1, 0],
-#                                 [0, 0, 0, 0, 0, 1]])  # identity 
+#                                 [0, 0, 0, 0, 0, 1]])  # identity
 # matrix_ref['1'] = np.matrix([[1, 0, 0, 0, 0, 0],
 #                                 [0, 0, 0, 0, 1, 0],
 #                                 [0, 0, 0, 0, 0, 1],
 #                                 [0, 0, 0, 1, 0, 0],
 #                                 [0, 1, 0, 0, 0, 0],
-#                                 [0, 0, 1, 0, 0, 0]]) 
+#                                 [0, 0, 1, 0, 0, 0]])
 # matrix_ref['2'] = np.matrix([[0, 0, 0, 1, 0, 0],
 #                                 [0, 1, 0, 0, 0, 0],
 #                                 [0, 0, 0, 0, 0, 1],
@@ -111,7 +111,7 @@
 #     elif no==8:
 #         g = '-X/2'
 #     elif no==9:
-#         g = '-Y/2'   
+#         g = '-Y/2'
 
 #     return g
 
@@ -134,7 +134,7 @@
 #     elif g=='-X/2':
 #         no = 8
 #     elif g=='-Y/2':
-#         no = 9  
+#         no = 9
 
 #     return no
 
@@ -197,8 +197,8 @@
 #         self.f_ge_reg = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_chs)
 
 #         self.f_res_reg = self.freq2reg(cfg.device.readout.frequency, gen_ch=self.res_chs, ro_ch=self.adc_chs)
-#         self.readout_lengths_dac = self.us2cycles(self.cfg.device.readout.readout_length, gen_ch=self.res_chs) 
-#         self.readout_lengths_adc = 1+self.us2cycles(self.cfg.device.readout.readout_length, ro_ch=self.adc_chs) 
+#         self.readout_lengths_dac = self.us2cycles(self.cfg.device.readout.readout_length, gen_ch=self.res_chs)
+#         self.readout_lengths_adc = 1+self.us2cycles(self.cfg.device.readout.readout_length, ro_ch=self.adc_chs)
 
 #         self.declare_readout(ch=self.adc_chs, length=self.readout_lengths_adc, freq=cfg.device.readout.frequency, gen_ch=self.res_chs)
 #         self.declare_gen(ch=self.qubit_chs, nqz=cfg.hw.soc.dacs.qubit.nyquist)
@@ -231,7 +231,7 @@
 #             if ii == 0:
 #                 pass
 #             if ii == 1:  #'Z'
-#                 self.vz += 180 
+#                 self.vz += 180
 #             if ii == 2:  #'X'
 #                 self.setup_and_pulse(ch=self.qubit_chs, style="arb", freq=self.f_ge_reg,
 #                                  phase=self.deg2reg(0+self.vz), gain=self.pi_gain, waveform="pi_qubit")
@@ -260,7 +260,7 @@
 #                 self.setup_and_pulse(ch=self.qubit_chs, style="arb", freq=self.f_ge_reg,
 #                                  phase=self.deg2reg(90+self.vz), gain=self.hpi_gain, waveform="hpi_qubit")
 #                 self.sync_all()
-                
+
 #         # align channels and wait 50ns and measure
 #         self.sync_all(self.us2cycles(0.05))
 #         self.measure(
@@ -268,7 +268,7 @@
 #             adcs=[self.adc_chs],
 #             adc_trig_offset=cfg.device.readout.trig_offset,
 #             wait=True,
-#             syncdelay=self.us2cycles(cfg.device.readout.relax_delay)
+#             syncdelay=self.us2cycles(cfg.device.readout.final_delay)
 #         )
 
 #     def collect_shots(self):
@@ -284,7 +284,7 @@
 # class SingleRB(Experiment):
 #     def __init__(self, soccfg=None, path='', prefix='SingleRB', config_file=None, progress=None):
 #             super().__init__(path=path, soccfg=soccfg, prefix=prefix, config_file=config_file, progress=progress)
-    
+
 #     def acquire(self, progress=False, debug=False):
 #         qubits = self.cfg.expt.qubit
 
@@ -298,10 +298,10 @@
 #                     for key2, value2 in value.items():
 #                         for key3, value3 in value2.items():
 #                             if isinstance(value3, list):
-#                                 value2.update({key3: value3[q_ind]}) 
+#                                 value2.update({key3: value3[q_ind]})
 
 #         adc_chs = self.cfg.hw.soc.adcs.readout.ch
-        
+
 #         # ================= #
 #         # Get single shot calibration for all qubits
 #         # ================= #
@@ -313,9 +313,9 @@
 
 #         # Ground state shots
 #         # cfg.expt.reps = 10000
-#         sscfg.expt.qubit = 0 # this looks like its hardcoding the qubit to 0 change??? 
+#         sscfg.expt.qubit = 0 # this looks like its hardcoding the qubit to 0 change???
 #         print(sscfg.expt.qubit)
-#         sscfg.expt.rounds = 1 # this also looks hardcoded
+#         sscfg.expt.soft_avgs = 1 # this also looks hardcoded
 #         sscfg.expt.pulse_e = False
 #         sscfg.expt.pulse_f = False
 #         # print(sscfg)
@@ -329,7 +329,7 @@
 #         data['Ig'], data['Qg'] = histpro.collect_shots()
 
 #         # Excited state shots
-#         sscfg.expt.pulse_e = True 
+#         sscfg.expt.pulse_e = True
 #         sscfg.expt.pulse_f = False
 #         histpro = HistogramProgram(soccfg=self.soccfg, cfg=sscfg)
 #         avgi, avgq = histpro.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True,progress=progress, debug=debug)
@@ -353,7 +353,7 @@
 #             self.cfg.expt.running_list = generate_sequence(self.cfg.expt.rb_depth, iRB_gate_no=self.cfg.expt.IRB_gate_no)
 #             print(self.cfg.expt.running_list)
 
-        
+
 #             rb_shot = SingleRBrun(soccfg=self.soccfg, cfg=self.cfg)
 #             self.prog = rb_shot
 #             avgi, avgq = rb_shot.acquire(
@@ -361,11 +361,11 @@
 #             II, QQ = rb_shot.collect_shots()
 #             data['Idata'].append(II)
 #             data['Qdata'].append(QQ)
-            
+
 #         self.data = data
 
 #         return data
-    
+
 #     def save_data(self, data=None):
 #         print(f'Saving {self.fname}')
 #         super().save_data(data=data)

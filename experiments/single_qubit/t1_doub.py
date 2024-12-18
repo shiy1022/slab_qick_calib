@@ -10,6 +10,7 @@ from datetime import datetime
 import fitting as fitter
 from qick_experiment import QickExperiment
 
+
 class T1DoubProgram(RAveragerProgram):
     def __init__(self, soccfg, cfg):
         self.cfg = AttrDict(cfg)
@@ -17,108 +18,170 @@ class T1DoubProgram(RAveragerProgram):
 
         # copy over parameters for the acquire method
         self.cfg.reps = cfg.expt.reps
-        self.cfg.rounds = cfg.expt.rounds
-    
+        self.cfg.soft_avgs = cfg.expt.soft_avgs
+
         super().__init__(soccfg, self.cfg)
 
     def initialize(self):
         cfg = AttrDict(self.cfg)
         self.cfg.update(cfg.expt)
-        
+
         self.adc_ch = cfg.hw.soc.adcs.readout.ch
         self.res_ch = cfg.hw.soc.dacs.readout.ch
         self.res_ch_type = cfg.hw.soc.dacs.readout.type
         self.qubit_ch = cfg.hw.soc.dacs.qubit.ch
         self.qubit_ch_type = cfg.hw.soc.dacs.qubit.type
 
-        self.q_rp = self.ch_page(self.qubit_ch) # get register page for qubit_ch
+        self.q_rp = self.ch_page(self.qubit_ch)  # get register page for qubit_ch
         self.r_wait = 3
         self.safe_regwi(self.q_rp, self.r_wait, self.us2cycles(cfg.expt.start))
-        
+
         self.f_ge = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_ch)
-        self.f_res_reg = self.freq2reg(cfg.device.readout.frequency, gen_ch=self.res_ch, ro_ch=self.adc_ch)
-        self.readout_length_dac = self.us2cycles(cfg.device.readout.readout_length, gen_ch=self.res_ch)
-        self.readout_length_adc = self.us2cycles(cfg.device.readout.readout_length, ro_ch=self.adc_ch)
-        self.readout_length_adc += 1 # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
+        self.f_res_reg = self.freq2reg(
+            cfg.device.readout.frequency, gen_ch=self.res_ch, ro_ch=self.adc_ch
+        )
+        self.readout_length_dac = self.us2cycles(
+            cfg.device.readout.readout_length, gen_ch=self.res_ch
+        )
+        self.readout_length_adc = self.us2cycles(
+            cfg.device.readout.readout_length, ro_ch=self.adc_ch
+        )
+        self.readout_length_adc += 1  # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
 
         # declare res dacs
         mask = None
-        mixer_freq = 0 # MHz
-        mux_freqs = None # MHz
+        mixer_freq = 0  # MHz
+        mux_freqs = None  # MHz
         mux_gains = None
         ro_ch = self.adc_ch
-        if self.res_ch_type == 'int4':
+        if self.res_ch_type == "int4":
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-        elif self.res_ch_type == 'mux4':
+        elif self.res_ch_type == "mux4":
             assert self.res_ch == 6
-            mask = [0, 1, 2, 3] # indices of mux_freqs, mux_gains list to play
+            mask = [0, 1, 2, 3]  # indices of mux_freqs, mux_gains list to play
             mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-            mux_freqs = [0]*4
+            mux_freqs = [0] * 4
             mux_freqs[cfg.expt.qubit] = cfg.device.readout.frequency
-            mux_gains = [0]*4
+            mux_gains = [0] * 4
             mux_gains[cfg.expt.qubit] = cfg.device.readout.gain
-        self.declare_gen(ch=self.res_ch, nqz=cfg.hw.soc.dacs.readout.nyquist, mixer_freq=mixer_freq, mux_freqs=mux_freqs, mux_gains=mux_gains, ro_ch=ro_ch)
+        self.declare_gen(
+            ch=self.res_ch,
+            nqz=cfg.hw.soc.dacs.readout.nyquist,
+            mixer_freq=mixer_freq,
+            mux_freqs=mux_freqs,
+            mux_gains=mux_gains,
+            ro_ch=ro_ch,
+        )
 
         # declare qubit dacs
         mixer_freq = 0
-        if self.qubit_ch_type == 'int4':
+        if self.qubit_ch_type == "int4":
             mixer_freq = cfg.hw.soc.dacs.qubit.mixer_freq
-        self.declare_gen(ch=self.qubit_ch, nqz=cfg.hw.soc.dacs.qubit.nyquist, mixer_freq=mixer_freq)
+        self.declare_gen(
+            ch=self.qubit_ch, nqz=cfg.hw.soc.dacs.qubit.nyquist, mixer_freq=mixer_freq
+        )
 
         # declare adcs
-        self.declare_readout(ch=self.adc_ch, length=self.readout_length_adc, freq=cfg.device.readout.frequency, gen_ch=self.res_ch)
+        self.declare_readout(
+            ch=self.adc_ch,
+            length=self.readout_length_adc,
+            freq=cfg.device.readout.frequency,
+            gen_ch=self.res_ch,
+        )
 
-        self.pi_sigma = self.us2cycles(cfg.device.qubit.pulses.pi_ge.sigma, gen_ch=self.qubit_ch)
+        self.pi_sigma = self.us2cycles(
+            cfg.device.qubit.pulses.pi_ge.sigma, gen_ch=self.qubit_ch
+        )
 
         # add qubit and readout pulses to respective channels
-        if self.cfg.device.qubit.pulses.pi_ge.type.lower() == 'gauss':
-            self.add_gauss(ch=self.qubit_ch, name="pi_qubit", sigma=self.pi_sigma, length=self.pi_sigma*4)
-            self.set_pulse_registers(ch=self.qubit_ch, style="arb", freq=self.f_ge, phase=0, gain=cfg.device.qubit.pulses.pi_ge.gain, waveform="pi_qubit")
+        if self.cfg.device.qubit.pulses.pi_ge.type.lower() == "gauss":
+            self.add_gauss(
+                ch=self.qubit_ch,
+                name="pi_qubit",
+                sigma=self.pi_sigma,
+                length=self.pi_sigma * 4,
+            )
+            self.set_pulse_registers(
+                ch=self.qubit_ch,
+                style="arb",
+                freq=self.f_ge,
+                phase=0,
+                gain=cfg.device.qubit.pulses.pi_ge.gain,
+                waveform="pi_qubit",
+            )
         else:
-            self.set_pulse_registers(ch=self.qubit_ch, style="const", freq=self.f_ge, phase=0, gain=cfg.expt.start, length=self.pi_sigma)
+            self.set_pulse_registers(
+                ch=self.qubit_ch,
+                style="const",
+                freq=self.f_ge,
+                phase=0,
+                gain=cfg.expt.start,
+                length=self.pi_sigma,
+            )
 
-        if self.res_ch_type == 'mux4':
-            self.set_pulse_registers(ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask)
-        
-        else: self.set_pulse_registers(ch=self.res_ch, style="const", freq=self.f_res_reg, phase=self.deg2reg(-self.cfg.device.readout.phase, gen_ch = self.res_ch), gain=cfg.device.readout.gain, length=self.readout_length_dac)
+        if self.res_ch_type == "mux4":
+            self.set_pulse_registers(
+                ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask
+            )
 
+        else:
+            self.set_pulse_registers(
+                ch=self.res_ch,
+                style="const",
+                freq=self.f_res_reg,
+                phase=self.deg2reg(-self.cfg.device.readout.phase, gen_ch=self.res_ch),
+                gain=cfg.device.readout.gain,
+                length=self.readout_length_dac,
+            )
 
         self.sync_all(200)
 
     def body(self):
-        cfg=AttrDict(self.cfg)
+        cfg = AttrDict(self.cfg)
 
         self.safe_regwi(self.q_rp, self.r_wait, self.us2cycles(cfg.expt.start))
         self.pulse(ch=self.qubit_ch)
-        self.sync_all() # align channels
-        self.sync(self.q_rp, self.r_wait) # wait for the time stored in the wait variable register
-        self.sync_all(self.us2cycles(0.05)) # align channels and wait 50ns
-        self.measure(pulse_ch=self.res_ch, 
-             adcs=[self.adc_ch],
-             adc_trig_offset=cfg.device.readout.trig_offset,
-             wait=True,
-             syncdelay=self.us2cycles(cfg.device.readout.relax_delay))
-        
-        self.mathi(self.q_rp, self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update wait time
+        self.sync_all()  # align channels
+        self.sync(
+            self.q_rp, self.r_wait
+        )  # wait for the time stored in the wait variable register
+        self.sync_all(self.us2cycles(0.05))  # align channels and wait 50ns
+        self.measure(
+            pulse_ch=self.res_ch,
+            adcs=[self.adc_ch],
+            adc_trig_offset=cfg.device.readout.trig_offset,
+            wait=True,
+            syncdelay=self.us2cycles(cfg.device.readout.final_delay),
+        )
+
+        self.mathi(
+            self.q_rp, self.r_wait, self.r_wait, "+", self.us2cycles(self.cfg.expt.step)
+        )  # update wait time
         self.pulse(ch=self.qubit_ch)
-        self.sync_all() # align channels
-        self.sync(self.q_rp, self.r_wait) # wait for the time stored in the wait variable register
-        self.sync_all(self.us2cycles(0.05)) # align channels and wait 50ns
-        self.measure(pulse_ch=self.res_ch, 
-             adcs=[self.adc_ch],
-             adc_trig_offset=cfg.device.readout.trig_offset,
-             wait=True,
-             syncdelay=self.us2cycles(cfg.device.readout.relax_delay))
-        
+        self.sync_all()  # align channels
+        self.sync(
+            self.q_rp, self.r_wait
+        )  # wait for the time stored in the wait variable register
+        self.sync_all(self.us2cycles(0.05))  # align channels and wait 50ns
+        self.measure(
+            pulse_ch=self.res_ch,
+            adcs=[self.adc_ch],
+            adc_trig_offset=cfg.device.readout.trig_offset,
+            wait=True,
+            syncdelay=self.us2cycles(cfg.device.readout.final_delay),
+        )
+
     def collect_shots(self):
         # collect shots for the relevant adc and I and Q channels
-        cfg=AttrDict(self.cfg)
-        shots_i0 = self.di_buf[0] / self.readout_length_adc #[self.cfg.expt.qubit]
-        shots_q0 = self.dq_buf[0] / self.readout_length_adc #[self.cfg.expt.qubit]
+        cfg = AttrDict(self.cfg)
+        shots_i0 = self.di_buf[0] / self.readout_length_adc  # [self.cfg.expt.qubit]
+        shots_q0 = self.dq_buf[0] / self.readout_length_adc  # [self.cfg.expt.qubit]
         return shots_i0, shots_q0
-    
+
     def update(self):
-        self.mathi(self.q_rp, self.r_wait, self.r_wait, '+', self.us2cycles(self.cfg.expt.step)) # update wait time
+        self.mathi(
+            self.q_rp, self.r_wait, self.r_wait, "+", self.us2cycles(self.cfg.expt.step)
+        )  # update wait time
 
 
 class T1DoubExperiment(Experiment):
@@ -130,12 +193,20 @@ class T1DoubExperiment(Experiment):
         step: wait time sweep step
         expts: number steps in sweep
         reps: number averages per experiment
-        rounds: number rounds to repeat experiment sweep
+        soft_avgs: number soft_avgs to repeat experiment sweep
     )
     """
 
-    def __init__(self, soccfg=None, path='', prefix='T1', config_file=None, progress=None):
-        super().__init__(soccfg=soccfg, path=path, prefix=prefix, config_file=config_file, progress=progress)
+    def __init__(
+        self, soccfg=None, path="", prefix="T1", config_file=None, progress=None
+    ):
+        super().__init__(
+            soccfg=soccfg,
+            path=path,
+            prefix=prefix,
+            config_file=config_file,
+            progress=progress,
+        )
 
     def acquire(self, progress=False, debug=False):
 
@@ -143,97 +214,128 @@ class T1DoubExperiment(Experiment):
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         q_ind = self.cfg.expt.qubit
         for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items() :
+            for key, value in subcfg.items():
                 if isinstance(value, list):
                     subcfg.update({key: value[q_ind]})
                 elif isinstance(value, dict):
                     for key2, value2 in value.items():
                         for key3, value3 in value2.items():
                             if isinstance(value3, list):
-                                value2.update({key3: value3[q_ind]})                                
+                                value2.update({key3: value3[q_ind]})
 
         t1 = T1DoubProgram(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug, readouts_per_experiment=2)        
+        x_pts, avgi, avgq = t1.acquire(
+            self.im[self.cfg.aliases.soc],
+            threshold=None,
+            load_pulses=True,
+            progress=progress,
+            debug=debug,
+            readouts_per_experiment=2,
+        )
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]
-        amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-        phases = np.angle(avgi+1j*avgq) # Calculating the phase        
-        
-        current_time = current_time.encode('ascii','replace')
+        amps = np.abs(avgi + 1j * avgq)  # Calculating the magnitude
+        phases = np.angle(avgi + 1j * avgq)  # Calculating the phase
 
-        data={'xpts': x_pts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time}
-        self.data=data
+        current_time = current_time.encode("ascii", "replace")
+
+        data = {
+            "xpts": x_pts,
+            "avgi": avgi,
+            "avgq": avgq,
+            "amps": amps,
+            "phases": phases,
+            "time": current_time,
+        }
+        self.data = data
         return data
 
     def analyze(self, data=None, **kwargs):
         if data is None:
-            data=self.data
-            
+            data = self.data
+
         # fitparams=[y-offset, amp, x-offset, decay rate]
         # Remove the last point from fit in case weird edge measurements
-        data['fit_amps'], data['fit_err_amps'] = fitter.fitexp(data['xpts'][:-1], data['amps'][:-1], fitparams=None)
-        data['fit_avgi'], data['fit_err_avgi'] = fitter.fitexp(data['xpts'][:-1], data['avgi'][:-1], fitparams=None)
-        data['fit_avgq'], data['fit_err_avgq'] = fitter.fitexp(data['xpts'][:-1], data['avgq'][:-1], fitparams=None)
+        data["fit_amps"], data["fit_err_amps"] = fitter.fitexp(
+            data["xpts"][:-1], data["amps"][:-1], fitparams=None
+        )
+        data["fit_avgi"], data["fit_err_avgi"] = fitter.fitexp(
+            data["xpts"][:-1], data["avgi"][:-1], fitparams=None
+        )
+        data["fit_avgq"], data["fit_err_avgq"] = fitter.fitexp(
+            data["xpts"][:-1], data["avgq"][:-1], fitparams=None
+        )
 
-        t1_err_i = np.sqrt(data['fit_err_avgi'][3][3])
-        t1_fit_i =data['fit_avgi'][3]
-        err_ratio_i = t1_err_i/t1_fit_i
-        print('t1_i error:fit ratio=', err_ratio_i)
+        t1_err_i = np.sqrt(data["fit_err_avgi"][3][3])
+        t1_fit_i = data["fit_avgi"][3]
+        err_ratio_i = t1_err_i / t1_fit_i
+        print("t1_i error:fit ratio=", err_ratio_i)
 
-        t1_err_q = np.sqrt(data['fit_err_avgq'][3][3])
-        t1_fit_q =data['fit_avgq'][3]
-        err_ratio_q = t1_err_q/t1_fit_q
-        print('t1_q error:fit ratio=', err_ratio_q)
+        t1_err_q = np.sqrt(data["fit_err_avgq"][3][3])
+        t1_fit_q = data["fit_avgq"][3]
+        err_ratio_q = t1_err_q / t1_fit_q
+        print("t1_q error:fit ratio=", err_ratio_q)
 
-        if err_ratio_i< err_ratio_q:
-            print('t1_i is better, saving T1_i to results cfg file') 
+        if err_ratio_i < err_ratio_q:
+            print("t1_i is better, saving T1_i to results cfg file")
             new_t1 = t1_fit_i
-        else: 
-            print('t1_q is better, saving t1_q to results cfg file')
+        else:
+            print("t1_q is better, saving t1_q to results cfg file")
             new_t1 = t1_fit_q
 
-
-        data['new_t1']=new_t1
+        data["new_t1"] = new_t1
 
         return data
 
     def display(self, data=None, fit=True, **kwargs):
         if data is None:
-            data=self.data 
+            data = self.data
 
-        plt.figure(figsize=(10,10))
+        plt.figure(figsize=(10, 10))
         plt.subplot(211, title="$T_1$", ylabel="I [ADC units]")
-        plt.plot(data["xpts"][:-1], data["avgi"][:-1],'o-')
+        plt.plot(data["xpts"][:-1], data["avgi"][:-1], "o-")
         if fit:
-            p = data['fit_avgi']
-            pCov = data['fit_err_avgi']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgi"]), label=captionStr)
+            p = data["fit_avgi"]
+            pCov = data["fit_err_avgi"]
+            captionStr = f"$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}"
+            plt.plot(
+                data["xpts"][:-1],
+                fitter.expfunc(data["xpts"][:-1], *data["fit_avgi"]),
+                label=captionStr,
+            )
             plt.legend()
             print(f'Fit T1 avgi [us]: {data["fit_avgi"][3]}')
-            data["err_ratio_i"] = np.sqrt(data['fit_err_avgi'][3][3])/data['fit_avgi'][3]
+            data["err_ratio_i"] = (
+                np.sqrt(data["fit_err_avgi"][3][3]) / data["fit_avgi"][3]
+            )
         plt.subplot(212, xlabel="Wait Time [us]", ylabel="Q [ADC units]")
-        plt.plot(data["xpts"][:-1], data["avgq"][:-1],'o-')
+        plt.plot(data["xpts"][:-1], data["avgq"][:-1], "o-")
         if fit:
-            p = data['fit_avgq']
-            pCov = data['fit_err_avgq']
-            captionStr = f'$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}'
-            plt.plot(data["xpts"][:-1], fitter.expfunc(data["xpts"][:-1], *data["fit_avgq"]), label=captionStr)
+            p = data["fit_avgq"]
+            pCov = data["fit_err_avgq"]
+            captionStr = f"$T_1$ fit [us]: {p[3]:.3} $\pm$ {np.sqrt(pCov[3][3]):.3}"
+            plt.plot(
+                data["xpts"][:-1],
+                fitter.expfunc(data["xpts"][:-1], *data["fit_avgq"]),
+                label=captionStr,
+            )
             plt.legend()
             print(f'Fit T1 avgq [us]: {data["fit_avgq"][3]}')
-            data["err_ratio_q"] = np.sqrt(data['fit_err_avgq'][3][3])/data['fit_avgq'][3]
-
+            data["err_ratio_q"] = (
+                np.sqrt(data["fit_err_avgq"][3][3]) / data["fit_avgq"][3]
+            )
 
         plt.show()
 
-        
     def save_data(self, data=None):
-        print(f'Saving {self.fname}')
+        print(f"Saving {self.fname}")
         super().save_data(data=data)
         return self.fname
-    
+
+
 # ====================================================== #
+
 
 class T1ContinuousDoub(QickExperiment):
     """
@@ -244,63 +346,89 @@ class T1ContinuousDoub(QickExperiment):
         step: wait time sweep step
         expts: number steps in sweep
         reps: number averages per experiment
-        rounds: number rounds to repeat experiment sweep
+        soft_avgs: number soft_avgs to repeat experiment sweep
     )
     """
-    def __init__(self, cfg_dict, qi=0, go=True, params={},prefix=None, progress=None, style='', min_r2=None, max_err=None):
+
+    def __init__(
+        self,
+        cfg_dict,
+        qi=0,
+        go=True,
+        params={},
+        prefix=None,
+        progress=None,
+        style="",
+        min_r2=None,
+        max_err=None,
+    ):
 
         if prefix is None:
             f"t1cont_qubit{qi}"
-            
+
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         params_def = {
-            'expts':1,  
-            'span':3.7*self.cfg.device.qubit.T1[qi], 
-            'reps':1e5, 
-            'rounds':1, 
-            'start':0,
-            'qubit':qi,
-            'step': self.cfg.device.qubit.T1[qi],
-            'qubit_chan':self.cfg.hw.soc.adcs.readout.ch[qi]}
-        
-        params = {**params_def, **params}     
+            "expts": 1,
+            "span": 3.7 * self.cfg.device.qubit.T1[qi],
+            "reps": 1e5,
+            "soft_avgs": 1,
+            "start": 0,
+            "qubit": qi,
+            "step": self.cfg.device.qubit.T1[qi],
+            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
+        }
+
+        params = {**params_def, **params}
         self.cfg.expt = params
 
         if go:
             self.go(analyze=False, display=False, progress=True, save=True)
-    
+
     def acquire(self, progress=False, debug=False):
-        self.update_config(self.cfg.expt.qubit)                       
+        self.update_config(self.cfg.expt.qubit)
         t1 = T1DoubProgram(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = t1.acquire(self.im[self.cfg.aliases.soc], threshold=None, load_pulses=True, progress=progress, debug=debug, readouts_per_experiment=2)        
+        x_pts, avgi, avgq = t1.acquire(
+            self.im[self.cfg.aliases.soc],
+            threshold=None,
+            load_pulses=True,
+            progress=progress,
+            debug=debug,
+            readouts_per_experiment=2,
+        )
 
         shots_i, shots_q = t1.collect_shots()
 
         avgi = avgi[0][0]
         avgq = avgq[0][0]
-        amps = np.abs(avgi+1j*avgq) # Calculating the magnitude
-        phases = np.angle(avgi+1j*avgq) # Calculating the phase    
+        amps = np.abs(avgi + 1j * avgq)  # Calculating the magnitude
+        phases = np.angle(avgi + 1j * avgq)  # Calculating the phase
 
         now = datetime.now()
         current_time = now.strftime("%H:%M:%S")
-        current_time = current_time.encode('ascii','replace')
+        current_time = current_time.encode("ascii", "replace")
 
-        data={'xpts': x_pts, 'avgi':avgi, 'avgq':avgq, 'amps':amps, 'phases':phases, 'time':current_time, 'raw_i': shots_i, 'raw_q': shots_q, 'raw_amps': np.abs(shots_i+1j*shots_q)}   
-        
-        self.data=data
+        data = {
+            "xpts": x_pts,
+            "avgi": avgi,
+            "avgq": avgq,
+            "amps": amps,
+            "phases": phases,
+            "time": current_time,
+            "raw_i": shots_i,
+            "raw_q": shots_q,
+            "raw_amps": np.abs(shots_i + 1j * shots_q),
+        }
+
+        self.data = data
         return data
 
     def analyze(self, data=None, **kwargs):
         pass
 
-    def display(self, data=None, fit=True, show = False, **kwargs):
+    def display(self, data=None, fit=True, show=False, **kwargs):
         pass
 
     def save_data(self, data=None):
         super().save_data(data=data)
         return self.fname
-    
-
-
-        
