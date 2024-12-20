@@ -34,21 +34,12 @@ class ResSpecProgram(QickProgram):
         self.readout_length = cfg.device.readout.readout_length[q]
         self.phase = cfg.device.readout.phase[q]
 
-        cfg_qub = cfg.device.qubit.pulses
-        self.qubit_freq = cfg.device.qubit.f_ge[q]
-        self.qubit_length = cfg_qub.pi_ge.sigma[q] * cfg_qub.pi_ge.sigma_inc[q]
-        self.qubit_gain = cfg_qub.pi_ge.gain[q]
-        self.qubit_ramp = cfg_qub.pi_ge.sigma[q]
-        self.qubit_phase = 0
-        self.pulse_type = cfg_qub.pi_ge.type[q]
-
-        super()._initialize(cfg)
+        super()._initialize(cfg, readout="")
         self.add_loop("freq_loop", cfg.expt.expts)
 
         if cfg.expt.pulse_e:
-            self.f_ef = cfg.device.qubit.f_ef[q]
-            self.pi_ef_sigma = cfg_qub.pi_ef.sigma[q]
-            self.pi_ef_gain = cfg_qub.pi_ef.gain[q]
+            pi_pulse = super().make_pi_pulse(q, "pi_ge", cfg.device.qubit.f_ge)
+            super().make_pulse(pi_pulse, "pi_pulse_ge")
 
     def _body(self, cfg):
         cfg = AttrDict(self.cfg)
@@ -438,7 +429,7 @@ class ResSpecPower(QickExperiment2D):
             self.display(fit=True)
 
     def acquire(self, progress=False):
-        
+
         if "log" in self.cfg.expt and self.cfg.expt.log == True:
             rng = self.cfg.expt.rng
             rat = rng ** (-1 / (self.cfg.expt["expts_gain"] - 1))

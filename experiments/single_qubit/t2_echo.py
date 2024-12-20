@@ -8,270 +8,63 @@ from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from qick_experiment import QickExperiment
 import fitting as fitter
+from qick_program import QickProgram
+from qick.asm_v2 import QickSweep1D
 
 
-class RamseyEchoProgram(RAveragerProgram):
-    def __init__(self, soccfg, cfg):
-        self.cfg = AttrDict(cfg)
-        self.cfg.update(self.cfg.expt)
+class RamseyEchoProgram(QickProgram):
+    def __init__(self, soccfg, final_delay, cfg):
+        super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
 
-        # copy over parameters for the acquire method
-        self.cfg.reps = cfg.expt.reps
-        self.cfg.soft_avgs = cfg.expt.soft_avgs
-
-        super().__init__(soccfg, self.cfg)
-
-    def initialize(self):
-        cfg = AttrDict(self.cfg)
-        self.cfg.update(cfg.expt)
-
-        self.adc_ch = cfg.hw.soc.adcs.readout.ch
-        self.res_ch = cfg.hw.soc.dacs.readout.ch
-        self.res_ch_type = cfg.hw.soc.dacs.readout.type
-        self.qubit_ch = cfg.hw.soc.dacs.qubit.ch
-        self.qubit_ch_type = cfg.hw.soc.dacs.qubit.type
-
-        self.q_rp = self.ch_page(self.qubit_ch)  # get register page for qubit_ch
-        self.r_wait = 3  # total wait time for each experiment
-        self.r_phase2 = 4  # phase for the 2nd pi/2 pulse for each experiment
-        if self.qubit_ch_type == "int4":
-            self.r_phase = self.sreg(self.qubit_ch, "freq")
-            self.r_phase3 = 5  # for storing the left shifted value
-        else:
-            self.r_phase = self.sreg(self.qubit_ch, "phase")
-        self.safe_regwi(
-            self.q_rp, self.r_wait, self.us2cycles(cfg.expt.start / 2 / cfg.expt.num_pi)
-        )
-        self.safe_regwi(self.q_rp, self.r_phase2, 0)
-
-        self.f_ge = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_ch)
-        self.f_res_reg = self.freq2reg(
-            cfg.device.readout.frequency, gen_ch=self.res_ch, ro_ch=self.adc_ch
-        )
-        self.readout_length_dac = self.us2cycles(
-            cfg.device.readout.readout_length, gen_ch=self.res_ch
-        )
-        self.readout_length_adc = self.us2cycles(
-            cfg.device.readout.readout_length, ro_ch=self.adc_ch
-        )
-        self.readout_length_adc += 1  # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
-
-        # declare res dacs
-        mask = None
-        mixer_freq = 0  # MHz
-        mux_freqs = None  # MHz
-        mux_gains = None
-        ro_ch = self.adc_ch
-        if self.res_ch_type == "int4":
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-        elif self.res_ch_type == "mux4":
-            assert self.res_ch == 6
-            mask = [0, 1, 2, 3]  # indices of mux_freqs, mux_gains list to play
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-            mux_freqs = [0] * 4
-            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency
-            mux_gains = [0] * 4
-            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain
-        self.declare_gen(
-            ch=self.res_ch,
-            nqz=cfg.hw.soc.dacs.readout.nyquist,
-            mixer_freq=mixer_freq,
-            mux_freqs=mux_freqs,
-            mux_gains=mux_gains,
-            ro_ch=ro_ch,
-        )
-
-        # declare qubit dacs
-        mixer_freq = 0
-        if self.qubit_ch_type == "int4":
-            mixer_freq = cfg.hw.soc.dacs.qubit.mixer_freq
-        self.declare_gen(
-            ch=self.qubit_ch, nqz=cfg.hw.soc.dacs.qubit.nyquist, mixer_freq=mixer_freq
-        )
-
-        # declare adcs
-        self.declare_readout(
-            ch=self.adc_ch,
-            length=self.readout_length_adc,
-            freq=cfg.device.readout.frequency,
-            gen_ch=self.res_ch,
-        )
-
-        # copy over parameters for the acquire method
-        self.cfg.reps = cfg.expt.reps
-        self.cfg.soft_avgs = cfg.expt.soft_avgs
-
-        self.pi2sigma = self.us2cycles(
-            cfg.device.qubit.pulses.pi_ge.sigma / 2, gen_ch=self.qubit_ch
-        )
-        self.pi_sigma = self.us2cycles(
-            cfg.device.qubit.pulses.pi_ge.sigma, gen_ch=self.qubit_ch
-        )
-
-        # add qubit and readout pulses to respective channels
-        if self.cfg.device.qubit.pulses.pi_ge.type.lower() == "gauss":
-            self.add_gauss(
-                ch=self.qubit_ch,
-                name="pi2_qubit",
-                sigma=self.pi2sigma,
-                length=self.pi2sigma * 4,
-            )
-            self.add_gauss(
-                ch=self.qubit_ch,
-                name="pi_qubit",
-                sigma=self.pi_sigma,
-                length=self.pi_sigma * 4,
-            )
-
-        if self.res_ch_type == "mux4":
-            self.set_pulse_registers(
-                ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask
-            )
-        else:
-            self.set_pulse_registers(
-                ch=self.res_ch,
-                style="const",
-                freq=self.f_res_reg,
-                phase=self.deg2reg(-cfg.device.readout.phase, gen_ch=self.res_ch),
-                gain=cfg.device.readout.gain,
-                length=self.readout_length_dac,
-            )
-
-        self.sync_all(200)
-
-    def body(self):
+    def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
 
-        # play pi/2 pulse with phase 0
-        if self.cfg.device.qubit.pulses.pi_ge.type.lower() == "gauss":
-            self.set_pulse_registers(
-                ch=self.qubit_ch,
-                style="arb",
-                freq=self.f_ge,
-                phase=0,
-                gain=cfg.device.qubit.pulses.pi_ge.gain,
-                waveform="pi2_qubit",
-            )
+        super()._initialize(cfg, readout="standard")
+
+        cfg_qub = cfg.device.qubit.pulses.pi_ge
+        q = cfg.expt.qubit[0]
+        pulse = {
+            "sigma": cfg_qub.sigma[q],
+            "sigma_inc": cfg_qub.sigma_inc[q],
+            "freq": cfg.device.qubit.f_ge[q],
+            "gain": cfg_qub.gain[q] / 2,
+            "phase": 0,
+            "type": cfg_qub.type,
+        }
+        pi2_pulse1 = super().make_pulse(pulse, "pi2_prep")
+        pulse["phase"] = cfg.expt.wait_time * 360 * cfg.ramsey_freq
+        pi2_pulse2 = super().make_pulse(pulse, "pi2_read")
+        if cfg.expt.type == "cpmg":
+            pulse["phase"] = 90
+        elif cfg.expt.type == "cp":
+            pulse["phase"] = 0
         else:
-            self.set_pulse_registers(
-                ch=self.qubit_ch,
-                style="const",
-                freq=self.f_ge,
-                phase=0,
-                gain=cfg.device.qubit.pulses.pi_ge.gain,
-                length=self.pi2sigma,
-            )
-        self.pulse(ch=self.qubit_ch)
-        self.sync_all()
+            assert False, "Unsupported echo experiment type"
+        pulse["gain"] = cfg_qub.gain[q]
+        pi_pulse = super().make_pulse(pulse, "pi_pulse")
 
-        for ii in range(cfg.expt.num_pi):
-            # wait advanced wait time
-            self.sync(self.q_rp, self.r_wait)
+        self.add_loop("wait_loop", cfg.expt.expts)
 
-            if cfg.expt.cp:  # pi pulse
-                if self.cfg.device.qubit.pulses.pi_ge.type.lower() == "gauss":
-                    self.set_pulse_registers(
-                        ch=self.qubit_ch,
-                        style="arb",
-                        freq=self.f_ge,
-                        phase=0,
-                        gain=cfg.device.qubit.pulses.pi_ge.gain,
-                        waveform="pi_qubit",
-                    )
-                else:
-                    self.set_pulse_registers(
-                        ch=self.qubit_ch,
-                        style="const",
-                        freq=self.f_ge,
-                        phase=0,
-                        gain=cfg.device.qubit.pulses.pi_ge.gain,
-                        length=self.pisigma,
-                    )
+    def _body(self, cfg):
 
-            elif cfg.expt.cpmg:  # pi pulse with phase pi/2
-                if self.cfg.device.qubit.pulses.pi_ge.type.lower() == "gauss":
-                    self.set_pulse_registers(
-                        ch=self.qubit_ch,
-                        style="arb",
-                        freq=self.f_ge,
-                        phase=self.deg2reg(90, gen_ch=self.qubit_ch),
-                        gain=cfg.device.qubit.pulses.pi_ge.gain,
-                        waveform="pi_qubit",
-                    )
-                else:
-                    self.set_pulse_registers(
-                        ch=self.qubit_ch,
-                        style="const",
-                        freq=self.f_ge,
-                        phase=self.deg2reg(90, gen_ch=self.qubit_ch),
-                        gain=cfg.device.qubit.pulses.pi_ge.gain,
-                        length=self.pisigma,
-                    )
-            else:
-                assert False, "Unsupported echo experiment type"
-            self.pulse(ch=self.qubit_ch)
-
-            # wait advanced wait time
-            self.sync(self.q_rp, self.r_wait)
-
-        # play pi/2 pulse with advanced phase
-        if self.cfg.device.qubit.pulses.pi_ge.type.lower() == "gauss":
-            self.set_pulse_registers(
-                ch=self.qubit_ch,
-                style="arb",
-                freq=self.f_ge,
-                phase=0,
-                gain=cfg.device.qubit.pulses.pi_ge.gain,
-                waveform="pi2_qubit",
-            )
-        else:
-            self.set_pulse_registers(
-                ch=self.qubit_ch,
-                style="const",
-                freq=self.f_ge,
-                phase=0,
-                gain=cfg.device.qubit.pulses.pi_ge.gain,
-                length=self.pi2sigma,
-            )
-        if self.qubit_ch_type == "int4":
-            self.bitwi(self.q_rp, self.r_phase3, self.r_phase2, "<<", 16)
-            self.bitwi(self.q_rp, self.r_phase3, self.r_phase3, "|", self.f_ge)
-            self.mathi(self.q_rp, self.r_phase, self.r_phase3, "+", 0)
-        else:
-            self.mathi(self.q_rp, self.r_phase, self.r_phase2, "+", 0)
-        self.pulse(ch=self.qubit_ch)
-
-        # measure
-        self.sync_all(self.us2cycles(0.05))  # align channels and wait 50ns
-        self.measure(
-            pulse_ch=self.res_ch,
-            adcs=[self.adc_ch],
-            adc_trig_offset=cfg.device.readout.trig_offset,
-            wait=True,
-            syncdelay=self.us2cycles(cfg.device.readout.final_delay),
-        )
-
-    def update(self):
-        # Update the wait time between each the pi pulses
-        self.mathi(
-            self.q_rp,
-            self.r_wait,
-            self.r_wait,
-            "+",
-            self.us2cycles(self.cfg.expt.step / 2 / self.cfg.expt.num_pi),
-        )
-        # Update the phase for the 2nd pi/2 pulse
-        phase_step = self.deg2reg(
-            360 * self.cfg.expt.ramsey_freq * self.cfg.expt.step, gen_ch=self.qubit_ch
-        )  # phase step [deg] = 360 * f_Ramsey [MHz] * tau_step [us]
-        self.mathi(self.q_rp, self.r_phase2, self.r_phase2, "+", phase_step)
-
-    def collect_shots(self):
-        # collect shots for the relevant adc and I and Q channels
         cfg = AttrDict(self.cfg)
-        shots_i0 = self.di_buf[0] / self.readout_length_adc  # [self.cfg.expt.qubit]
-        shots_q0 = self.dq_buf[0] / self.readout_length_adc  # [self.cfg.expt.qubit]
-        return shots_i0, shots_q0
+        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+
+        self.pulse(ch=self.qubit_ch, name="pi2_prep", t=0)
+
+        self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="wait")
+        for i in range(cfg.expt.num_pi):
+            self.pulse(ch=self.qubit_ch, name="pi_pulse", t=0)
+            self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="wait")
+        self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
+
+        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        self.trigger(
+            ros=[self.adc_ch],
+            pins=[0],
+            t=self.trig_offset,
+            ddr4=True,
+        )
 
 
 class RamseyEchoExperiment(QickExperiment):
@@ -311,20 +104,19 @@ class RamseyEchoExperiment(QickExperiment):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         params_def = {
-            "expts": 100,
-            "ramsey_freq": 0.1,
-            "span": 3 * self.cfg.device.qubit.T2e[qi],
             "reps": 2 * self.reps,
             "soft_avgs": 2 * self.soft_avgs,
+            "expts": 100,
+            "span": 3 * self.cfg.device.qubit.T2e[qi],
             "start": 0.1,
+            "ramsey_freq": 0.1,
             "num_pi": 1,
             "cp": True,
             "cpmg": False,
-            "qubit": qi,
+            "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}
-        params["step"] = params["span"] / params["expts"]
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2e[qi]
 
@@ -334,14 +126,16 @@ class RamseyEchoExperiment(QickExperiment):
             super().run(min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
-        self.update_config(q_ind=self.cfg.expt.qubit)
-
+        # is this still needed?
         if self.cfg.expt.ramsey_freq > 0:
             self.cfg.expt.ramsey_freq_sign = 1
         else:
             self.cfg.expt.ramsey_freq_sign = -1
         self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
-
+        self.param = {"label": "wait", "param": "t", "param_type": "time"}
+        self.cfg.expt.wait_time = QickSweep1D(
+            "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
+        )
         super().acquire(RamseyEchoProgram, progress=progress)
 
         return self.data

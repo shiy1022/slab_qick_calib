@@ -285,9 +285,9 @@ def recenter_smart(
 def find_spec(qi, cfg_dict, start="coarse", max_err=0.45, min_r2=0.1, max_t1=500):
 
     scans = [
-        meas.PulseProbeSpectroscopyExperiment,
-        meas.PulseProbeSpectroscopyExperiment,
-        meas.PulseProbeSpectroscopyExperiment,
+        meas.QubitSpec,
+        meas.QubitSpec,
+        meas.QubitSpec,
     ]
     params = [{"coarse": True, "span": 70}, {"span": 25}, {"fine": True}]
     scan_info = {"scans": scans, "params": params}

@@ -35,10 +35,10 @@ class QickExperiment(Experiment):
         )
 
     def acquire(self, prog_name, progress=True, hist=False):
-
+        final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
         prog = prog_name(
             soccfg=self.soccfg,
-            final_delay=self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]],
+            final_delay=final_delay,
             cfg=self.cfg,
         )
         now = datetime.now()

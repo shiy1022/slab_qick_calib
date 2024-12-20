@@ -14,27 +14,30 @@ from qick.asm_v2 import QickSweep1D
 
 
 class T1Program(QickProgram):
-    def __init__(self, soccfg,final_delay, cfg):
-        super().__init__(soccfg,final_delay=final_delay, cfg=cfg)
+    def __init__(self, soccfg, final_delay, cfg):
+        super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
 
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
-        q=cfg.expt.qubit[0]
-        self.frequency = cfg.device.readout.frequency[q]
-        self.gain = cfg.device.readout.gain[q]
-        self.readout_length = cfg.device.readout.readout_length[q]
-        self.phase = cfg.device.readout.phase[q]
 
-        cfg_qub = cfg.device.qubit.pulses
-        self.qubit_freq = cfg.device.qubit.f_ge[q]
-        self.qubit_length = cfg_qub.pi_ge.sigma[q] * cfg_qub.pi_ge.sigma_inc[q]
-        self.qubit_gain = cfg_qub.pi_ge.gain[q]
-        self.qubit_ramp = cfg_qub.pi_ge.sigma[q]
-        self.qubit_phase = 0
-        self.pulse_type = cfg_qub.pi_ge.type
+        super()._initialize(cfg, readout="standard")
 
-        super()._initialize(cfg)
+        pi_pulse = super().make_pi_pulse(
+            cfg.expt.qubit[0], "pi_ge", cfg.device.qubit.f_ge
+        )
+        super().make_pulse(pi_pulse, "qubit_pulse")
         self.add_loop("wait_loop", cfg.expt.expts)
+
+        if cfg.expt.acStark:
+            pulse = {
+                "sigma": cfg.expt.wait_time,
+                "sigma_inc": 0,
+                "freq": cfg.expt.stark_freq,
+                "gain": cfg.expt.stark_gain,
+                "phase": 0,
+                "type": "const",
+            }
+            super().make_pulse(pulse, "stark_pulse")
 
     def _body(self, cfg):
 
@@ -42,11 +45,18 @@ class T1Program(QickProgram):
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
-
-        self.delay_auto(cfg.expt["wait_time"] + 0.01, tag="wait")
+        if cfg.expt.acStark:
+            self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
+            self.delay_auto(t=0.01, tag="waiting")
+        else:
+            self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag="wait")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-        self.trigger(ros=[self.adc_ch], pins=[0], t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]])
+        self.trigger(
+            ros=[self.adc_ch],
+            pins=[0],
+            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
+        )
 
 
 class T1Experiment(QickExperiment):
@@ -86,6 +96,7 @@ class T1Experiment(QickExperiment):
             "reps": 2 * self.reps,
             "soft_avgs": self.soft_avgs,
             "start": 0,
+            "acStark": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }

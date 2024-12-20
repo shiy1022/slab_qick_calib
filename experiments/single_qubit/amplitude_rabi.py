@@ -18,38 +18,36 @@ from qick.asm_v2 import QickSweep1D
 
 
 class AmplitudeRabiProgram(QickProgram):
-    def __init__(self, soccfg,final_delay, cfg):
-        super().__init__(soccfg,final_delay=final_delay, cfg=cfg)
+    def __init__(self, soccfg, final_delay, cfg):
+        super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
 
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
         q = cfg.expt.qubit[0]
 
-        self.frequency = cfg.device.readout.frequency[q]
-        self.gain = cfg.device.readout.gain[q]
-        self.readout_length = cfg.device.readout.readout_length[q]
-        self.phase = cfg.device.readout.phase[q]
+        super()._initialize(cfg, readout="standard")
 
         if cfg.expt.checkEF:
-            self.qubit_length = (
-                cfg.expt.sigma * cfg.device.qubit.pulses.pi_ef.sigma_inc[q]
-            )
-            self.qubit_freq = cfg.device.qubit.f_ef[q]
+            sigma_inc = cfg.device.qubit.pulses.pi_ef.sigma_inc[q]
+            qubit_freq = cfg.device.qubit.f_ef[q]
         else:
-            self.qubit_length = (
-                cfg.expt.sigma * cfg.device.qubit.pulses.pi_ge.sigma_inc[q]
-            )
-            self.qubit_freq = cfg.device.qubit.f_ge[q]
+            sigma_inc = cfg.device.qubit.pulses.pi_ge.sigma_inc[q]
+            qubit_freq = cfg.device.qubit.f_ge[q]
 
-        self.qubit_ramp = cfg.expt.sigma
-        self.qubit_phase = 0
-        self.qubit_gain = cfg.expt.gain
-        self.pulse_type = cfg.expt.pulse_type
+        pulse = {
+            "sigma": cfg.expt.sigma,
+            "sigma_inc": sigma_inc,
+            "freq": qubit_freq,
+            "gain": cfg.expt.gain,
+            "phase": 0,
+            "type": cfg.expt.pulse_type,
+        }
+        super().make_pulse(pulse, "qubit_pulse")
 
-        super()._initialize(cfg)
         self.add_loop("amp_loop", cfg.expt.expts)
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
-            super().make_pi_pulse(q, cfg.device.qubit.f_ge, "pi_pulse_ge")
+            pi_pulse = super().make_pi_pulse(q, "pi_ge", cfg.device.qubit.f_ge)
+            super().make_pulse(pi_pulse, "pi_pulse_ge")
 
     def _body(self, cfg):
 
@@ -66,7 +64,11 @@ class AmplitudeRabiProgram(QickProgram):
         self.delay_auto(t=0.01, tag="waiting 2")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-        self.trigger(ros=[self.adc_ch], pins=[0], t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]])
+        self.trigger(
+            ros=[self.adc_ch],
+            pins=[0],
+            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
+        )
 
 
 # ====================================================== #
@@ -189,15 +191,12 @@ class AmplitudeRabiExperiment(QickExperiment):
         if data is None:
             data = self.data
 
-
         qTest = self.cfg.expt.qubit[0]
-
 
         title = f"Amplitude Rabi Q{qTest} (Pulse Length {self.cfg.expt.sigma}"
         xlabel = "Gain [DAC units]"
         fitfunc = fitter.sinfunc
 
-        
         if self.cfg.expt.checkEF:
             title = title + ", EF)"
 

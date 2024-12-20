@@ -10,6 +10,7 @@ from qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
 import fitting as fitter
+import warnings
 
 
 class QubitSpecProgram(QickProgram):
@@ -19,25 +20,27 @@ class QubitSpecProgram(QickProgram):
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
         q = cfg.expt.qubit[0]
-        self.frequency = cfg.device.readout.frequency[q]
-        self.gain = cfg.device.readout.gain[q]
-        self.readout_length = cfg.device.readout.readout_length[q]
-        self.phase = cfg.device.readout.phase[q]
 
-        cfg_qub = cfg.device.qubit.pulses
-        self.qubit_ramp = cfg_qub.pi_ge.sigma[q]
-        self.qubit_phase = 0
+        super()._initialize(cfg, readout="standard")
 
-        self.qubit_freq = cfg.expt.frequency
-        self.qubit_length = cfg.expt.length
-        self.qubit_gain = cfg.expt.gain
-        self.pulse_type = cfg.expt.pulse_type
+        pulse = {
+            "freq": cfg.expt.frequency,
+            "gain": cfg.expt.gain,
+            "type": cfg.expt.pulse_type,
+            "sigma": cfg.expt.length,
+            "phase": 0,
+        }
+        super().make_pulse(pulse, "qubit_pulse")
 
-        super()._initialize(cfg)
         self.add_loop("freq_loop", cfg.expt.expts)
 
         if cfg.expt.checkEF:
-            super().make_pi_pulse(q, cfg.device.qubit.f_ge, "pi_pulse_ge")
+            pulse = {
+                key: value[q] for key, value in cfg.device.qubit.pulses.pi_ge.items()
+            }
+            pulse["freq"] = cfg.device.qubit.f_ge[q]
+            pulse["phase"] = 0
+            super().make_pulse(pulse, "pi_pulse_ge")
 
     def _body(self, cfg):
 
@@ -99,10 +102,7 @@ class QubitSpec(QickExperiment):
         prefix += style + f"_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        # This one may need a bunch of options.
-        # coarse: wide span, medium gain, centered at ge freq
-        # ef: coarse: medium span, extra high gain, centered at the ef frequency
-        # otherwise, narrow span, low gain, centered at ge frequency
+        # Define default parameters
         max_length = 150  # Based on qick error messages, but not investigated
         spec_gain = self.cfg.device.readout.spec_gain[qi]
         if style == "coarse":
@@ -125,6 +125,11 @@ class QubitSpec(QickExperiment):
             "sep_readout": True,
         }
         params_def = {**params_def, **params_def2}
+
+        # Check for unexpected parameters
+        unexpected_params = set(params.keys()) - set(params_def.keys())
+        if unexpected_params:
+            warnings.warn(f"Unexpected parameters found in params: {unexpected_params}")
 
         # combine params and params_Def, preferring params
         params = {**params_def, **params}
@@ -252,6 +257,7 @@ class QubitSpecPower(QickExperiment2D):
         prefix += style + f"_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
+        # Define default parameters
         max_length = 150
         if style == "coarse":
             params_def = {"span": 800, "expts": 500}
@@ -278,7 +284,12 @@ class QubitSpecPower(QickExperiment2D):
         }
         params_def = {**params_def, **params_def2}
 
-        # combine params and params_Def, preferreing params
+        # Check for unexpected parameters
+        unexpected_params = set(params.keys()) - set(params_def.keys())
+        if unexpected_params:
+            warnings.warn(f"Unexpected parameters found in params: {unexpected_params}")
+
+        # combine params and params_def, preferring params
         params = {**params_def, **params}
 
         if checkEF:
@@ -336,9 +347,9 @@ class QubitSpecPower(QickExperiment2D):
     def display(self, data=None, fit=True, plot_amps=True, ax=None, **kwargs):
 
         if self.cfg.expt.checkEF:
-            title = f"EF Spectroscopy Power Sweep Q{self.cfg.expt.qubit}"
+            title = f"EF Spectroscopy Power Sweep Q{self.cfg.expt.qubit[0]}"
         else:
-            title = f"Spectroscopy Power Sweep Q{self.cfg.expt.qubit}"
+            title = f"Spectroscopy Power Sweep Q{self.cfg.expt.qubit[0]}"
 
         xlabel = "Qubit Frequency (MHz)"
         ylabel = "Qubit Gain (DAC level)"
