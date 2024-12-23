@@ -290,14 +290,14 @@ class ACStarkShiftPulseProbeExperiment(Experiment):
             ylabel="Pump Gain [dac units]",
         )
         plt.pcolormesh(x_sweep, y_sweep, avgi, cmap="viridis", shading="auto")
-        plt.colorbar(label="I [ADC level]")
+        plt.colorbar(label="I (ADC level)")
         plt.clim(vmin=None, vmax=None)
         # plt.axvline(1684.92, color='k')
         # plt.axvline(1684.85, color='r')
 
         plt.subplot(212, xlabel="Frequency [MHz]", ylabel="Pump Gain [dac units]")
         plt.pcolormesh(x_sweep, y_sweep, avgq, cmap="viridis", shading="auto")
-        plt.colorbar(label="Q [ADC level]")
+        plt.colorbar(label="Q (ADC level)")
         plt.clim(vmin=None, vmax=None)
 
         if fit:

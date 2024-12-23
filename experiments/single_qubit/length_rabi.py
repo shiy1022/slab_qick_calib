@@ -411,7 +411,7 @@ class LengthRabiExperiment(Experiment):
                 self.cfg.expt.qubits[-1]
             ]  # gain of the pulse we are trying to calibrate
         plt.subplot(
-            211, title=f"Length Rabi (Qubit Gain {gain})", ylabel="I [adc level]"
+            211, title=f"Length Rabi (Qubit Gain {gain})", ylabel="I (ADC level)"
         )
         plt.plot(xpts_ns[1:-1], data["avgi"][1:-1], "o-")
         if fit:
@@ -607,7 +607,7 @@ class LengthRabiExperiment(Experiment):
                 extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
                 aspect="auto",
             )
-            plt.colorbar(label="I [ADC level]")
+            plt.colorbar(label="I (ADC level)")
             plt.clim(vmin=None, vmax=None)
             # plt.axvline(1684.92, color='k')
             # plt.axvline(1684.85, color='r')
@@ -619,7 +619,7 @@ class LengthRabiExperiment(Experiment):
                 extent=[x_sweep[0], x_sweep[-1], y_sweep[0], y_sweep[-1]],
                 aspect="auto",
             )
-            plt.colorbar(label="Q [ADC level]")
+            plt.colorbar(label="Q (ADC level)")
             plt.clim(vmin=None, vmax=None)
 
             if fit:

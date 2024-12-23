@@ -104,16 +104,19 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
     device["qubit"]["kappa"] = [0] * num_qubits
     device["qubit"]["pulses"]["pi_ge"]["gain"] = [0.15] * num_qubits
     device["qubit"]["pulses"]["pi_ge"]["sigma"] = [0.1] * num_qubits
+    device["qubit"]["pulses"]["pi_ge"]["sigma_inc"] = [5] * num_qubits
     device["qubit"]["pulses"]["pi_ge"]["type"] = ["gauss"] * num_qubits
     device["qubit"]["pulses"]["pi_ef"]["type"] = ["gauss"] * num_qubits
     device["qubit"]["pulses"]["pi_ef"]["gain"] = [0.15] * num_qubits
     device["qubit"]["pulses"]["pi_ef"]["sigma"] = [0.1] * num_qubits
+    device["qubit"]["pulses"]["pi_ef"]["sigma_inc"] = [5] * num_qubits
     device["qubit"]["pop"] = [0] * num_qubits
     device["qubit"]["temp"] = [0] * num_qubits
     device["readout"]["frequency"] = [7000] * num_qubits
     device["readout"]["gain"] = [0.05] * num_qubits
     device["readout"]["lamb"] = [0] * num_qubits
     device["readout"]["spec_gain"] = [1] * num_qubits
+
     device["readout"]["phase"] = [0] * num_qubits
     device["readout"]["readout_length"] = [5] * num_qubits
     device["readout"]["threshold"] = [10] * num_qubits
@@ -130,7 +133,7 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
     device["qubit"]["max_gain"] = 1
     device["readout"]["max_gain"] = 1
     device["readout"]["reps_base"] = 150
-    device["readout"]["rounds_base"] = 1
+    device["readout"]["soft_avgs_base"] = 1
     soc = {
         "adcs": {"readout": {"ch": [0] * num_qubits}},
         "dacs": {

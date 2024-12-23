@@ -643,13 +643,13 @@ class RamseyStarkFreq2Experiment(Experiment):
             )
             plt.pcolormesh(x_sweep, y_sweep, avgi, cmap="viridis", shading="auto")
 
-            plt.colorbar(label="I [ADC level]")
+            plt.colorbar(label="I (ADC level)")
             plt.clim(vmin=None, vmax=None)
 
             plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Amplitude [MHz]")
             plt.pcolormesh(x_sweep, y_sweep, avgq, cmap="viridis", shading="auto")
 
-            plt.colorbar(label="Q [ADC level]")
+            plt.colorbar(label="Q (ADC level)")
             plt.clim(vmin=None, vmax=None)
         else:
             fig = plt.figure(figsize=(10, 6))
@@ -657,7 +657,7 @@ class RamseyStarkFreq2Experiment(Experiment):
             plt.ylabel("Gain [DAC units]")
             plt.pcolormesh(x_sweep, y_sweep, avgi, cmap="viridis", shading="auto")
 
-            plt.colorbar(label="I [ADC level]")
+            plt.colorbar(label="I (ADC level)")
             plt.clim(vmin=None, vmax=None)
 
         plt.tight_layout()

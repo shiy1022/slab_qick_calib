@@ -5,6 +5,7 @@ from tqdm import tqdm_notebook as tqdm
 from qick import *
 from slab import AttrDict
 from qick_experiment import QickExperiment
+from qick_program import QickProgram
 
 """
 Run this calibration when the wiring of the setup is changed.
@@ -14,6 +15,10 @@ This calibration measures the time of flight of measurement pulse so we only sta
 
 
 class LoopbackProgram(QickProgram):
+    
+    def __init__(self, soccfg, final_delay, cfg):
+        super().__init__(soccfg, final_delay, cfg)
+    
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
         self.frequency = cfg.expt.frequency
@@ -21,6 +26,7 @@ class LoopbackProgram(QickProgram):
         self.readout_length = cfg.expt.readout_length
         self.phase = 0
         super()._initialize(cfg, readout="custom")
+        print('check')
 
     def _body(self, cfg):
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
@@ -28,7 +34,7 @@ class LoopbackProgram(QickProgram):
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
-            t=self.trig_offset,
+            t=0,
             ddr4=True,
         )
 
@@ -63,12 +69,13 @@ class ToFCalibrationExperiment(QickExperiment):
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
         params_def = {
+            "soft_avgs": 1000,
             "pulse_length": 0.5,  # [us]
             "readout_length": 1,  # [us]
-            "trig_offset": 150,  # [clock ticks]
+            "trig_offset": self.cfg.device.readout.trig_offset[qi],  # [us]
             "gain": self.cfg.device.readout.max_gain,
             "frequency": self.cfg.device.readout.frequency[qi],  # [MHz]
-            "reps": self.cfg.device.readout.reps,  # Number of averages per point
+            "reps": 1,  # Number of averages per point
             "qubit": [qi],
             "final_delay": 0.1,
         }
@@ -96,7 +103,7 @@ class ToFCalibrationExperiment(QickExperiment):
         amp = np.abs(i + 1j * q)  # Calculating the magnitude
         phase = np.angle(i + 1j * q)  # Calculating the phase
 
-        data = dict('xpts'=t, 'i'=i, 'q'=q, 'amps'=amp, 'phases'=phase)
+        data = {'xpts':t, 'i':i, 'q':q, 'amps':amp, 'phases':phase}
 
         for k, a in data.items():
             data[k] = np.array(a)
@@ -114,8 +121,8 @@ class ToFCalibrationExperiment(QickExperiment):
             data = self.data
 
         q_ind = self.cfg.expt.qubit[0]
-        adc_ch = self.cfg.hw.soc.adcs.readout.ch
-        dac_ch = self.cfg.hw.soc.dacs.readout.ch
+        adc_ch = self.cfg.hw.soc.adcs.readout.ch[q_ind]
+        dac_ch = self.cfg.hw.soc.dacs.readout.ch[q_ind]
         plt.subplot(
             111,
             title=f"Time of flight calibration: DAC Ch. {dac_ch} to ADC Ch. {adc_ch}",

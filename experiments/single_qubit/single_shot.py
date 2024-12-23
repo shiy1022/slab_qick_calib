@@ -7,6 +7,8 @@ import seaborn as sns
 from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
 from qick_experiment import QickExperiment
+from qick_program import QickProgram
+import warnings
 
 blue = "#4053d3"
 red = "#b51d14"
@@ -161,11 +163,18 @@ def hist(data, plot=True, span=None, ax=None, verbose=False):
             )
         axs[0, 1].plot(xg_new, yg_new, color="k", marker="o")
         axs[0, 1].plot(xe_new, ye_new, color="k", marker="o")
+        axs[0, 1].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
+                   transform=axs[0, 1].transAxes, fontsize=10, 
+                   verticalalignment='top', horizontalalignment='right', 
+                   bbox=dict(facecolor='white', alpha=0.5))
         if plot_f:
             axs[0, 1].scatter(xf, yf, color="k", marker="o")
 
-        # axs[0,1].set_xlabel('I [ADC levels]')
-        axs[0, 1].legend(loc="upper right")
+        axs[0,1].set_xlabel('I [ADC levels]')
+        lgnd=axs[0, 1].legend(loc='lower right')
+        lgnd.legendHandles[0].set_markersize(6)
+        lgnd.legendHandles[1].set_markersize(6)
+        
         axs[0, 1].set_title("Rotated")
         axs[0, 1].axis("equal")
 
@@ -208,6 +217,7 @@ def hist(data, plot=True, span=None, ax=None, verbose=False):
         axs[1, 1].set_xlabel("I [ADC levels]")
 
         plt.subplots_adjust(hspace=0.25, wspace=0.15)
+        fig.tight_layout()
         plt.show()
     else:
         fig = None
@@ -250,271 +260,60 @@ def hist(data, plot=True, span=None, ax=None, verbose=False):
         ax[1].legend(loc="upper right")
         ax[1].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
         ax[1].axvline(thresholds[0], color="0.2", linestyle="--")
-
-    return fids, thresholds, theta * 180 / np.pi, fig  # fids: ge, gf, ef
+        
+    params = {'fids': fids, 'thresholds': thresholds, 'angle': theta * 180 / np.pi, 'ig':xg_new, 'ie':xe_new}
+    return params, fig
 
 
 # ====================================================== #
 
 
-class HistogramProgram(AveragerProgram):
-    def __init__(self, soccfg, cfg):
+class HistogramProgram(QickProgram):
 
-        self.cfg = AttrDict(cfg)
-        self.cfg.update(self.cfg.expt)
+    def __init__(self, soccfg, final_delay, cfg):
+        super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
 
-        # copy over parameters for the acquire method
-        self.cfg.reps = cfg.expt.reps
-
-        super().__init__(soccfg, self.cfg)
-
-    def initialize(self):
+    def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
-        self.cfg.update(cfg.expt)
-        self.qubits = self.cfg.expt.qubits
-        qTest = self.qubits[0]
-        # self.num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        self.qubit_chs = self.cfg.hw.soc.dacs.qubit.ch
+        self.add_loop("shotloop", cfg.expt.shots)  # number of total shots
 
-        self.adc_chs = cfg.hw.soc.adcs.readout.ch
-        self.res_chs = cfg.hw.soc.dacs.readout.ch
-        self.res_ch_types = cfg.hw.soc.dacs.readout.type
+        self.frequency = cfg.expt.frequency
+        self.gain = cfg.expt.gain
+        self.phase = 0
+        self.readout_length = cfg.expt.readout_length
+        super()._initialize(cfg, readout="")
 
-        self.qubit_chs = cfg.hw.soc.dacs.qubit.ch
-        self.qubit_ch_types = cfg.hw.soc.dacs.qubit.type
+        super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
-        self.f_ge = [
-            self.freq2reg(f, gen_ch=ch)
-            for f, ch in zip(cfg.device.qubit.f_ge, self.qubit_chs)
-        ]
-        if self.cfg.expt.pulse_f:
-            self.f_ef = self.freq2reg(cfg.device.qubit.f_ef, gen_ch=self.qubit_ch)
+        super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
 
-        self.f_ef = [
-            self.freq2reg(f, gen_ch=ch)
-            for f, ch in zip(cfg.device.qubit.f_ef, self.qubit_chs)
-        ]
-        self.f_res_reg = [
-            self.freq2reg(f, gen_ch=gen_ch, ro_ch=adc_ch)
-            for f, gen_ch, adc_ch in zip(
-                cfg.device.readout.frequency, self.res_chs, self.adc_chs
-            )
-        ]
-        self.readout_lengths_dac = [
-            self.us2cycles(length, gen_ch=gen_ch)
-            for length, gen_ch in zip(
-                self.cfg.device.readout.readout_length, self.res_chs
-            )
-        ]
-        self.readout_lengths_adc = [
-            1 + self.us2cycles(length, ro_ch=ro_ch)
-            for length, ro_ch in zip(
-                self.cfg.device.readout.readout_length, self.adc_chs
-            )
-        ]
+    def _body(self, cfg):
 
-        mask = None
-        mixer_freq = 0  # MHz
-        mux_freqs = None  # MHz
-        mux_gains = None
-        ro_ch = None
-        if self.res_ch_types[qTest] == "int4":
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
-        elif self.res_ch_types[qTest] == "mux4":
-            assert self.res_chs[qTest] == 6
-            mask = [0, 1, 2, 3]  # indices of mux_freqs, mux_gains list to play
-
-            mux_freqs = [0] * 4
-            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency[qTest]
-            mux_gains = [0] * 4
-            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain[qTest]
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq[qTest]
-
-            ro_ch = self.adc_chs[qTest]
-        else:
-            ro_ch = self.adc_chs[qTest]
-
-        self.declare_gen(
-            ch=self.res_chs[qTest],
-            nqz=cfg.hw.soc.dacs.readout.nyquist[qTest],
-            mixer_freq=mixer_freq,
-            mux_freqs=mux_freqs,
-            mux_gains=mux_gains,
-            ro_ch=ro_ch,
-        )
-        self.declare_readout(
-            ch=self.adc_chs[qTest],
-            length=self.readout_lengths_adc[qTest],
-            freq=cfg.device.readout.frequency[qTest],
-            gen_ch=self.res_chs[qTest],
-        )
-
-        self.declare_gen(
-            ch=self.qubit_chs[qTest], nqz=cfg.hw.soc.dacs.qubit.nyquist[qTest]
-        )
-
-        self.pi_sigma = self.us2cycles(
-            cfg.device.qubit.pulses.pi_ge.sigma[qTest], gen_ch=self.qubit_chs[qTest]
-        )
-        self.pi_gain = cfg.device.qubit.pulses.pi_ge.gain[qTest]
-        if self.cfg.expt.pulse_f:
-            self.pi_ef_sigma = self.us2cycles(
-                cfg.device.qubit.pulses.pi_ef.sigma, gen_ch=self.qubit_chs
-            )
-            self.pi_ef_gain = cfg.device.qubit.pulses.pi_ef.gain
-
-        # add qubit and readout pulses to respective channels
-        if (
-            self.cfg.expt.pulse_e
-            or self.cfg.expt.pulse_f
-            and cfg.device.qubit.pulses.pi_ge.type == "gauss"
-        ):
-            self.add_gauss(
-                ch=self.qubit_chs[qTest],
-                name="pi_qubit",
-                sigma=self.pi_sigma,
-                length=self.pi_sigma * 4,
-            )
-        if self.cfg.expt.pulse_f and cfg.device.qubit.pulses.pi_ef.type == "gauss":
-            self.add_gauss(
-                ch=self.qubit_ch,
-                name="pi_ef_qubit",
-                sigma=self.pi_ef_sigma,
-                length=self.pi_ef_sigma * 4,
-            )
-
-        if self.res_ch_types[qTest] == "mux4":
-            self.set_pulse_registers(
-                ch=self.res_chs[qTest],
-                style="const",
-                length=self.readout_lengths_dac[qTest],
-                mask=mask,
-            )
-        else:
-            self.set_pulse_registers(
-                ch=self.res_chs[qTest],
-                style="const",
-                freq=self.f_res_reg[qTest],
-                gain=cfg.device.readout.gain[qTest],
-                length=self.readout_lengths_dac[qTest],
-                phase=self.deg2reg(
-                    -self.cfg.device.readout.phase[qTest], gen_ch=self.res_chs[qTest]
-                ),
-            )
-
-        # print(-self.cfg.device.readout.phase)
-
-        self.sync_all(200)
-
-    def body(self):
         cfg = AttrDict(self.cfg)
-        qTest = cfg.expt.qubits[0]
+        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
-        if self.res_ch_types[qTest] == "mux4":
-            assert self.res_chs[qTest] == 6
-            mask = [0, 1, 2, 3]  # indices of mux_freqs, mux_gains list to play
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-            mux_freqs = cfg.device.readout.frequency[0:4]
-            mux_gains = cfg.device.readout.gain[0:4]
-            ro_ch = self.adc_chs[qTest]
-        else:
-            ro_ch = self.adc_chs[qTest]
+        if cfg.expt.pulse_e:
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
 
-        # Phase reset all channels
-        # print("using phase reset")
-        # for ch in self.gen_chs.keys():
-        #     if not self.res_ch_types[qTest] == 'mux4':#self.gen_chs[ch]['mux_freqs'] is None: # doesn't work for the mux channels # is None or ch in self.res_chs:
-        #        self.setup_and_pulse(ch=ch, style='const', freq=self.f_res_reg[qTest], phase=0, gain=0, length=self.us2cycles(0.1), phrst=1)
-        #     self.sync_all()
+        if cfg.expt.pulse_f:
+            self.pulse(ch=self.qubit_ch, name="pi_ef", t=0)
+        self.delay_auto(t=0.01, tag="wait")
 
-        if self.res_ch_types[qTest] == "mux4":
-            self.set_pulse_registers(
-                ch=self.res_chs[qTest],
-                style="const",
-                length=self.readout_lengths_dac[qTest],
-                mask=mask,
-            )
-        else:
-            self.set_pulse_registers(
-                ch=self.res_chs[qTest],
-                style="const",
-                freq=self.f_res_reg[qTest],
-                phase=self.deg2reg(0, gen_ch=self.res_chs[qTest]),
-                gain=cfg.device.readout.gain[qTest],
-                length=self.readout_lengths_dac[qTest],
-            )
-
-        self.sync_all(100)
-
-        if self.cfg.expt.pulse_e or self.cfg.expt.pulse_f:
-            if cfg.device.qubit.pulses.pi_ge.type == "gauss":
-                self.setup_and_pulse(
-                    ch=self.qubit_chs[qTest],
-                    style="arb",
-                    freq=self.f_ge[qTest],
-                    phase=0,
-                    gain=self.pi_gain,
-                    phrst=0,
-                    waveform="pi_qubit",
-                )
-            else:  # const pulse
-                self.setup_and_pulse(
-                    ch=self.qubit_chs[qTest],
-                    style="const",
-                    freq=self.f_ge[qTest],
-                    phase=0,
-                    gain=self.pi_gain,
-                    phrst=0,
-                    length=self.pi_sigma,
-                )
-        self.sync_all()
-
-        if self.cfg.expt.pulse_f:
-            if cfg.device.qubit.pulses.pi_ef.type == "gauss":
-                self.setup_and_pulse(
-                    ch=self.qubit_ch,
-                    style="arb",
-                    freq=self.f_ef[qTest],
-                    phase=0,
-                    gain=self.pi_ef_gain,
-                    waveform="pi_ef_qubit",
-                )
-            else:  # const pulse
-                self.setup_and_pulse(
-                    ch=self.qubit_ch,
-                    style="const",
-                    freq=self.f_ef[qTest],
-                    phase=0,
-                    gain=self.pi_ef_gain,
-                    length=self.pi_ef_sigma,
-                )
-        self.sync_all()
-
-        self.measure(
-            pulse_ch=self.res_chs[qTest],
-            adcs=[self.adc_chs[qTest]],
-            adc_trig_offset=cfg.device.readout.trig_offset[qTest],
-            wait=True,
-            syncdelay=self.us2cycles(
-                cfg.device.readout.final_delay[qTest]
-            ),  # , gen_ch=self.res_ch
+        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
+        self.trigger(
+            ros=[self.adc_ch],
+            pins=[0],
+            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
         )
-
-    def collect_shots(self):
-        # collect shots for the relevant adc and I and Q channels
-        cfg = AttrDict(self.cfg)
-        qTest = cfg.expt.qubits[0]
-        # print(np.average(self.di_buf[0]))
-        shots_i0 = self.di_buf[0] / self.readout_lengths_adc[qTest]
-        shots_q0 = self.dq_buf[0] / self.readout_lengths_adc[qTest]
-        return shots_i0, shots_q0
 
 
 class HistogramExperiment(QickExperiment):
     """
     Histogram Experiment
     expt = dict(
-        reps: number of shots per expt
+        shots: number of shots per expt
         check_e: whether to test the e state blob (true if unspecified)
         check_f: whether to also test the f state blob
     )
@@ -528,62 +327,69 @@ class HistogramExperiment(QickExperiment):
         qi=0,
         go=True,
         check_f=False,
-        reps=10000,
+        params={},
         style="",
     ):
 
         if prefix is None:
             prefix = f"single_shot_qubit_{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
-        self.cfg.expt = dict(
-            reps=reps,
+        params_def = dict(
+            shots=10000,
+            reps=1,
+            soft_avgs=1,
+            readout_length=self.cfg.device.readout.readout_length[qi],
+            frequency=self.cfg.device.readout.frequency[qi],
+            gain=self.cfg.device.readout.gain[qi],
             check_e=True,
             check_f=check_f,
-            qubits=[qi],
+            qubit=[qi],
             qubit_chan=self.cfg.hw.soc.adcs.readout.ch[qi],
         )
+        self.cfg.expt = {**params_def, **params}
 
         if go:
             self.go(analyze=True, display=True, progress=True, save=True)
 
     def acquire(self, progress=False, debug=False):
-        super().update_config()
 
         data = dict()
-
+        final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
         # Ground state shots
         cfg2 = copy.deepcopy(dict(self.cfg))
         cfg = AttrDict(cfg2)
         cfg.expt.pulse_e = False
         cfg.expt.pulse_f = False
-        histpro = HistogramProgram(soccfg=self.soccfg, cfg=cfg)
-        avgi, avgq = histpro.acquire(
+
+        histpro = HistogramProgram(soccfg=self.soccfg, final_delay=final_delay, cfg=cfg)
+        iq_list = histpro.acquire(
             self.im[self.cfg.aliases.soc],
             threshold=None,
             load_pulses=True,
             progress=progress,
         )
-        data["Ig"], data["Qg"] = histpro.collect_shots()
+        data["Ig"] = iq_list[0][0][:, 0]
+        data["Qg"] = iq_list[0][0][:, 1]
 
         # Excited state shots
-        if "check_e" not in self.cfg.expt:
-            self.check_e = True
-        else:
-            self.check_e = self.cfg.expt.check_e
-        if self.check_e:
+        if self.cfg.expt.check_e:
             cfg = AttrDict(self.cfg.copy())
             cfg.expt.pulse_e = True
             cfg.expt.pulse_f = False
-            histpro = HistogramProgram(soccfg=self.soccfg, cfg=cfg)
-            avgi, avgq = histpro.acquire(
+            histpro = HistogramProgram(
+                soccfg=self.soccfg, final_delay=final_delay, cfg=cfg
+            )
+            iq_list = histpro.acquire(
                 self.im[self.cfg.aliases.soc],
                 threshold=None,
                 load_pulses=True,
                 progress=progress,
             )
-            data["Ie"], data["Qe"] = histpro.collect_shots()
+
+        data["Ie"] = iq_list[0][0][:, 0]
+        data["Qe"] = iq_list[0][0][:, 1]
 
         # Excited state shots
         self.check_f = self.cfg.expt.check_f
@@ -607,12 +413,10 @@ class HistogramExperiment(QickExperiment):
         if data is None:
             data = self.data
 
-        fids, thresholds, angle, _ = hist(
+        params, _ = hist(
             data=data, plot=False, span=span, verbose=verbose
         )
-        data["fids"] = fids
-        data["angle"] = angle
-        data["thresholds"] = thresholds
+        data.update(params)
 
         return data
 
@@ -635,10 +439,12 @@ class HistogramExperiment(QickExperiment):
         else:
             savefig = True
 
-        fids, thresholds, angle, fig = hist(
+        params, fig = hist(
             data=data, plot=plot, verbose=verbose, span=span, ax=ax
         )
-
+        fids = params["fids"]
+        thresholds = params["thresholds"]
+        angle = params["angle"]
         print(f"ge Fidelity (%): {100*fids[0]:.3f}")
         if "expt" not in self.cfg:
             self.cfg.expt.check_e = plot_e
@@ -651,18 +457,18 @@ class HistogramExperiment(QickExperiment):
         if self.cfg.expt.check_f:
             print(f"Threshold gf: {thresholds[1]:.3f}")
             print(f"Threshold ef: {thresholds[2]:.3f}")
-        qubit = self.cfg.expt.qubits[0]
+        qubit = self.cfg.expt.qubit[0]
         imname = self.fname.split("\\")[-1]
 
         if savefig:
             fig.suptitle(f"Single Shot Histogram Analysis Q{qubit}")
             fig.tight_layout()
+            plt.show()
             fig.savefig(
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
             )
 
     def save_data(self, data=None):
-        print(f"Saving {self.fname}")
         super().save_data(data=data)
 
 
@@ -710,19 +516,23 @@ class SingleShotOptExperiment(QickExperiment):
             "expts_f": 5,
             "expts_gain": 5,
             "expts_len": 5,
-            "reps": 10000,
+            "shots": 10000,
             "check_f": False,
+            "qubit": [qi],
+            "save_data": True,
+            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
+        params = {**params_def, **params}
 
         # Start vals
-        if params_def["expts_f"] == 1:
+        if params["expts_f"] == 1:
             params_def["start_f"] = self.cfg.device.readout.frequency[qi]
         else:
             params_def["start_f"] = (
-                self.cfg.device.readout.frequency[qi] - 0.5 * params_def["span_f"]
+                self.cfg.device.readout.frequency[qi] - 0.5 * params["span_f"]
             )
 
-        if params_def["expts_gain"] == 1:
+        if params["expts_gain"] == 1:
             params_def["start_gain"] = self.cfg.device.readout.gain[qi]
         else:
             if style == "fine":
@@ -732,7 +542,7 @@ class SingleShotOptExperiment(QickExperiment):
                 params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.3
                 params_def["span_gain"] = 1.8 * self.cfg.device.readout.gain[qi]
 
-        if params_def["expts_len"] == 1:
+        if params["expts_len"] == 1:
             params_def["start_len"] = self.cfg.device.readout.readout_length[qi]
         else:
             if style == "fine":
@@ -752,29 +562,27 @@ class SingleShotOptExperiment(QickExperiment):
 
         params = {**params_def, **params}
         if params["expts_f"] == 1:
-            params["step_f"] = 0
+            params_def["step_f"] = 0
         else:
-            params["step_f"] = params_def["span_f"] / (params["expts_f"] - 1)
+            params_def["step_f"] = params_def["span_f"] / (params["expts_f"] - 1)
 
-        if params_def["expts_gain"] == 1:
-            params["step_gain"] = 0
+        if params["expts_gain"] == 1:
+            params_def["step_gain"] = 0
+            params_def["span_gain"] = 0
         else:
-            params["step_gain"] = params_def["span_gain"] / (params["expts_gain"] - 1)
+            params_def["step_gain"] = params_def["span_gain"] / (params["expts_gain"] - 1)
 
         if params["expts_len"] == 1:
-            params["step_len"] = 0
+            params_def["step_len"] = 0
         else:
-            params["step_len"] = params_def["span_len"] / (params["expts_len"] - 1)
+            params_def["step_len"] = params_def["span_len"] / (params["expts_len"] - 1)
 
-        if params["span_gain"] + params["start_gain"] > self.cfg.device.qubit.max_gain:
-            params["span_gain"] = self.cfg.device.qubit.max_gain - params["start_gain"]
+        if params_def["span_gain"] + params_def["start_gain"] > self.cfg.device.qubit.max_gain:
+            params_def["span_gain"] = self.cfg.device.qubit.max_gain - params_def["start_gain"]
+        self.cfg.expt = {**params_def, **params}
 
-        params_exp = {
-            "qubit": [qi],
-            "save_data": True,
-            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
-        }
-        self.cfg.expt = {**params, **params_exp}
+        # Check for unexpected parameters
+        super().check_params(params)
 
         if go:
             self.go(analyze=False, display=False, progress=False, save=True)
@@ -791,9 +599,7 @@ class SingleShotOptExperiment(QickExperiment):
         lenpts = self.cfg.expt["start_len"] + self.cfg.expt["step_len"] * np.arange(
             self.cfg.expt["expts_len"]
         )
-        # print(fpts)
-        # print(gainpts)
-        # print(lenpts)
+
         if "save_data" not in self.cfg.expt:
             self.cfg.expt.save_data = False
 
@@ -845,23 +651,20 @@ class SingleShotOptExperiment(QickExperiment):
                         go=False,
                         progress=False,
                         qi=self.cfg.expt.qubit[0],
+                        params=dict(
+                            frequency=f,
+                            gain=gain,
+                            readout_length=l,
+                            reps=1,
+                            check_e=True,
+                            check_f=check_f,
+                            shots=self.cfg.expt.shots,
+                            save_data=self.cfg.expt.save_data,
+                            qubit_chan=self.cfg.expt.qubit_chan,
+                        ),
                     )
-                    shot.cfg = self.cfg
-                    shot.cfg.device.readout.frequency = float(f)
-                    if int_rgain:
-                        shot.cfg.device.readout.gain = int(gain)
-                    shot.cfg.device.readout.readout_length = float(l)
-                    check_e = True
-
-                    shot.cfg.expt = dict(
-                        reps=self.cfg.expt.reps,
-                        check_e=check_e,
-                        check_f=check_f,
-                        qubit=self.cfg.expt.qubit,
-                        save_data=self.cfg.expt.save_data,
-                        qubits=self.cfg.expt.qubits,
-                        qubit_chan=self.cfg.expt.qubit_chan,
-                    )
+                    #shot.cfg = self.cfg
+                    
                     shot.go(analyze=False, display=False, progress=progress, save=False)
                     Ig[-1][-1].append(shot.data["Ig"])
                     Ie[-1][-1].append(shot.data["Ie"])
@@ -953,7 +756,7 @@ class SingleShotOptExperiment(QickExperiment):
         npts = []
         inds = []
         sweep_var = []
-        labs = ["Freq.", "Gain", "Len"]
+        labs = ["Freq. (MHz)", "Gain", "Readout Length ($\mu$s)"]
         if len(fpts) > 1:
             ndims += 1
             sweep_var.append("fpts")
@@ -978,7 +781,7 @@ class SingleShotOptExperiment(QickExperiment):
                 col = 5
             return row, col
 
-        title = f"Single Shot Optimization Q{self.cfg.expt.qubit}"
+        title = f"Single Shot Optimization Q{self.cfg.expt.qubit[0]}"
 
         def return_dim(data, dim, i):
             if len(dim) == 1:
@@ -1092,7 +895,7 @@ class SingleShotOptExperiment(QickExperiment):
             self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "_raw_{k}.png"
         )
 
-        title = f"Single Shot Optimization Q{self.cfg.expt.qubit}"
+        title = f"Single Shot Optimization Q{self.cfg.expt.qubit[0]}"
         fig = plt.figure(figsize=(9, 5.5))
         plt.title(title)
         if len(fpts) > 1:
@@ -1102,22 +905,24 @@ class SingleShotOptExperiment(QickExperiment):
             var2 = lenpts
             npts = len(var1) * len(var2)
             bb = sns.color_palette("coolwarm", npts)
+            leg_title = "Gain, Len ($\mu$s)"
             for v1_ind, v1 in enumerate(var1):
                 for v2_ind, v2 in enumerate(var2):
                     plt.plot(
                         xval,
                         100 * fid[:, v1_ind, v2_ind],
                         "o-",
-                        label=f"{v1:1.0f}, {v2:.2f}",
+                        label=f"{v1:.2f}, {v2:.2f}",
                         color=bb[v1_ind * len(var2) + v2_ind],
                     )
         elif len(gainpts) > 1:
             xval = gainpts
-            xlabel = "Gain [DAC units]"
+            xlabel = "Gain/Max Gain"
             var1 = fpts
             var2 = lenpts
             npts = len(var1) * len(var2)
             bb = sns.color_palette("coolwarm", npts)
+            leg_title = "Freq (MHz), Len ($\mu$s)"
             for v1_ind, v1 in enumerate(var1):
                 for v2_ind, v2 in enumerate(var2):
                     plt.plot(
@@ -1129,11 +934,12 @@ class SingleShotOptExperiment(QickExperiment):
                     )
         else:
             xval = lenpts
-            xlabel = "Readout length (us)"
+            xlabel = "Readout length ($\mu$s)"
             var1 = fpts
             var2 = gainpts
             npts = len(var1) * len(var2)
             bb = sns.color_palette("coolwarm", npts)
+            leg_title = "Freq (MHz), Gain"
             for v1_ind, v1 in enumerate(var1):
                 for v2_ind, v2 in enumerate(var2):
                     plt.plot(
@@ -1146,12 +952,11 @@ class SingleShotOptExperiment(QickExperiment):
 
         plt.xlabel(xlabel)
         plt.ylabel(f"Fidelity [%]")
-        plt.legend()
+        plt.legend(title=leg_title)
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
         plt.show()
 
     def save_data(self, data=None):
-        print(f"Saving {self.fname}")
         super().save_data(data=data)
         return self.fname

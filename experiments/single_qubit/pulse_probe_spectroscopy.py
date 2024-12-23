@@ -35,12 +35,7 @@ class QubitSpecProgram(QickProgram):
         self.add_loop("freq_loop", cfg.expt.expts)
 
         if cfg.expt.checkEF:
-            pulse = {
-                key: value[q] for key, value in cfg.device.qubit.pulses.pi_ge.items()
-            }
-            pulse["freq"] = cfg.device.qubit.f_ge[q]
-            pulse["phase"] = 0
-            super().make_pulse(pulse, "pi_pulse_ge")
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):
 
@@ -48,21 +43,22 @@ class QubitSpecProgram(QickProgram):
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         if cfg.expt.checkEF:
-            self.pulse(ch=self.qubit_ch, name="qubit_pulse_ge", t=0)
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
 
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
 
         if cfg.expt.checkEF:
-            self.pulse(ch=self.qubit_ch, name="qubit_pulse_ge", t=0)
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
 
         if cfg.expt.sep_readout:
             self.delay_auto(t=0.01, tag="waiting 2")
-
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
-            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
+            t=self.trig_offset,
         )
 
 
@@ -100,36 +96,34 @@ class QubitSpec(QickExperiment):
         if checkEF:
             prefix = prefix + "ef"
         prefix += style + f"_qubit{qi}"
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         # Define default parameters
         max_length = 150  # Based on qick error messages, but not investigated
         spec_gain = self.cfg.device.readout.spec_gain[qi]
+        low_gain = self.cfg.device.qubit.low_gain
         if style == "coarse":
-            params_def = {"gain": 0.05 * spec_gain, "span": 500, "expts": 500}
+            params_def = {"gain": 20*low_gain * spec_gain, "span": 500, "expts": 500, "reps":self.reps}
         elif style == "fine":
-            params_def = {"gain": 0.003 * spec_gain, "span": 5, "expts": 100}
+            params_def = {"gain": low_gain * spec_gain, "span": 5, "expts": 100, "reps":2*self.reps}
+        elif style == "huge":
+            params_def = {"gain": 80*low_gain * spec_gain, "span": 1500, "expts": 1000, "reps":self.reps}
         else:
-            params_def = {"gain": 0.015 * spec_gain, "span": 50, "expts": 200}
+            params_def = {"gain": 5*low_gain * spec_gain, "span": 50, "expts": 200, "reps":self.reps}
         if checkEF:
             params_def["gain"] = 2 * params_def["gain"]
+            params_def["reps"] = 2 * params_def["reps"]
         params_def2 = {
+            "soft_avgs": self.soft_avgs,
             "final_delay": 10,
             "length": 10,
-            "reps": self.reps,
-            "soft_avgs": self.soft_avgs,
             "pulse_type": "const",
             "checkEF": checkEF,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
             "sep_readout": True,
         }
-        params_def = {**params_def, **params_def2}
-
-        # Check for unexpected parameters
-        unexpected_params = set(params.keys()) - set(params_def.keys())
-        if unexpected_params:
-            warnings.warn(f"Unexpected parameters found in params: {unexpected_params}")
+        params_def = {**params_def2,**params_def}
 
         # combine params and params_Def, preferring params
         params = {**params_def, **params}
@@ -149,13 +143,15 @@ class QubitSpec(QickExperiment):
             params["length"] = max_length
 
         self.cfg.expt = params
-
+        # Check for unexpected parameters
+        super().check_params(params_def)
+    
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
-    def acquire(self, progress=False, debug=False):
-        self.qubit = self.cfg.expt.qubit[0]
-        self.cfg.device.readout.final_delay[self.qubit] = self.cfg.expt.final_delay
+    def acquire(self, progress=False):
+        q = self.cfg.expt.qubit[0]
+        self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
         self.param = {"label": "qubit_pulse", "param": "freq", "param_type": "pulse"}
         self.cfg.expt.frequency = QickSweep1D(
             "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
@@ -163,42 +159,34 @@ class QubitSpec(QickExperiment):
         super().acquire(QubitSpecProgram, progress=progress)
         return self.data
 
-    def analyze(self, data=None, fit=True, signs=[1, 1, 1], **kwargs):
-        if data is None:
-            data = self.data
+    def analyze(self, data=None, fit=True, **kwargs):
 
-        fitterfunc = fitter.fitlor
-        fitfunc = fitter.lorfunc
-        super().analyze(fitfunc, fitterfunc, data, **kwargs)
-        data["new_freq"] = data["best_fit"][2]
+        if fit:
+            fitterfunc = fitter.fitlor
+            fitfunc = fitter.lorfunc
+            super().analyze(fitfunc, fitterfunc)
+            data["new_freq"] = data["best_fit"][2]
         return self.data
 
     def display(
         self, data=None, fit=True, signs=[1, 1, 1], ax=None, plot_all=True, **kwargs
     ):
-        if data is None:
-            data = self.data
-
+        
         fitfunc = fitter.lorfunc
         xlabel = "Qubit Frequency (MHz)"
-        if "mixer_freq" in self.cfg.hw.soc.dacs.qubit:
-            xpts = self.cfg.hw.soc.dacs.qubit.mixer_freq + data["xpts"][1:-1]
-        elif "lo_freq" in self.cfg.hw.soc.dacs.qubit:
-            xpts = self.cfg.hw.soc.dacs.qubit.lo_freq + data["xpts"][1:-1]
-        else:
-            xpts = data["xpts"][1:-1]
-
+        
+        title = f"Spectroscopy Q{self.cfg.expt.qubit[0]} (Gain {self.cfg.expt.gain})"
         if self.cfg.expt.checkEF:
-            title = (
-                f"EF Spectroscopy Q{self.cfg.expt.qubit} (Gain {self.cfg.expt.gain})"
-            )
-        else:
-            title = f"Spectroscopy Q{self.cfg.expt.qubit} (Gain {self.cfg.expt.gain})"
+            title = "EF " + title
 
-        captionStr = ["Freq: {val:.6} MHz", "$\kappa$: {val:.3} MHz"]
-        var = [2, 3]
+        # Define which fit parameters to display in caption
+        # Index 2 is frequency, index 3 is kappa
+        caption_params = [
+            {"index": 2, "format": "Freq: {val:.6} MHz"},
+            {"index": 3, "format": "$\kappa$: {val:.3} MHz"},
+        ]
+
         super().display(
-            data=data,
             ax=ax,
             plot_all=plot_all,
             title=title,
@@ -206,8 +194,7 @@ class QubitSpec(QickExperiment):
             fit=fit,
             show_hist=False,
             fitfunc=fitfunc,
-            captionStr=captionStr,
-            var=var,
+            caption_params=caption_params,  # Pass the new structured parameter list
         )
 
     def save_data(self, data=None):
@@ -335,21 +322,19 @@ class QubitSpecPower(QickExperiment2D):
 
         return self.data
 
-    def analyze(self, data=None, fit=True, highgain=None, lowgain=None, **kwargs):
-        if data is None:
-            data = self.data
-
-        fitterfunc = fitter.fitlor
-        super().analyze(fitterfunc=fitterfunc)
+    def analyze(self, fit=True, **kwargs):
+        
+        if fit:
+            fitterfunc = fitter.fitlor
+            super().analyze(fitterfunc=fitterfunc)
 
         return self.data
 
     def display(self, data=None, fit=True, plot_amps=True, ax=None, **kwargs):
 
+        title = f"Spectroscopy Power Sweep Q{self.cfg.expt.qubit[0]}"
         if self.cfg.expt.checkEF:
-            title = f"EF Spectroscopy Power Sweep Q{self.cfg.expt.qubit[0]}"
-        else:
-            title = f"Spectroscopy Power Sweep Q{self.cfg.expt.qubit[0]}"
+            title = f"EF " + title
 
         xlabel = "Qubit Frequency (MHz)"
         ylabel = "Qubit Gain (DAC level)"

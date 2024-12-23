@@ -64,10 +64,12 @@ class AmplitudeRabiProgram(QickProgram):
         self.delay_auto(t=0.01, tag="waiting 2")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
-            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
+            t=self.trig_offset,
         )
 
 
@@ -79,7 +81,6 @@ class AmplitudeRabiExperiment(QickExperiment):
     - 'soft_avgs': Number of soft_avgs for each experiment (default: self.soft_avgs)
     - 'gain': Max gain value for the pulse (default: gain)
     - 'sigma': Standard deviation of the Gaussian pulse (default: sigma)
-    - 'checkZZ': Boolean flag to check ZZ interaction (default: False)
     - 'checkEF': Boolean flag to check EF interaction (default: False)
     - 'checkCC': Boolean flag to check CC interaction (default: False)
     - 'pulse_ge': Boolean flag to indicate if pulse is for ground to excited state transition (default: True)
@@ -110,11 +111,11 @@ class AmplitudeRabiExperiment(QickExperiment):
             if params["pulse_ge"]:
                 prefix = f"amp_rabi_ef_qubit{qi}"
             else:
-                prefix = f"amp_rabi_ef_noge_qubit{qi}"
+                prefix = f"amp_rabi_ef_no_ge_qubit{qi}"
         else:
             prefix = f"amp_rabi_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
         params_def = {
             "expts": 60,
             "reps": self.reps,
@@ -130,10 +131,10 @@ class AmplitudeRabiExperiment(QickExperiment):
 
         if checkEF:
             sigma = self.cfg.device.qubit.pulses.pi_ef.sigma[qi]
-            gain = self.cfg.device.qubit.pulses.pi_ef.gain[qi] * 2
+            gain = self.cfg.device.qubit.pulses.pi_ef.gain[qi] * 4
         else:
             sigma = self.cfg.device.qubit.pulses.pi_ge.sigma[qi]
-            gain = self.cfg.device.qubit.pulses.pi_ge.gain[qi] * 2
+            gain = self.cfg.device.qubit.pulses.pi_ge.gain[qi] * 4
         params_def["max_gain"] = gain
         params_def["sigma"] = sigma
         if style == "fine":
@@ -173,9 +174,12 @@ class AmplitudeRabiExperiment(QickExperiment):
                 fitfunc=fitfunc, fitterfunc=fitterfunc, fit=fit, **kwargs
             )
 
-            pi_length = fitter.fix_phase(data["best_fit"])
-            data["pi_length"] = pi_length
-
+        # Get pi length from fit
+        ydata_lab = ["amps", "avgi", "avgq"]
+        for ydata in ydata_lab:
+            pi_length = fitter.fix_phase(data["fit_" + ydata])
+            data["pi_gain_" + ydata] = pi_length
+        data["pi_gain"] = fitter.fix_phase(data["best_fit"])
         return data
 
     def display(
@@ -184,65 +188,36 @@ class AmplitudeRabiExperiment(QickExperiment):
         fit=True,
         plot_all=False,
         ax=None,
-        savefig=True,
         show_hist=False,
         **kwargs,
     ):
         if data is None:
             data = self.data
 
-        qTest = self.cfg.expt.qubit[0]
+        q = self.cfg.expt.qubit[0]
 
-        title = f"Amplitude Rabi Q{qTest} (Pulse Length {self.cfg.expt.sigma}"
-        xlabel = "Gain [DAC units]"
+        title = f"Amplitude Rabi Q{q} (Pulse Length {self.cfg.expt.sigma}"
+        xlabel = "Gain / Max Gain"
         fitfunc = fitter.sinfunc
-
+        captionStr = ["$\pi$ gain: {val:.0f}"]
+        var = ["pi_gain"]
         if self.cfg.expt.checkEF:
             title = title + ", EF)"
-
         else:
             title = title + ")"
 
-        # super().display(data=data,ax=ax,plot_all=plot_all,title=title, xlabel=xlabel, fit=fit, show_hist=show_hist,fitfunc=fitfunc,captionStr=captionStr,var=var)
-
-        if plot_all:
-            fig, ax = plt.subplots(3, 1, figsize=(9, 11))
-            fig.suptitle(title)
-            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
-            ydata_lab = ["amps", "avgi", "avgq"]
-        else:
-            if ax is None:
-                fig, a = plt.subplots(1, 1, figsize=(7.5, 4))
-                ax = [a]
-            ax[0].set_title(title)
-            ylabels = ["I [ADC units]"]
-            ydata_lab = ["avgi"]
-
-        for i, ydata in enumerate(ydata_lab):
-            ax[i].plot(data["xpts"], data[ydata], "o-")
-            if fit:
-                p = data["fit_" + ydata]
-                pi_gain = fitter.fix_phase(p)
-                pi2_gain = pi_gain / 2
-                if pi_gain is not np.nan:
-                    caption = f"$\pi$ gain: {pi_gain:.0f}"
-                ax[i].plot(
-                    data["xpts"][1:], fitfunc(data["xpts"][1:], *p), label=caption
-                )
-
-                ax[i].axvline(pi_gain, color="0.2", linestyle="--")
-                ax[i].axvline(pi2_gain, color="0.2", linestyle="--")
-                ax[i].set_ylabel(ylabels[i])
-                ax[i].set_xlabel(xlabel)
-                ax[i].legend(loc="lower right")
-
-        plt.show()
-        if savefig:
-            imname = self.fname.split("\\")[-1]
-            fig.tight_layout()
-            fig.savefig(
-                self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
-            )
+        super().display(
+            data=data,
+            ax=ax,
+            plot_all=plot_all,
+            title=title,
+            xlabel=xlabel,
+            fit=fit,
+            show_hist=show_hist,
+            fitfunc=fitfunc,
+            captionStr=captionStr,
+            var=var,
+        )
 
     def save_data(self, data=None):
         print(f"Saving {self.fname}")
@@ -335,21 +310,13 @@ class AmplitudeRabiChevronExperiment(QickExperiment2D):
         # expand entries in config that are length 1 to fill all qubits
         self.update_config()
 
-        if self.cfg.expt.checkZZ:
-            assert len(self.cfg.expt.qubit) == 2
-            qZZ, qTest = self.cfg.expt.qubit
-            assert qZZ != 1
-            assert qTest == 1
-        else:
-            qTest = self.cfg.expt.qubit[0]
+        qTest = self.cfg.expt.qubit[0]
 
         self.cfg.expt.start = self.cfg.expt.start_gain
         self.cfg.expt.step = self.cfg.expt.step_gain
         self.cfg.expt.expts = self.cfg.expt.expts_gain
         if "sigma" not in self.cfg.expt:
-            if self.cfg.expt.checkZZ:
-                self.cfg.expt.sigma = self.cfg.device.qubit.pulses.pi_Q1_ZZ.sigma[qZZ]
-            elif self.cfg.expt.checkEF:
+            if self.cfg.expt.checkEF:
                 self.cfg.expt.sigma = self.cfg.device.qubit.pulses.pi_ef.sigma[qTest]
             else:
                 self.cfg.expt.sigma = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]

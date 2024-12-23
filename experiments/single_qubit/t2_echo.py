@@ -31,9 +31,9 @@ class RamseyEchoProgram(QickProgram):
             "phase": 0,
             "type": cfg_qub.type,
         }
-        pi2_pulse1 = super().make_pulse(pulse, "pi2_prep")
-        pulse["phase"] = cfg.expt.wait_time * 360 * cfg.ramsey_freq
-        pi2_pulse2 = super().make_pulse(pulse, "pi2_read")
+        super().make_pulse(pulse, "pi2_prep")
+        pulse["phase"] = cfg.expt.wait_time * 360 * cfg.expt.ramsey_freq
+        super().make_pulse(pulse, "pi2_read")
         if cfg.expt.type == "cpmg":
             pulse["phase"] = 90
         elif cfg.expt.type == "cp":
@@ -41,10 +41,10 @@ class RamseyEchoProgram(QickProgram):
         else:
             assert False, "Unsupported echo experiment type"
         pulse["gain"] = cfg_qub.gain[q]
-        pi_pulse = super().make_pulse(pulse, "pi_pulse")
+        super().make_pulse(pulse, "pi_pulse")
 
         self.add_loop("wait_loop", cfg.expt.expts)
-
+    
     def _body(self, cfg):
 
         cfg = AttrDict(self.cfg)
@@ -52,13 +52,15 @@ class RamseyEchoProgram(QickProgram):
 
         self.pulse(ch=self.qubit_ch, name="pi2_prep", t=0)
 
-        self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="wait")
+        self.delay_auto(t=cfg.expt.wait_time/(cfg.expt.num_pi+1) + 0.01, tag="wait")
         for i in range(cfg.expt.num_pi):
             self.pulse(ch=self.qubit_ch, name="pi_pulse", t=0)
-            self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="wait")
+            self.delay_auto(t=cfg.expt.wait_time/(cfg.expt.num_pi+1) + 0.01, tag="wait2")
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
@@ -111,27 +113,34 @@ class RamseyEchoExperiment(QickExperiment):
             "start": 0.1,
             "ramsey_freq": 0.1,
             "num_pi": 1,
-            "cp": True,
-            "cpmg": False,
+            "type": "cp",            
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
+
+        if style == "fine":
+            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+        elif style == "fast":
+            params_def["expts"] = 30
         params = {**params_def, **params}
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2e[qi]
 
         self.cfg.expt = params
+        
+
+        super().check_params(params_def)
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
         # is this still needed?
-        if self.cfg.expt.ramsey_freq > 0:
-            self.cfg.expt.ramsey_freq_sign = 1
-        else:
-            self.cfg.expt.ramsey_freq_sign = -1
-        self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
+        # if self.cfg.expt.ramsey_freq > 0:
+        #     self.cfg.expt.ramsey_freq_sign = 1
+        # else:
+        #     self.cfg.expt.ramsey_freq_sign = -1
+        # self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
         self.param = {"label": "wait", "param": "t", "param_type": "time"}
         self.cfg.expt.wait_time = QickSweep1D(
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span

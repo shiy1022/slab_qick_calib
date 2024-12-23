@@ -22,10 +22,10 @@ class T1Program(QickProgram):
 
         super()._initialize(cfg, readout="standard")
 
-        pi_pulse = super().make_pi_pulse(
-            cfg.expt.qubit[0], "pi_ge", cfg.device.qubit.f_ge
+        super().make_pi_pulse(
+            cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge"
         )
-        super().make_pulse(pi_pulse, "qubit_pulse")
+        
         self.add_loop("wait_loop", cfg.expt.expts)
 
         if cfg.expt.acStark:
@@ -44,7 +44,7 @@ class T1Program(QickProgram):
         cfg = AttrDict(self.cfg)
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
-        self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
+        self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
         if cfg.expt.acStark:
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
             self.delay_auto(t=0.01, tag="waiting")
@@ -52,10 +52,12 @@ class T1Program(QickProgram):
             self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag="wait")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
-            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
+            t=self.trig_offset,
         )
 
 
@@ -64,10 +66,9 @@ class T1Experiment(QickExperiment):
     self.cfg.expt: dict
         A dictionary containing the configuration parameters for the T1 experiment. The keys and their descriptions are as follows:
         - span (float): The total span of the wait time sweep in microseconds.
-        - step (float): The step size for the wait time increments in microseconds.
         - expts (int): The number of experiments to be performed.
-        - reps (int): The number of repetitions for each experiment.
-        - soft_avgs (int): The number of soft_avgs for the experiment.
+        - reps (int): The number of repetitions for each experiment (inner loop)
+        - soft_avgs (int): The number of soft_avgs for the experiment (outer loop)
         - qubit (int): The index of the qubit being used in the experiment.
         - qubit_chan (int): The channel of the qubit being read out.
     """
@@ -88,14 +89,14 @@ class T1Experiment(QickExperiment):
         if prefix is None:
             prefix = f"t1_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
-            "expts": 60,
-            "span": 3.7 * self.cfg.device.qubit.T1[qi],
             "reps": 2 * self.reps,
             "soft_avgs": self.soft_avgs,
+            "expts": 60,
             "start": 0,
+            "span": 3.7 * self.cfg.device.qubit.T1[qi],
             "acStark": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
@@ -137,11 +138,13 @@ class T1Experiment(QickExperiment):
     def display(
         self, data=None, fit=True, plot_all=False, ax=None, show_hist=False, **kwargs
     ):
-        qubit = self.cfg.expt.qubit
+        qubit = self.cfg.expt.qubit[0]
         title = f"$T_1$ Q{qubit}"
         xlabel = "Wait Time ($\mu$s)"
-        captionStr = ["$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"]
-        var = [2]
+
+        caption_params = [
+            {"index": 2, "format": "$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"},           
+        ]
         fitfunc = fitter.expfunc
 
         super().display(
@@ -153,8 +156,7 @@ class T1Experiment(QickExperiment):
             fit=fit,
             show_hist=show_hist,
             fitfunc=fitfunc,
-            captionStr=captionStr,
-            var=var,
+            caption_params=caption_params,
         )
 
     def save_data(self, data=None):
@@ -288,7 +290,6 @@ class T1_2D(QickExperiment2D):
 
     def acquire(self, progress=False, debug=False):
 
-        super().update_config(q_ind=self.cfg.expt.qubit)
         sweep_pts = np.arange(self.cfg.expt["sweep_pts"])
         y_sweep = [{"pts": sweep_pts, "var": "count"}]
         super().acquire(T1Program, y_sweep, progress=progress)

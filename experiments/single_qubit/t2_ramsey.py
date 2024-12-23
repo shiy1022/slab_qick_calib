@@ -34,9 +34,9 @@ class RamseyProgram(QickProgram):
             "phase": 0,
             "type": cfg_qub.type,
         }
-        pi2_pulse1 = super().make_pulse(pulse, "pi2_prep")
-        pulse["phase"] = cfg.expt.wait_time * 360 * cfg.ramsey_freq
-        pi2_pulse2 = super().make_pulse(pulse, "pi2_read")
+        super().make_pulse(pulse, "pi2_prep")
+        pulse["phase"] = cfg.expt.wait_time * 360 * cfg.expt.ramsey_freq
+        super().make_pulse(pulse, "pi2_read")
 
         self.add_loop("wait_loop", cfg.expt.expts)
 
@@ -65,29 +65,16 @@ class RamseyProgram(QickProgram):
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
-            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
+            t=self.trig_offset,
         )
 
 
 class RamseyExperiment(QickExperiment):
-    """
-    Ramsey experiment
-    Experimental Config:
-    expt = dict(
-        start: wait time start sweep [us]
-        step: wait time step - make sure nyquist freq = 0.5 * (1/step) > ramsey (signal) freq!
-        expts: number experiments stepping from start
-        ramsey_freq: frequency by which to advance phase [MHz]
-        reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
-        checkZZ: True/False for putting another qubit in e (specify as qA)
-        checkEF: does ramsey on the EF transition instead of ge
-        qubits: if not checkZZ, just specify [1 qubit]. if checkZZ: [qA in e , qB sweeps length rabi]
-    )
-    """
 
     def __init__(
         self,
@@ -97,48 +84,48 @@ class RamseyExperiment(QickExperiment):
         qi=0,
         go=True,
         params={},
-        check_ef=False,
+        checkEF=False,
+        acStark=False,
         style="",
         min_r2=None,
         max_err=None,
     ):
-        # span=None, expts=100, ramsey_freq=0.1, reps=None, soft_avgs=None,
-        if check_ef:
+        if checkEF:
             prefix = f"ramsey_ef_qubit{qi}"
         else:
             prefix = f"ramsey_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
             "expts": 100,
             "reps": 2 * self.reps,
             "soft_avgs": 2 * self.soft_avgs,
             "start": 0.1,
-            "span": 3 * self.cfg.device.qubit.T2e[qi],
+            "span": 3 * self.cfg.device.qubit.T2r[qi],
             "ramsey_freq": 0.1,
-            "acStark": False,
-            "checkEF": check_ef,
+            "acStark": acStark,
+            "checkEF": checkEF,
             "checkZZ": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}
         if params["ramsey_freq"] == "smart":
-            params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2e[qi]
+            params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
         self.cfg.expt = params
+        super().check_params(params_def)
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
-        self.update_config()
 
-        if self.cfg.expt.ramsey_freq > 0:
-            self.cfg.expt.ramsey_freq_sign = 1
-        else:
-            self.cfg.expt.ramsey_freq_sign = -1
-        self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
+        # if self.cfg.expt.ramsey_freq > 0:
+        #     self.cfg.expt.ramsey_freq_sign = 1
+        # else:
+        #     self.cfg.expt.ramsey_freq_sign = -1
+        # self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
 
         self.param = {"label": "wait", "param": "t", "param_type": "time"}
         self.cfg.expt.wait_time = QickSweep1D(
@@ -164,7 +151,7 @@ class RamseyExperiment(QickExperiment):
                 fitterfunc = fitter.fitdecaysin
             fitfunc = fitter.decaysin
 
-            super().fit_data(fitterfunc=fitterfunc, fitfunc=fitfunc)
+            super().analyze(fitterfunc=fitterfunc, fitfunc=fitfunc)
 
             ydata_lab = ["amps", "avgi", "avgq"]
             for i, ydata in enumerate(ydata_lab):
@@ -227,11 +214,12 @@ class RamseyExperiment(QickExperiment):
         else:
             fitfunc = fitter.decaysin
         title += f" (Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)"
-        captionStr = [
-            "$T_2$ Ramsey : {val:.4} $\pm$ {err:.2g} $\mu$s",
-            "Freq. : {val:.3} $\pm$ {err:.1} MHz",
+
+        caption_params = [
+            {"index": 3, "format": "$T_2$ Ramsey : {val:.4} $\pm$ {err:.2g} $\mu$s"},
+            {"index": 1, "format": "Freq. : {val:.3} $\pm$ {err:.1} MHz"},        
         ]
-        var = [3, 1]
+        
         super().display(
             data=data,
             ax=ax,
@@ -241,8 +229,7 @@ class RamseyExperiment(QickExperiment):
             fit=fit,
             show_hist=show_hist,
             fitfunc=fitfunc,
-            captionStr=captionStr,
-            var=var,
+            caption_params=caption_params,
         )
 
         # # Plot the decaying exponential

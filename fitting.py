@@ -191,7 +191,7 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
     if fitparams[3] is None: fitparams[3]=max(xdata) - min(xdata)
     if fitparams[4] is None: fitparams[4]=np.mean(ydata)
     bounds = (
-        [0.6*fitparams[0], 1e-3, -360, 0.3*(max(xdata)-min(xdata)), np.min(ydata)],
+        [0.6*fitparams[0], 1e-3, -360, 0.1, np.min(ydata)],
         [1.5*fitparams[0], 1e3, 360, np.inf, np.max(ydata)]
         )
     for i, param in enumerate(fitparams):

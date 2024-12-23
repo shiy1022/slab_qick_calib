@@ -216,9 +216,9 @@ def recenter_smart(
     freqs = [start_freq]
 
     scans = [
-        meas.PulseProbeSpectroscopyExperiment,
-        cfg.meas.PulseProbeSpectroscopyExperiment,
-        meas.PulseProbeSpectroscopyExperiment,
+        meas.QubitSpec,
+        meas.QubitSpec,
+        meas.QubitSpec,
         meas.RamseyExperiment,
         meas.RamseyExperiment,
         meas.RamseyExperiment,
@@ -282,48 +282,40 @@ def recenter_smart(
         return True
 
 
-def find_spec(qi, cfg_dict, start="coarse", max_err=0.45, min_r2=0.1, max_t1=500):
+def find_spec(qi, cfg_dict, start="coarse", max_err=0.45, min_r2=0.1):
 
-    scans = [
-        meas.QubitSpec,
-        meas.QubitSpec,
-        meas.QubitSpec,
-    ]
-    params = [{"coarse": True, "span": 70}, {"span": 25}, {"fine": True}]
-    scan_info = {"scans": scans, "params": params}
-    if start == "coarse":
-        level = 0
-    else:
-        level = 2
+    style = ["huge","coarse", "medium", "fine"]
+    level = style.index(start)
 
     i = 0
     all_done = False
     ntries = 6
-    while i < ntries and not all_done:
-        prog = run_spec(qi, cfg_dict, scan_info, level, min_r2=min_r2, max_t1=max_t1)
+    while i < ntries and not all_done:        
+        print(level)
+        prog = meas.QubitSpec(cfg_dict, qi=qi, min_r2=min_r2, params={}, style=style)
         if prog.status:
-            if level == len(scans) - 1:
+            config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
+        if prog.status:
+            if level == len(style) - 1:
                 all_done = True
+                print(f'Found qubit {qi}')
             else:
                 level += 1
-                params[level]["center"] = prog.data["new_freq"]
+                #params[level]["center"] = prog.data["new_freq"]
         else:
             level -= 1
+        if level<0:
+            print('Coarsest scan failed, adding more power and reps')
+            auto_cfg = config.load(cfg_dict["cfg_file"])
+            auto_cfg.device.readout.spec_gain[qi] = auto_cfg.device.readout.spec_gain[qi]*2 
+            auto_cfg.device.readout.reps[qi] = auto_cfg.device.readout.spec_reps[qi]*2
+            level=0
         i += 1
 
     if i == ntries:
         return False
     else:
         return True
-
-
-def run_spec(qi, cfg_dict, scan_info, level, min_r2=0.1, max_t1=500):
-
-    prog = scan_info["scans"][level](cfg_dict, qi=qi, min_r2=min_r2)
-    if prog.status:
-        config.update_qubit(cfg_dict["cfg_file"], "f_spec", prog.data["new_freq"], qi)
-
-    return prog
 
 
 def run_scan_level(qi, cfg_dict, scan_info, level, min_r2=0.1, max_t1=500):

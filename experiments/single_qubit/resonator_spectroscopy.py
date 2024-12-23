@@ -11,7 +11,8 @@ from qick_experiment import QickExperiment, QickExperiment2D
 from qick_program import QickProgram
 import fitting as fitter
 from qick.asm_v2 import QickSweep1D
-
+from scipy.ndimage import gaussian_filter1d
+import copy
 
 """
 Measures the resonant frequency of the readout resonator when the qubit is in its ground state: sweep readout pulse frequency and look for the frequency with the maximum measured amplitude.
@@ -38,23 +39,25 @@ class ResSpecProgram(QickProgram):
         self.add_loop("freq_loop", cfg.expt.expts)
 
         if cfg.expt.pulse_e:
-            pi_pulse = super().make_pi_pulse(q, "pi_ge", cfg.device.qubit.f_ge)
-            super().make_pulse(pi_pulse, "pi_pulse_ge")
+            super().make_pi_pulse(q, "pi_ge", cfg.device.qubit.f_ge)
 
     def _body(self, cfg):
         cfg = AttrDict(self.cfg)
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        
         if cfg.expt.pulse_e:
-            self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.02, tag="waiting")
             if cfg.expt.pulse_f:
-                self.pulse(ch=self.qubit_ch, name="qubit_pulse_f", t=0)
+                self.pulse(ch=self.qubit_ch, name="pi_ef", t=0)
                 self.delay_auto(t=0.02, tag="waiting")
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
-            t=cfg.device.readout.trig_offset[cfg.expt.qubit[0]],
+            t=self.trig_offset,
         )
 
 
@@ -95,7 +98,7 @@ class ResSpec(QickExperiment):
         elif pulse_f:
             prefix = prefix + "f_"
         prefix += style + f"_qubit{qi}"
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
             "gain": self.cfg.device.readout.gain[qi],
@@ -129,8 +132,8 @@ class ResSpec(QickExperiment):
         if go:
             if style == "coarse":
                 self.go(analyze=False, display=False, progress=True, save=True)
-                self.analyze(fit=False, findpeaks=True)
-                self.display(fit=False, findpeaks=True)
+                self.analyze(fit=False, peaks=True)
+                self.display(fit=False, peaks=True)
             else:
                 super().run()
 
@@ -151,24 +154,20 @@ class ResSpec(QickExperiment):
         self,
         data=None,
         fit=True,
-        findpeaks=False,
+        peaks=False,
         verbose=False,
         hanger=True,
         prom=20,
+        debug=False,
         **kwargs,
     ):
+        super().get_freq(fit)
         if data is None:
             data = self.data
-
+        
         if fit:
-            if "mixer_freq" in self.cfg.hw.soc.dacs.readout:
-                xdata = self.cfg.hw.soc.dacs.readout.mixer_freq + data["xpts"][1:-1]
-            elif "lo_freq" in self.cfg.hw.soc.dacs.readout:
-                xdata = self.cfg.hw.soc.dacs.readout.lo_freq + data["xpts"][1:-1]
-            else:
-                xdata = data["xpts"][1:-1]
-
             ydata = data["amps"][1:-1]
+            xdata = data["freq"][1:-1]
             fitparams = [
                 max(ydata),
                 -(max(ydata) - min(ydata)),
@@ -186,13 +185,9 @@ class ResSpec(QickExperiment):
                 data["fit_err"] = np.mean(
                     np.sqrt(np.diag(data["fit_err"])) / np.abs(data["fit"])
                 )
-                #                if r2<0.5:
-                #                    data['fit'] = [np.nan]*len(data['fit'])
                 if isinstance(data["fit"], (list, np.ndarray)):
                     f0, Qi, Qe, phi, scale, slope = data["fit"]
-                if "lo" in self.cfg.hw:
-                    print(float(self.cfg.hw.lo.readout.frequency) * 1e-6)
-                    print(f0)
+               
                 data["kappa"] = f0 * (1 / Qi + 1 / Qe) * 1e-4
                 if verbose:
                     print(
@@ -205,37 +200,40 @@ class ResSpec(QickExperiment):
                     print(f"\tQe: {Qe}")
                     print(f"\tQ0: {1/(1/Qi+1/Qe)}")
                     print(f"\tkappa [MHz]: {f0*(1/Qi+1/Qe)}")
-                    print(f"\tphi [radians]: {phi}")
-                if "mixer_freq" in self.cfg.hw.soc.dacs.readout:
-                    data["fit"][0] = (
-                        data["fit"][0] - self.cfg.hw.soc.dacs.readout.mixer_freq
-                    )
-                if "lo_freq" in self.cfg.hw.soc.dacs.readout:
-                    data["fit"][0] = (
-                        data["fit"][0] - self.cfg.hw.soc.dacs.readout.lo_freq
-                    )
-
+                    print(f"\tphi (radians): {phi}")
+                data["freq_fit"]=copy.deepcopy(data["fit"])
+                data["freq_init"]=copy.deepcopy(data["init"])
+                data["fit"][0]=data["fit"][0]-data["freq_offset"]
+                data["init"][0]=data["init"][0]-data["freq_offset"]
             else:
                 print(fitparams)
                 data["lorentz_fit"] = fitter.fitlor(xdata, ydata, fitparams=fitparams)
                 print("From Fit:")
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
+        
         phs_data = np.unwrap(data["phases"][1:-1])
-        # phs_fix=data['phases'][1:-1]
         slope, intercept = np.polyfit(data["xpts"][1:-1], phs_data, 1)
         phs_fix = phs_data - slope * data["xpts"][1:-1] - intercept
         data["phase_fix"] = phs_fix
-        if findpeaks:
+        
+        if peaks:
             xdata = data["xpts"][1:-1]
             ydata = data["amps"][1:-1]
             min_dist = 15  # minimum distance between peaks, may need to be edited if things are really close
             max_width = 12  # maximum width of peaks in MHz, may need to be edited if peaks are off
+            freq_sigma = 2  # sigma for gaussian filter
             df = xdata[1] - xdata[0]
             min_dist_inds = int(min_dist / df)
             max_width_inds = int(max_width / df)
-            print(max_width_inds)
-
+            filt_sigma = int(freq_sigma / df)
+            ydata_smooth = gaussian_filter1d(ydata, sigma=filt_sigma)
+            ydata = ydata / ydata_smooth
+            if debug:
+                fig, ax = plt.subplots(2,1)
+                ax[0].plot(xdata, data["amps"][1:-1])
+                ax[0].plot(xdata, ydata_smooth)
+                ax[1].plot(xdata, ydata)
             coarse_peaks, props = find_peaks(
                 -ydata,
                 distance=min_dist_inds,
@@ -252,7 +250,7 @@ class ResSpec(QickExperiment):
         self,
         data=None,
         fit=True,
-        findpeaks=False,
+        peaks=False,
         hanger=True,
         debug=False,
         ax=None,
@@ -266,23 +264,7 @@ class ResSpec(QickExperiment):
         else:
             savefig = True
 
-        if "lo" in self.cfg.hw:
-            xpts = float(
-                self.cfg.hw.lo.readout.frequency
-            ) * 1e-6 + self.cfg.device.readout.lo_sideband[self.qubit] * (
-                self.cfg.hw.soc.dacs.readout.mixer_freq[self.qubit] + data["xpts"][1:-1]
-            )
-        elif "mixer_freq" in self.cfg.hw.soc.dacs.readout and fit:
-            xpts = self.cfg.hw.soc.dacs.readout.mixer_freq + data["xpts"][1:-1]
-            data["fit"][0] = data["fit"][0] + self.cfg.hw.soc.dacs.readout.mixer_freq
-        elif "lo_freq" in self.cfg.hw.soc.dacs.readout and fit:
-            xpts = self.cfg.hw.soc.dacs.readout.lo_freq + data["xpts"][1:-1]
-            data["fit"][0] = data["fit"][0] + self.cfg.hw.soc.dacs.readout.lo_freq
-            data["init"][0] = data["init"][0] + self.cfg.hw.soc.dacs.readout.lo_freq
-        else:
-            xpts = data["xpts"][1:-1]
-
-        qubit = self.cfg.expt.qubit
+        qubit = self.cfg.expt.qubit[0]
         title = f"Resonator Spectroscopy Q{qubit}, Gain {self.cfg.expt.gain}"
 
         if ax is None:
@@ -292,51 +274,46 @@ class ResSpec(QickExperiment):
             ax[0].set_title(title)
 
         ax[0].set_ylabel("Amps [ADC units]")
-        ax[0].plot(xpts, data["amps"][1:-1], ".-")
+        ax[0].plot(data["freq"][1:-1], data["amps"][1:-1], ".-")
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
                     label = f"$\kappa$={data['kappa']:.2f} MHz"
                     label += f" \nFreq={data['fit'][0]:.2f} MHz"
                     ax[0].plot(
-                        xpts,
-                        fitter.hangerS21func_sloped(xpts, *data["fit"]),
+                        data["freq"],
+                        fitter.hangerS21func_sloped(data["freq"], *data["freq_fit"]),
                         label=label,
                     )
                     ax[0].legend()
 
                 if debug:
                     ax[0].plot(
-                        xpts,
-                        fitter.hangerS21func_sloped(xpts, *data["init"]),
+                        data["freq"],
+                        fitter.hangerS21func_sloped(data["freq"], *data["freq_init"]),
                         label="Initial fit",
                     )
             elif not any(np.isnan(data["lorentz_fit"])):
                 ax[0].plot(
-                    xpts,
-                    fitter.lorfunc(data["lorentz_fit"], xpts),
+                    data["freq"],
+                    fitter.lorfunc(data["lorentz_fit"], data["freq"]),
                     label="Lorentzian fit",
                 )
             else:
                 print("Lorentzian fit contains NaN values, skipping plot.")
-        if findpeaks:
+        if peaks:
             num_peaks = len(data["coarse_peaks_index"])
             print("Number of peaks:", num_peaks)
             peak_indices = data["coarse_peaks_index"]
             for i in range(num_peaks):
                 peak = peak_indices[i]
-                ax[0].axvline(xpts[peak], linestyle="--", color="0.2")
-
-        if "mixer_freq" in self.cfg.hw.soc.dacs.readout and fit:
-            data["fit"][0] = data["fit"][0] - self.cfg.hw.soc.dacs.readout.mixer_freq
-        elif "lo_freq" in self.cfg.hw.soc.dacs.readout and fit:
-            data["fit"][0] = data["fit"][0] - self.cfg.hw.soc.dacs.readout.lo_freq
-            data["init"][0] = data["init"][0] - self.cfg.hw.soc.dacs.readout.lo_freq
+                ax[0].axvline(data["freq"][peak], linestyle="--", color="0.2", linewidth=1)
+                ax[1].axvline(data["freq"][peak], linestyle="--", color="0.2", linewidth=1)
 
         if savefig:
-            ax[1].set_xlabel("Readout Frequency [MHz]")
-            ax[1].set_ylabel("Phase [radians]")
-            ax[1].plot(xpts, data["phase_fix"], ".-")
+            ax[1].set_xlabel("Readout Frequency (MHz)")
+            ax[1].set_ylabel("Phase (radians)")
+            ax[1].plot(data["freq"][1:-1], data["phase_fix"], ".-")
 
             fig.tight_layout()
             imname = self.fname.split("\\")[-1]
@@ -347,7 +324,6 @@ class ResSpec(QickExperiment):
         plt.show()
 
     def save_data(self, data=None):
-        print(f"Saving {self.fname}")
         super().save_data(data=data)
 
 
@@ -492,7 +468,7 @@ class ResSpecPower(QickExperiment2D):
     def display(self, data=None, fit=True, **kwargs):
         if data is None:
             data = self.data
-        qubit = self.cfg.expt.qubit
+        qubit = self.cfg.expt.qubit[0]
         inner_sweep = data[
             "xpts"
         ]  # float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband*(self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'])
@@ -533,10 +509,12 @@ class ResSpecPower(QickExperiment2D):
             labelright=False,
         )
 
-        plt.colorbar(label="Amps/Avg [ADC level]")
+        plt.colorbar(label="Amps/Avg (ADC level)")
         plt.show()
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
 
     def save_data(self, data=None):
         super().save_data(data=data)
+
+
