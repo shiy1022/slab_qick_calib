@@ -8,13 +8,13 @@ import scipy.constants as cs
 import warnings
 
 
-def check_chi(cfg_dict, qi=0, im=None, span=7, npts=301, plot=False, check_f=False):
+def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
 
     auto_cfg = config.load(cfg_dict["cfg_file"])
     freq = auto_cfg["device"]["readout"]["frequency"][qi]
     start = freq - 4.5
     center = start + span / 2
-    chi = meas.ResonatorSpectroscopyExperiment(
+    chi = meas.ResSpec(
         cfg_dict,
         qi=qi,
         params={
@@ -22,15 +22,15 @@ def check_chi(cfg_dict, qi=0, im=None, span=7, npts=301, plot=False, check_f=Fal
             "center": center,
             "npts": npts,
             "soft_avgs": 5,
-            "relax_delay": 15,
+            "final_delay": 15,
+            'pulse_e':True,
         },
         go=False,
-        check_e=True,
     )
     chi.go(analyze=True, display=False, progress=True, save=True)
 
     if check_f:
-        chif = meas.ResonatorSpectroscopyExperiment(
+        chif = meas.ResSpec(
             cfg_dict,
             qi=qi,
             params={
@@ -38,15 +38,15 @@ def check_chi(cfg_dict, qi=0, im=None, span=7, npts=301, plot=False, check_f=Fal
                 "center": center,
                 "npts": npts,
                 "soft_avgs": 5,
-                "relax_delay": 15,
+                "final_delay": 15,
+                "pulse_e":True,
+                "pulse_f":True,
             },
             go=False,
-            check_e=True,
-            check_f=True,
         )
         chif.go(analyze=True, display=False, progress=True, save=True)
 
-    rspec = meas.ResonatorSpectroscopyExperiment(
+    rspec = meas.ResSpec(
         cfg_dict,
         qi=qi,
         params={
@@ -54,10 +54,10 @@ def check_chi(cfg_dict, qi=0, im=None, span=7, npts=301, plot=False, check_f=Fal
             "center": center,
             "npts": npts,
             "soft_avgs": 2,
-            "relax_delay": 15,
+            "final_delay": 15,
+
         },
         go=False,
-        check_e=False,
     )
     rspec.go(analyze=True, display=False, progress=True, save=True)
 
@@ -75,14 +75,18 @@ def check_chi(cfg_dict, qi=0, im=None, span=7, npts=301, plot=False, check_f=Fal
     chi.data["rval"] = rspec.data["xpts"][arg2]
     chi.data["cval"] = chi.data["xpts"][arg]
     chi_val = xpts_chi[arg] - xpts_res[arg2]
+    chi.data['chi_val'] = chi_val
     chi.data["freq_opt"] = rspec.data["xpts"][arg]
 
     fig, ax = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
     ax[0].set_title(f"Chi Measurement Q{qi}")
     ax[0].plot(xpts_res, rspec.data["amps"], label="No Pulse")
-    ax[0].plot(
-        xpts_chi, chi.data["amps"], label=f"e Pulse \n $\chi=${chi_val:0.2f} MHz"
-    )
+    ax[0].plot(xpts_chi, chi.data["amps"], label=f"e Pulse")
+    
+
+    cap=f'$\chi=${chi_val:0.2f} MHz'
+    ax[0].text(0.04, 0.35, cap, transform=ax[0].transAxes, fontsize=12,
+                    verticalalignment='bottom', horizontalalignment='left', bbox=dict(facecolor='white', alpha=0.8))
     ax[0].legend()
     ax[0].axvline(
         x=xpts_chi[arg], color="k", linestyle="--"
@@ -210,19 +214,16 @@ def recenter_smart(
     qi, cfg_dict, start="T2r", freq=0.3, max_err=0.45, min_r2=0.1, max_t1=500
 ):
 
+
     # get original frequency
     auto_cfg = config.load(cfg_dict["cfg_file"])
     start_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
     freqs = [start_freq]
 
-    scans = [
-        meas.QubitSpec,
-        meas.QubitSpec,
-        meas.QubitSpec,
-        meas.RamseyExperiment,
-        meas.RamseyExperiment,
-        meas.RamseyExperiment,
-    ]
+    # If ramsey is more than 250 kHz away, recenter with qspec. 
+    # If it starts with spectroscopy, call find_spec, then run amp_rabi 
+    # If fit is failing, try to debug 
+    
     params = [
         {"coarse": True, "span": 70},
         {"span": 25},
@@ -282,42 +283,6 @@ def recenter_smart(
         return True
 
 
-def find_spec(qi, cfg_dict, start="coarse", max_err=0.45, min_r2=0.1):
-
-    style = ["huge","coarse", "medium", "fine"]
-    level = style.index(start)
-
-    i = 0
-    all_done = False
-    ntries = 6
-    while i < ntries and not all_done:        
-        print(level)
-        prog = meas.QubitSpec(cfg_dict, qi=qi, min_r2=min_r2, params={}, style=style)
-        if prog.status:
-            config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
-        if prog.status:
-            if level == len(style) - 1:
-                all_done = True
-                print(f'Found qubit {qi}')
-            else:
-                level += 1
-                #params[level]["center"] = prog.data["new_freq"]
-        else:
-            level -= 1
-        if level<0:
-            print('Coarsest scan failed, adding more power and reps')
-            auto_cfg = config.load(cfg_dict["cfg_file"])
-            auto_cfg.device.readout.spec_gain[qi] = auto_cfg.device.readout.spec_gain[qi]*2 
-            auto_cfg.device.readout.reps[qi] = auto_cfg.device.readout.spec_reps[qi]*2
-            level=0
-        i += 1
-
-    if i == ntries:
-        return False
-    else:
-        return True
-
-
 def run_scan_level(qi, cfg_dict, scan_info, level, min_r2=0.1, max_t1=500):
 
     if level <= 2:
@@ -353,133 +318,6 @@ def run_scan_level(qi, cfg_dict, scan_info, level, min_r2=0.1, max_t1=500):
 
     return prog
 
-
-def recenter_qubit(
-    qi, cfg_dict, freq=0.3, max_err=0.5, min_r2=0.1, max_t1=500, start="T2r"
-):
-
-    # get original frequency
-    auto_cfg = config.load(cfg_dict["cfg_file"])
-    start_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
-
-    if start == "T2r":
-        status, t2r = run_scan(
-            cfg.make_t2r,
-            qi,
-            cfg_dict,
-            {"ramsey_freq": 1.5 * freq, "span": np.pi / np.abs(freq), "npts": 200},
-            min_r2,
-            max_err,
-        )
-    else:
-        status = False
-    if status:
-        # If first ramsey works, run a finer ramsey
-        config.update_qubit(cfg_dict["cfg_file"], "f_ge", t2r.data["new_freq"], qi)
-        config.update_qubit(
-            cfg_dict["cfg_file"],
-            "T2r",
-            t2r.data["best_fit"][3],
-            qi,
-            sig=2,
-            rng_vals=[1.5, max_t1],
-        )
-        status, t2r = run_scan(
-            cfg.make_t2r, qi, cfg_dict, {"ramsey_freq": "smart"}, min_r2, max_err
-        )
-        freq_arg = np.argmin(np.abs(t2r.data["t2r_adjust"]))
-        freq = t2r.data["t2r_adjust"][freq_arg]
-        if np.abs(freq) > 2 * np.abs(t2r.cfg.expt.ramsey_freq):
-            status, t2r = recenter_qubit(
-                qi, cfg_dict, freq=freq, min_r2=min_r2, max_t1=max_t1
-            )
-        if status:
-            config.update_qubit(cfg_dict["cfg_file"], "f_ge", t2r.data["new_freq"], qi)
-            config.update_qubit(
-                cfg_dict["cfg_file"],
-                "T2r",
-                t2r.data["best_fit"][3],
-                qi,
-                sig=2,
-                rng_vals=[1.5, max_t1],
-            )
-    else:
-        status, qspec = run_scan(cfg.make_qspec, qi, cfg_dict, {"fine": True})
-        if status:
-            config.update_qubit(
-                cfg_dict["cfg_file"], "f_ge", qspec.data["best_fit"][2], qi
-            )
-            config.update_qubit(
-                cfg_dict["cfg_file"], "kappa", 2 * qspec.data["best_fit"][3], qi
-            )
-            # then run amp rabi
-            status, amp_rabi = run_scan(cfg.make_amprabi, qi, cfg_dict, min_r2=min_r2)
-            if status:
-                config.update_qubit(
-                    cfg_dict["cfg_file"],
-                    ("pulses", "pi_ge", "gain"),
-                    int(amp_rabi.data["pi_length"]),
-                    qi,
-                )
-            status, t2r = recenter_qubit(
-                qi, cfg_dict, freq=freq, max_err=max_err, min_r2=min_r2, max_t1=max_t1
-            )
-        else:
-            # Medium scale
-            status, qspec = run_scan(cfg.make_qspec, qi, cfg_dict, {"span": 25})
-            if status:
-                config.update_qubit(
-                    cfg_dict["cfg_file"], "f_ge", qspec.data["best_fit"][2], qi
-                )
-                status, t2r = recenter_qubit(
-                    qi,
-                    cfg_dict,
-                    freq=freq,
-                    max_err=max_err,
-                    min_r2=min_r2,
-                    max_t1=max_t1,
-                    start="qspec",
-                )
-            else:
-                # Coarse scale
-                status, qspec = run_scan(
-                    cfg.make_qspec, qi, cfg_dict, {"coarse": True, "span": 70}
-                )
-                if status:
-                    config.update_qubit(
-                        cfg_dict["cfg_file"], "f_ge", qspec.data["best_fit"][2], qi
-                    )
-                    status, qspec = run_scan(cfg.make_qspec, qi, cfg_dict)
-                    if status:
-                        config.update_qubit(
-                            cfg_dict["cfg_file"], "f_ge", qspec.data["best_fit"][2], qi
-                        )
-                        status, t2r = recenter_qubit(
-                            qi,
-                            cfg_dict,
-                            freq=freq,
-                            max_err=max_err,
-                            min_r2=min_r2,
-                            max_t1=max_t1,
-                            start="qspec",
-                        )
-                    else:
-                        status = False
-                        t2r = None
-                else:
-                    print("Failed!")
-                    status = False
-                    t2r = None
-        recenter_qubit(
-            qi, cfg_dict, freq=freq, max_err=max_err, min_r2=min_r2, max_t1=max_t1
-        )
-
-    auto_cfg = config.load(cfg_dict["cfg_file"])
-    end_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
-    print(f"Qubit {qi} recentered from {start_freq} to {end_freq}")
-
-    return status, t2r
-
     # If you are coming from Ramsey and had signal, try using the frequency you got to recenter iwth
     # If not, use the ramsey with larger frequency
     # First check ramsey with larger frequency - say 2 MHz
@@ -490,83 +328,3 @@ def recenter_qubit(
     # I think whenever it works, you then call it again.
 
 
-def run_scan(scan_name, qi, cfg_dict, params={}, min_r2=0.1, max_err=0.5):
-
-    prog = scan_name(
-        cfg_dict["soc"],
-        cfg_dict["expt_path"],
-        cfg_dict["cfg_file"],
-        qi,
-        cfg_dict["im"],
-        **params,
-    )
-    if (
-        "fit_err" in prog.data
-        and "r2" in prog.data
-        and prog.data["fit_err"] < max_err
-        and prog.data["r2"] > min_r2
-    ):
-        return True, prog
-    elif "fit_err" not in prog.data or "r2" not in prog.data:
-        return prog
-    else:
-        print("Fit failed")
-        return False, prog
-        # suc = recenter_qubit(params[0:4])
-        # if suc:
-        #    return run_scan(scan_name, params, min_r2, max_err)
-        # else:
-        #    warnings.warn('Fit failed and recentering did not succeed')
-        #    return False, prog
-
-    # Run the scan
-    # Check if values were good
-    # If not, run recentering
-    # If it succeeds, try to run scan
-    # If not, throw error or warning
-    # Return success status (perform updates outside? )
-
-
-def get_coherence(
-    scan_name,
-    qi,
-    cfg_dict,
-    par,
-    params={},
-    min_r2=0.1,
-    max_err=0.5,
-    tol=0.3,
-    max_t1=500,
-):
-    # For t1, t2r, t2e
-    err = 2 * tol
-    auto_cfg = config.load(cfg_dict["cfg_file"])
-    old_par = auto_cfg["device"]["qubit"][par][qi]
-    i = 0
-    while err > tol and i < 5:
-        prog = scan_name(cfg_dict, qi, params=params)
-        if par == "T1":
-            new_par = prog.data["new_t1_i"]
-        else:
-            if "best_fit" in prog.data:
-                new_par = prog.data["fit_avgi"][3]
-        if prog.status:
-            auto_cfg = config.update_qubit(
-                cfg_dict["cfg_file"], par, new_par, qi, sig=2, rng_vals=[1.5, max_t1]
-            )
-            err = np.abs(new_par - old_par) / old_par
-        elif prog.data["fit_err"] > max_err:
-            print("Fit Error too high")
-            params["span"] = 2 * new_par
-            # status, prog=get_coherence(scan_name, qi, cfg_dict, par, params={}, min_r2=0.1, max_err=0.5, tol=0.3, max_t1=500)
-            err = 2 * tol
-            # if status:
-            #     return status, prog
-        else:
-            print("Failed")
-            err = 2 * tol
-
-        old_par = new_par
-        i += 1
-
-    return prog

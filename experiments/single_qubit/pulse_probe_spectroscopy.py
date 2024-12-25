@@ -81,44 +81,45 @@ class QubitSpec(QickExperiment):
     def __init__(
         self,
         cfg_dict,
-        prefix="",
-        progress=None,
         qi=0,
         go=True,
         params={},
-        style="",
-        checkEF=False,
+        prefix="",
+        progress=None,
+        style="medium",
         min_r2=None,
         max_err=None,
     ):
 
         prefix = "qubit_spectroscopy_"
-        if checkEF:
+        if 'checkEF' in params and params["checkEF"]:
             prefix = prefix + "ef"
         prefix += style + f"_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         # Define default parameters
-        max_length = 150  # Based on qick error messages, but not investigated
+        max_length = 100  # Based on qick error messages, but not investigated
         spec_gain = self.cfg.device.readout.spec_gain[qi]
         low_gain = self.cfg.device.qubit.low_gain
-        if style == "coarse":
+
+        if style == 'huge':
+            params_def = {"gain": 80*low_gain * spec_gain, "span": 1500, "expts": 1000, "reps": self.reps}
+        elif style == "coarse":
             params_def = {"gain": 20*low_gain * spec_gain, "span": 500, "expts": 500, "reps":self.reps}
+        elif style == "medium":
+            params_def = {"gain": 5*low_gain * spec_gain, "span": 50, "expts": 200, "reps":self.reps}
         elif style == "fine":
             params_def = {"gain": low_gain * spec_gain, "span": 5, "expts": 100, "reps":2*self.reps}
-        elif style == "huge":
-            params_def = {"gain": 80*low_gain * spec_gain, "span": 1500, "expts": 1000, "reps":self.reps}
-        else:
-            params_def = {"gain": 5*low_gain * spec_gain, "span": 50, "expts": 200, "reps":self.reps}
-        if checkEF:
-            params_def["gain"] = 2 * params_def["gain"]
-            params_def["reps"] = 2 * params_def["reps"]
+        
+        if 'checkEF' in params and params["checkEF"]:
+            params_def["gain"] = 3 * params_def["gain"]
+            params_def["reps"] = 5 * params_def["reps"]
         params_def2 = {
             "soft_avgs": self.soft_avgs,
             "final_delay": 10,
             "length": 10,
             "pulse_type": "const",
-            "checkEF": checkEF,
+            "checkEF": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
             "sep_readout": True,
@@ -128,14 +129,14 @@ class QubitSpec(QickExperiment):
         # combine params and params_Def, preferring params
         params = {**params_def, **params}
 
-        if checkEF:
+        if params['checkEF']:
             params_def["start"] = self.cfg.device.qubit.f_ef[qi] - params["span"] / 2
         else:
             params_def["start"] = self.cfg.device.qubit.f_ge[qi] - params["span"] / 2
         params = {**params_def, **params}
 
         if params["length"] == "t1":
-            if not checkEF:
+            if not params['checkEF']:
                 params["length"] = 3 * self.cfg.device.qubit.T1[qi]
             else:
                 params["length"] = self.cfg.device.qubit.T1[qi] / 4
@@ -182,7 +183,7 @@ class QubitSpec(QickExperiment):
         # Define which fit parameters to display in caption
         # Index 2 is frequency, index 3 is kappa
         caption_params = [
-            {"index": 2, "format": "Freq: {val:.6} MHz"},
+            {"index": 2, "format": "$f$: {val:.6} MHz"},
             {"index": 3, "format": "$\kappa$: {val:.3} MHz"},
         ]
 
@@ -271,11 +272,6 @@ class QubitSpecPower(QickExperiment2D):
         }
         params_def = {**params_def, **params_def2}
 
-        # Check for unexpected parameters
-        unexpected_params = set(params.keys()) - set(params_def.keys())
-        if unexpected_params:
-            warnings.warn(f"Unexpected parameters found in params: {unexpected_params}")
-
         # combine params and params_def, preferring params
         params = {**params_def, **params}
 
@@ -294,6 +290,10 @@ class QubitSpecPower(QickExperiment2D):
             params["length"] = max_length
 
         self.cfg.expt = params
+
+        # Check for unexpected parameters
+        super().check_params(params_def)
+
         if go:
             self.go(progress=progress, display=True, analyze=True, save=True)
 

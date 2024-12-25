@@ -1,5 +1,7 @@
-def check_freqs(qubit_i, cfg_file):
-    mirror_freq = 6881.280/2
+import config 
+def check_freqs(i, cfg_file):
+    auto_cfg = config.load(cfg_file)
+    mirror_freq = 9584.640/2
     print('We mirror around ' + str(mirror_freq))
     freq = auto_cfg.device.qubit.f_ge[i]
     fef = auto_cfg.device.qubit.f_ef[i]

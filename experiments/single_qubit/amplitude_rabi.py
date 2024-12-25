@@ -29,15 +29,13 @@ class AmplitudeRabiProgram(QickProgram):
 
         if cfg.expt.checkEF:
             sigma_inc = cfg.device.qubit.pulses.pi_ef.sigma_inc[q]
-            qubit_freq = cfg.device.qubit.f_ef[q]
         else:
             sigma_inc = cfg.device.qubit.pulses.pi_ge.sigma_inc[q]
-            qubit_freq = cfg.device.qubit.f_ge[q]
 
         pulse = {
             "sigma": cfg.expt.sigma,
             "sigma_inc": sigma_inc,
-            "freq": qubit_freq,
+            "freq": cfg.expt.freq,
             "gain": cfg.expt.gain,
             "phase": 0,
             "type": cfg.expt.pulse_type,
@@ -46,8 +44,7 @@ class AmplitudeRabiProgram(QickProgram):
 
         self.add_loop("amp_loop", cfg.expt.expts)
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
-            pi_pulse = super().make_pi_pulse(q, "pi_ge", cfg.device.qubit.f_ge)
-            super().make_pulse(pi_pulse, "pi_pulse_ge")
+            super().make_pi_pulse(q,cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):
 
@@ -55,12 +52,12 @@ class AmplitudeRabiProgram(QickProgram):
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
-            self.pulse(ch=self.qubit_ch, name="qubit_pulse_ge", t=0)
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
 
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
 
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
-            self.pulse(ch=self.qubit_ch, name="qubit_pulse_ge", t=0)
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
         self.delay_auto(t=0.01, tag="waiting 2")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
@@ -97,21 +94,20 @@ class AmplitudeRabiExperiment(QickExperiment):
         self,
         cfg_dict,
         qi=0,
-        prefix=None,
-        progress=None,
         go=True,
         params={},
+        prefix=None,
+        progress=None,
         style="",
-        checkEF=False,
         min_r2=None,
         max_err=None,
     ):
 
-        if checkEF:
-            if params["pulse_ge"]:
-                prefix = f"amp_rabi_ef_qubit{qi}"
-            else:
+        if 'checkEF' in params and params['checkEF']:
+            if 'pulse_ge' in params and not params['pulse_ge']:
                 prefix = f"amp_rabi_ef_no_ge_qubit{qi}"
+            else:
+                prefix = f"amp_rabi_ef_qubit{qi}"
         else:
             prefix = f"amp_rabi_qubit{qi}"
 
@@ -120,23 +116,24 @@ class AmplitudeRabiExperiment(QickExperiment):
             "expts": 60,
             "reps": self.reps,
             "soft_avgs": self.soft_avgs,
-            "checkEF": checkEF,
+            "checkEF": False,
             "pulse_ge": True,
-            "start": 0,
+            "start_gain": 0,
             "qubit": [qi],
             "pulse_type": "gauss",
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}
 
-        if checkEF:
-            sigma = self.cfg.device.qubit.pulses.pi_ef.sigma[qi]
-            gain = self.cfg.device.qubit.pulses.pi_ef.gain[qi] * 4
+        if params['checkEF']:
+            params_def['sigma'] = self.cfg.device.qubit.pulses.pi_ef.sigma[qi]
+            params_def['stop_gain'] = self.cfg.device.qubit.pulses.pi_ef.gain[qi] * 4
+            params_def['freq'] = self.cfg.device.qubit.f_ef[qi]
         else:
-            sigma = self.cfg.device.qubit.pulses.pi_ge.sigma[qi]
-            gain = self.cfg.device.qubit.pulses.pi_ge.gain[qi] * 4
-        params_def["max_gain"] = gain
-        params_def["sigma"] = sigma
+            params_def['sigma'] = self.cfg.device.qubit.pulses.pi_ge.sigma[qi]
+            params_def['stop_gain'] = self.cfg.device.qubit.pulses.pi_ge.gain[qi] * 4
+            params_def['freq'] = self.cfg.device.qubit.f_ge[qi]
+        
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
         elif style == "fast":
@@ -147,6 +144,7 @@ class AmplitudeRabiExperiment(QickExperiment):
             params_def["pulse_ge"] = False
 
         self.cfg.expt = {**params_def, **params}
+        super().check_params(params_def)
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
@@ -156,7 +154,7 @@ class AmplitudeRabiExperiment(QickExperiment):
         self.param = {"label": "qubit_pulse", "param": "gain", "param_type": "pulse"}
 
         self.cfg.expt.gain = QickSweep1D(
-            "amp_loop", self.cfg.expt.start, self.cfg.expt.max_gain
+            "amp_loop", self.cfg.expt.start_gain, self.cfg.expt.stop_gain
         )
         super().acquire(AmplitudeRabiProgram, progress=progress)
 
@@ -199,8 +197,9 @@ class AmplitudeRabiExperiment(QickExperiment):
         title = f"Amplitude Rabi Q{q} (Pulse Length {self.cfg.expt.sigma}"
         xlabel = "Gain / Max Gain"
         fitfunc = fitter.sinfunc
-        captionStr = ["$\pi$ gain: {val:.0f}"]
-        var = ["pi_gain"]
+        caption_params = [{'index':"pi_gain", 
+                          'format':"$\pi$ gain: {val:.3f}"}]
+        
         if self.cfg.expt.checkEF:
             title = title + ", EF)"
         else:
@@ -215,17 +214,13 @@ class AmplitudeRabiExperiment(QickExperiment):
             fit=fit,
             show_hist=show_hist,
             fitfunc=fitfunc,
-            captionStr=captionStr,
-            var=var,
+            caption_params=caption_params,
         )
 
     def save_data(self, data=None):
-        print(f"Saving {self.fname}")
         super().save_data(data=data)
 
-
 # ====================================================== #
-
 
 class AmplitudeRabiChevronExperiment(QickExperiment2D):
     """
@@ -248,16 +243,15 @@ class AmplitudeRabiChevronExperiment(QickExperiment2D):
     def __init__(
         self,
         cfg_dict,
-        prefix=None,
-        progress=None,
         qi=0,
         go=True,
         params={},
-        checkEF=False,
         style="",
+        prefix=None,
+        progress=None,
     ):
 
-        if checkEF:
+        if 'checkEF' in params and params['checkEF']:
             prefix = f"amp_rabi_chevron_ef_qubit{qi}"
         else:
             prefix = f"amp_rabi_chevron_qubit{qi}"
@@ -268,65 +262,56 @@ class AmplitudeRabiChevronExperiment(QickExperiment2D):
             "expts": 60,
             "reps": self.reps,
             "soft_avgs": self.soft_avgs,
-            "span_f": 20,
-            "expts_f": 40,
-            "checkCC": False,
-            "checkZZ": False,
-            "pulse_type": "gauss",
-            "start_gain": 0,
+            "checkEF": False,
             "pulse_ge": True,
+            "start_gain": 0,
             "qubit": [qi],
-            "num_pulses": 1,
+            "pulse_type": "gauss",
+            'span_f':20,
+            'expts_f': 30,
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
-
+        params = {**params_def, **params}
+        if params["checkEF"]:
+            params_def['sigma'] = 2 * self.cfg.device.qubit.pulses.pi_ef.sigma[qi]
+            gain = self.cfg.device.qubit.pulses.pi_ef.gain[qi] * 4
+            params_def['start_f'] = self.cfg.device.qubit.f_ef[qi] - params["span_f"] / 2
+        else:
+            params_def['sigma'] = 2*self.cfg.device.qubit.pulses.pi_ge.sigma[qi]
+            gain = self.cfg.device.qubit.pulses.pi_ge.gain[qi] * 4
+            params_def['start_f'] = self.cfg.device.qubit.f_ge[qi] - params["span_f"] / 2
+        params_def['stop_gain'] = np.min([gain, self.cfg.device.qubit.max_gain])
+        
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
         elif style == "fast":
             params_def["expts"] = 25
-        params = {**params_def, **params}
 
-        if checkEF:
-            sigma = 2 * self.cfg.device.qubit.pulses.pi_ef.sigma[qi]
-            gain = self.cfg.device.qubit.pulses.pi_ef.gain[qi] * 4
-            start_f = self.cfg.device.qubit.f_ef[qi] - params["span_f"] / 2
-        else:
-            sigma = self.cfg.device.qubit.pulses.pi_ge.sigma[qi]
-            gain = self.cfg.device.qubit.pulses.pi_ge.gain[qi] * 4
-            start_f = self.cfg.device.qubit.f_ge[qi] - params["span_f"] / 2
-        gain = int(np.min([gain, self.cfg.device.qubit.max_gain]))
-        params_def = {"sigma": sigma, "start_f": start_f, "gain": gain}
         params = {**params_def, **params}
         params["step_f"] = params["span_f"] / (params["expts_f"] - 1)
-        params["step_gain"] = int(params["gain"] / params["expts"])
-        params["checkEF"] = checkEF
-
+    
         self.cfg.expt = params
+        super().check_params(params_def)
 
         if go:
             super().run()
 
     def acquire(self, progress=False, debug=False):
         # expand entries in config that are length 1 to fill all qubits
-        self.update_config()
+        
+        self.qubit = self.cfg.expt.qubit[0]
+        self.param = {"label": "qubit_pulse", "param": "gain", "param_type": "pulse"}
 
-        qTest = self.cfg.expt.qubit[0]
-
-        self.cfg.expt.start = self.cfg.expt.start_gain
-        self.cfg.expt.step = self.cfg.expt.step_gain
-        self.cfg.expt.expts = self.cfg.expt.expts_gain
-        if "sigma" not in self.cfg.expt:
-            if self.cfg.expt.checkEF:
-                self.cfg.expt.sigma = self.cfg.device.qubit.pulses.pi_ef.sigma[qTest]
-            else:
-                self.cfg.expt.sigma = self.cfg.device.qubit.pulses.pi_ge.sigma[qTest]
+        self.cfg.expt.gain = QickSweep1D(
+            "amp_loop", self.cfg.expt.start_gain, self.cfg.expt.stop_gain
+        )
 
         freqpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"] * np.arange(
             self.cfg.expt["expts_f"]
         )
-        ysweep = {"pts": freqpts, "var": "f_pi_test"}
+        ysweep = [{"pts": freqpts, "var": "freq"}]
         super().acquire(AmplitudeRabiProgram, ysweep, progress=progress)
-        self.cfg.expt["freqpts"] = freqpts
+        #self.cfg.expt["freqpts"] = freqpts
 
         return self.data
 

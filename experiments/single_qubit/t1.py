@@ -107,10 +107,8 @@ class T1Experiment(QickExperiment):
         elif style == "fast":
             params_def["expts"] = 30
 
-        params = {**params_def, **params}
-        params["step"] = params["span"] / params["expts"]
-        self.cfg.expt = params
-
+        self.cfg.expt = {**params_def, **params}
+        super().check_params(params_def)
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 

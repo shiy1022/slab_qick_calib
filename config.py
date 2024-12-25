@@ -88,6 +88,20 @@ def update_readout(
             print(f"*Set cfg resonator {qubit_i} {field} to {value} from {old_value}*")
     return cfg
 
+def update_lo(file_name, field, value,qi, verbose=True, sig=4, rng_vals=None):
+    cfg = load(file_name)
+    if not np.isnan(value):
+        if rng_vals is not None:
+            value = in_rng(value, rng_vals)
+        if not isinstance(value, int) and not isinstance(value, str):
+            value = float(round(value, sig))
+        old_value = cfg["hw"]["soc"]["lo"][field][qi]
+        cfg["hw"]["soc"]["lo"][field][qi] = value
+        save(cfg, file_name)
+        if verbose:
+            print(f"*Set cfg lo {field} to {value} from {old_value}*")
+    return cfg
+
 
 def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
 

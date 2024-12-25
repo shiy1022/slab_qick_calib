@@ -74,10 +74,13 @@ class QickExperiment(Experiment):
         if hist:
             data["bin_centers"] = v
             data["hist"] = hist
+
+        for key in data:
+            data[key] = np.array(data[key])
         self.data = data
         return data
 
-    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
+    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, use_i=True, **kwargs):
         if data is None:
             data = self.data
         # Remove the last point from fit in case weird edge measurements
@@ -92,7 +95,14 @@ class QickExperiment(Experiment):
             ) = fitterfunc(data["xpts"][1:-1], data[ydata][1:-1], fitparams=None)
 
         # Get best fit and save error info.
-        fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
+        
+        if use_i: 
+            i_best = "avgi"
+            fit_pars = data["fit_avgi"]
+            fit_err = data["fit_err_avgi"]
+        else:
+            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
+
         r2 = fitter.get_r2(data["xpts"][1:-1], data[i_best][1:-1], fitfunc, fit_pars)
         data["r2"] = r2
         data["best_fit"] = fit_pars
@@ -130,7 +140,7 @@ class QickExperiment(Experiment):
 
         # Plot all 3 data sets or just I
         if plot_all:
-            fig, ax = plt.subplots(3, 1, figsize=(9, 11))
+            fig, ax = plt.subplots(3, 1, figsize=(7.5, 9.5))
             fig.suptitle(title)
             ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
             ydata_lab = ["amps", "avgi", "avgq"]
@@ -263,10 +273,6 @@ class QickExperiment(Experiment):
         #     self.data["freq_init"][0] = freq_offset + self.data["init"][0]
 
         
-
-
-
-
 class QickExperimentLoop(QickExperiment):
 
     def __init__(self, cfg_dict=None, prefix="QickExp", progress=False, qi=0):
@@ -378,9 +384,6 @@ class QickExperiment2D(QickExperimentLoop):
     def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
-
-    def update_config(self, q_ind=None):
-        super().update_config(q_ind=q_ind)
 
     def acquire(self, prog_name, y_sweep, progress=True):
 

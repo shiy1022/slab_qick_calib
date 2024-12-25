@@ -39,7 +39,9 @@ class ResSpecProgram(QickProgram):
         self.add_loop("freq_loop", cfg.expt.expts)
 
         if cfg.expt.pulse_e:
-            super().make_pi_pulse(q, "pi_ge", cfg.device.qubit.f_ge)
+            super().make_pi_pulse(
+            cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge"
+        )
 
     def _body(self, cfg):
         cfg = AttrDict(self.cfg)
@@ -47,11 +49,12 @@ class ResSpecProgram(QickProgram):
         
         if cfg.expt.pulse_e:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
-            self.delay_auto(t=0.02, tag="waiting")
+            
             if cfg.expt.pulse_f:
                 self.pulse(ch=self.qubit_ch, name="pi_ef", t=0)
-                self.delay_auto(t=0.02, tag="waiting")
+            self.delay_auto(t=0.02, tag="waiting")
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+            
         if self.lo_ch is not None:
             self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         self.trigger(
@@ -85,17 +88,15 @@ class ResSpec(QickExperiment):
         qi=0,
         go=True,
         params={},
-        style="fine",
-        pulse_e=False,
-        pulse_f=False,
+        style="fine"
     ):
 
         prefix = "resonator_spectroscopy_"
         if style == "coarse":
             prefix = prefix + "coarse"
-        elif pulse_e:
+        elif 'pulse_e' in params and params['pulse_e']:
             prefix = prefix + "chi_"
-        elif pulse_f:
+        elif 'pulse_f' in params and params['pulse_f']:
             prefix = prefix + "f_"
         prefix += style + f"_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
@@ -105,8 +106,8 @@ class ResSpec(QickExperiment):
             "reps": self.reps,
             "soft_avgs": self.soft_avgs,
             "final_delay": 5,
-            "pulse_e": pulse_e,
-            "pulse_f": pulse_f,
+            "pulse_e": False,
+            "pulse_f": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
@@ -215,7 +216,7 @@ class ResSpec(QickExperiment):
         phs_data = np.unwrap(data["phases"][1:-1])
         slope, intercept = np.polyfit(data["xpts"][1:-1], phs_data, 1)
         phs_fix = phs_data - slope * data["xpts"][1:-1] - intercept
-        data["phase_fix"] = phs_fix
+        data["phase_fix"] = np.unwrap(phs_fix)
         
         if peaks:
             xdata = data["xpts"][1:-1]
@@ -278,8 +279,8 @@ class ResSpec(QickExperiment):
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
-                    label = f"$\kappa$={data['kappa']:.2f} MHz"
-                    label += f" \nFreq={data['fit'][0]:.2f} MHz"
+                    label = f"$\kappa$: {data['kappa']:.2f} MHz"
+                    label += f" \n$f$: {data['fit'][0]:.2f} MHz"
                     ax[0].plot(
                         data["freq"],
                         fitter.hangerS21func_sloped(data["freq"], *data["freq_fit"]),

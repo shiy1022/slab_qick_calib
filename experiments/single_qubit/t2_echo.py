@@ -24,24 +24,27 @@ class RamseyEchoProgram(QickProgram):
         cfg_qub = cfg.device.qubit.pulses.pi_ge
         q = cfg.expt.qubit[0]
         pulse = {
-            "sigma": cfg_qub.sigma[q],
+            "sigma": cfg_qub.sigma[q]/2,
             "sigma_inc": cfg_qub.sigma_inc[q],
             "freq": cfg.device.qubit.f_ge[q],
-            "gain": cfg_qub.gain[q] / 2,
+            "gain": cfg_qub.gain[q],
             "phase": 0,
             "type": cfg_qub.type,
         }
         super().make_pulse(pulse, "pi2_prep")
         pulse["phase"] = cfg.expt.wait_time * 360 * cfg.expt.ramsey_freq
         super().make_pulse(pulse, "pi2_read")
-        if cfg.expt.type == "cpmg":
-            pulse["phase"] = 90
-        elif cfg.expt.type == "cp":
-            pulse["phase"] = 0
-        else:
-            assert False, "Unsupported echo experiment type"
-        pulse["gain"] = cfg_qub.gain[q]
-        super().make_pulse(pulse, "pi_pulse")
+        # if cfg.expt.type == "cpmg":
+        #     pulse["phase"] = 90
+        # elif cfg.expt.type == "cp":
+        #     pulse["phase"] = 0
+        # else:
+        #     assert False, "Unsupported echo experiment type"
+        #pulse["gain"] = cfg_qub.gain[q]
+        #super().make_pulse(pulse, "pi_pulse")
+        super().make_pi_pulse(
+            cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge"
+        )
 
         self.add_loop("wait_loop", cfg.expt.expts)
     
@@ -54,9 +57,11 @@ class RamseyEchoProgram(QickProgram):
 
         self.delay_auto(t=cfg.expt.wait_time/(cfg.expt.num_pi+1) + 0.01, tag="wait")
         for i in range(cfg.expt.num_pi):
-            self.pulse(ch=self.qubit_ch, name="pi_pulse", t=0)
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=cfg.expt.wait_time/(cfg.expt.num_pi+1) + 0.01, tag="wait2")
+        
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
+        self.delay_auto(t=0.01, tag="wait3")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
@@ -111,7 +116,7 @@ class RamseyEchoExperiment(QickExperiment):
             "expts": 100,
             "span": 3 * self.cfg.device.qubit.T2e[qi],
             "start": 0.1,
-            "ramsey_freq": 0.1,
+            "ramsey_freq": 'smart',
             "num_pi": 1,
             "type": "cp",            
             "qubit": [qi],
@@ -146,6 +151,7 @@ class RamseyEchoExperiment(QickExperiment):
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
         super().acquire(RamseyEchoProgram, progress=progress)
+        self.data['xpts']=(self.cfg.expt.num_pi+1)*self.data['xpts']
 
         return self.data
 
@@ -156,7 +162,7 @@ class RamseyEchoExperiment(QickExperiment):
             fitfunc = fitter.decaysin
             fitterfunc = fitter.fitdecaysin
             super().analyze(fitfunc, fitterfunc, data, **kwargs)
-            data = self.data
+            
 
             ydata_lab = ["amps", "avgi", "avgq"]
             for i, ydata in enumerate(ydata_lab):
@@ -191,16 +197,17 @@ class RamseyEchoExperiment(QickExperiment):
     ):
         if data is None:
             data = self.data
-        qubit = self.cfg.expt.qubit
+        qubit = self.cfg.expt.qubit[0]
 
         xlabel = "Wait Time ($\mu$s)"
         title = f"Ramsey Echo Q{qubit} (Freq: {self.cfg.expt.ramsey_freq:.4} MHz)"
         fitfunc = fitter.decaysin
-        captionStr = [
-            "$T_2$ Echo : {val:.4} $\pm$ {err:.2g} $\mu$s",
-            "Freq. : {val:.3} $\pm$ {err:.1} MHz",
+        caption_params = [
+            {"index": 3, "format": "$T_2$ Echo : {val:.4} $\pm$ {err:.2g} $\mu$s"},
+            {"index": 1, "format": "Freq. : {val:.3} $\pm$ {err:.1} MHz"},        
         ]
-        var = [3, 1]
+
+
         super().display(
             data=data,
             ax=ax,
@@ -210,8 +217,7 @@ class RamseyEchoExperiment(QickExperiment):
             fit=fit,
             show_hist=show_hist,
             fitfunc=fitfunc,
-            captionStr=captionStr,
-            var=var,
+            caption_params=caption_params,
         )
 
         # # Plot the decaying exponential

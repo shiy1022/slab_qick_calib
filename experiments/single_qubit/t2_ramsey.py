@@ -24,15 +24,14 @@ class RamseyProgram(QickProgram):
 
         super()._initialize(cfg, readout="standard")
 
-        cfg_qub = cfg.device.qubit.pulses.pi_ge
         q = cfg.expt.qubit[0]
         pulse = {
-            "sigma": cfg_qub.sigma[q],
-            "sigma_inc": cfg_qub.sigma_inc[q],
-            "freq": cfg.device.qubit.f_ge[q],
-            "gain": cfg_qub.gain[q] / 2,
+            "sigma": self.sigma[q]/2,
+            "sigma_inc": self.sigma_inc[q],
+            "freq": self.freq[q],
+            "gain": self.gain[q],
             "phase": 0,
-            "type": cfg_qub.type,
+            "type": self.type,
         }
         super().make_pulse(pulse, "pi2_prep")
         pulse["phase"] = cfg.expt.wait_time * 360 * cfg.expt.ramsey_freq
@@ -79,18 +78,17 @@ class RamseyExperiment(QickExperiment):
     def __init__(
         self,
         cfg_dict,
-        prefix=None,
-        progress=None,
         qi=0,
         go=True,
         params={},
-        checkEF=False,
+        prefix=None,
+        progress=None,
         acStark=False,
         style="",
         min_r2=None,
         max_err=None,
     ):
-        if checkEF:
+        if 'checkEF' in params and params['checkEF']:
             prefix = f"ramsey_ef_qubit{qi}"
         else:
             prefix = f"ramsey_qubit{qi}"
@@ -103,17 +101,28 @@ class RamseyExperiment(QickExperiment):
             "soft_avgs": 2 * self.soft_avgs,
             "start": 0.1,
             "span": 3 * self.cfg.device.qubit.T2r[qi],
-            "ramsey_freq": 0.1,
+            "ramsey_freq": 'smart',
             "acStark": acStark,
-            "checkEF": checkEF,
+            "checkEF": False,
             "checkZZ": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}
+        if params['checkEF']:
+            cfg_qub = self.cfg.device.qubit.pulses.pi_ef
+        else:
+            cfg_qub = self.cfg.device.qubit.pulses.pi_ge
+        for key in cfg_qub:
+            params_def[key] = self.cfg.device.qubit.pulses.pi_ef[key][qi]
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
         self.cfg.expt = params
+        if style == "fine":
+            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+        elif style == "fast":
+            params_def["expts"] = 30
+        
         super().check_params(params_def)
 
         if go:

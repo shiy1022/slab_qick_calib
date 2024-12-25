@@ -231,15 +231,16 @@ def hist(data, plot=True, span=None, ax=None, verbose=False):
         m = 0.7
         ax[0].plot(Ig_new, Qg_new, ".", label="g", color=blue, alpha=a, markersize=m)
         ax[0].plot(Ie_new, Qe_new, ".", label="e", color=red, alpha=a, markersize=m)
+
+        ax[0].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
+                   transform=ax[0].transAxes, fontsize=10, 
+                   verticalalignment='top', horizontalalignment='right', 
+                   bbox=dict(facecolor='white', alpha=0.5))
         if plot_f:
             ax[0].plot(If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m)
-        ax[0].plot(xg_new, yg_new, color="k", marker="o")
-        ax[0].plot(xe_new, ye_new, color="k", marker="o")
-        if plot_f:
-            axs[0, 1].scatter(xf, yf, color="k", marker="o")
 
         # ax[0].set_xlabel('I [ADC levels]')
-        ax[0].legend(loc="upper right")
+        #ax[0].legend(loc="upper right")
         ax[0].set_title("Rotated")
         ax[0].axis("equal")
 
@@ -957,6 +958,37 @@ class SingleShotOptExperiment(QickExperiment):
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
         plt.show()
 
+        do_more= self.check_edges()
+        return do_more
+    
     def save_data(self, data=None):
         super().save_data(data=data)
         return self.fname
+    
+    def check_edges(self):
+        do_more=False
+        fid = self.data["fid"]
+        fid_expts = fid.shape
+        if all(dim % 2 != 0 for dim in fid_expts):
+            old_fid = fid[(fid_expts[0] // 2), (fid_expts[1] // 2), (fid_expts[2] // 2)]
+            max_fid = np.max(fid)
+            if (max_fid - old_fid) > 0.1:
+                print("Fidelity is not maximized at the center of the sweep.")
+                edge_indices = [
+                    (0, 0, 0),
+                    (0, 0, fid_expts[2] - 1),
+                    (0, fid_expts[1] - 1, 0),
+                    (0, fid_expts[1] - 1, fid_expts[2] - 1),
+                    (fid_expts[0] - 1, 0, 0),
+                    (fid_expts[0] - 1, 0, fid_expts[2] - 1),
+                    (fid_expts[0] - 1, fid_expts[1] - 1, 0),
+                    (fid_expts[0] - 1, fid_expts[1] - 1, fid_expts[2] - 1),
+                ]
+                if any(fid[idx] == max_fid for idx in edge_indices):
+                    print("Max fidelity is found at one of the edge elements.")
+                    do_more=True
+        else:
+            print("Not all elements in fid_expts are odd.")
+        return do_more
+
+        
