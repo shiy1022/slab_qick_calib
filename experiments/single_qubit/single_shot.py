@@ -302,7 +302,7 @@ class HistogramProgram(QickProgram):
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
-            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],

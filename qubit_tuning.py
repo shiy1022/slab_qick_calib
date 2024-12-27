@@ -149,6 +149,7 @@ def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.1)
         params = {'checkEF':True}
     else:
         f = 'f_ge'
+        params = {}
 
 
     style = ["huge","coarse", "medium", "fine"]

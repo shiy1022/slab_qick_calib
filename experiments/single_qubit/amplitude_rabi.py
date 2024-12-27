@@ -53,12 +53,15 @@ class AmplitudeRabiProgram(QickProgram):
 
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+            self.delay_auto(t=0.01, tag="wait ef")
 
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
+        self.delay_auto(t=0.01, tag="wait")
 
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
-        self.delay_auto(t=0.01, tag="waiting 2")
+            self.delay_auto(t=0.01, tag="wait ef 2")
+        
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
@@ -102,14 +105,14 @@ class AmplitudeRabiExperiment(QickExperiment):
         min_r2=None,
         max_err=None,
     ):
-
+        prefix = "amp_rabi"
         if 'checkEF' in params and params['checkEF']:
             if 'pulse_ge' in params and not params['pulse_ge']:
-                prefix = f"amp_rabi_ef_no_ge_qubit{qi}"
+                prefix += f"ef_no_ge"
             else:
-                prefix = f"amp_rabi_ef_qubit{qi}"
-        else:
-            prefix = f"amp_rabi_qubit{qi}"
+                prefix = f"ef"
+
+        prefix += f"_qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
         params_def = {
@@ -323,8 +326,11 @@ class AmplitudeRabiChevronExperiment(QickExperiment2D):
     def display(self, data=None, fit=True, plot_both=False, **kwargs):
         if data is None:
             data = self.data
-
-        title = f"Amplitude Rabi Chevron Q{self.cfg.expt.qubit[0]} (Pulse Length {self.cfg.expt.sigma} $\mu$s)"
+        if self.cfg.expt.checkEF: 
+            title = 'EF'
+        else: 
+            title = ''
+        title += f"Amplitude Rabi Chevron Q{self.cfg.expt.qubit[0]} (Pulse Length {self.cfg.expt.sigma} $\mu$s)"
         xlabel = "Gain [DAC units]"
         ylabel = "Frequency [MHz]"
 

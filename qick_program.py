@@ -88,12 +88,16 @@ class QickProgram(AveragerProgramV2):
 
         if pulse.type == "gauss":
             style = "arb"
+            if "length" in pulse: 
+                length = pulse.length
+            else:
+                length = pulse.sigma * pulse.sigma_inc
             self.add_gauss(
                 ch=self.qubit_ch,
                 name="ramp",
                 sigma=pulse.sigma,
-                length=pulse.sigma * pulse.sigma_inc,
-                even_length=True,
+                length=length,
+                even_length=False,
             )
             pulse_args["envelope"] = "ramp"
         else:
@@ -113,12 +117,13 @@ class QickProgram(AveragerProgramV2):
         return pulse
 
 
-def get_shots(self):
+    def collect_shots(self, offset=0):
 
-    for i, (ch, rocfg) in enumerate(self.ro_chs.items()):
-        offset = self.cfg.soc["readouts"][ch]["iq_offset"]
-        nsamp = rocfg["length"]
-        iq_raw = self.get_raw()
-        i_shots = iq_raw[i][:, 0, 0] / nsamp - offset
-        q_shots = iq_raw[i][:, 0, 1] / nsamp - offset
-    return i_shots, q_shots
+        for i, (ch, rocfg) in enumerate(self.ro_chs.items()):
+            nsamp = rocfg["length"]
+            iq_raw = self.get_raw()
+            i_shots = iq_raw[i][:, :, 0, 0] / nsamp - offset
+            i_shots = i_shots.flatten()
+            q_shots = iq_raw[i][:, :, 0, 1] / nsamp - offset
+            q_shots = q_shots.flatten()
+        return i_shots, q_shots

@@ -24,14 +24,14 @@ class RamseyProgram(QickProgram):
 
         super()._initialize(cfg, readout="standard")
 
-        q = cfg.expt.qubit[0]
+        
         pulse = {
-            "sigma": self.sigma[q]/2,
-            "sigma_inc": self.sigma_inc[q],
-            "freq": self.freq[q],
-            "gain": self.gain[q],
+            "sigma": cfg.expt.sigma/2,
+            "sigma_inc": cfg.expt.sigma_inc,
+            "freq": cfg.expt.freq,
+            "gain": cfg.expt.gain,
             "phase": 0,
-            "type": self.type,
+            "type": cfg.expt.type,
         }
         super().make_pulse(pulse, "pi2_prep")
         pulse["phase"] = cfg.expt.wait_time * 360 * cfg.expt.ramsey_freq
@@ -50,18 +50,31 @@ class RamseyProgram(QickProgram):
             }
             super().make_pulse(pulse, "stark_pulse")
 
+        if cfg.expt.checkEF:
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+
     def _body(self, cfg):
 
         cfg = AttrDict(self.cfg)
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+
+        if cfg.expt.checkEF:
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+            self.delay_auto(t=0.01, tag="wait ef")
 
         self.pulse(ch=self.qubit_ch, name="pi2_prep", t=0)
         if cfg.expt.acStark:
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
             self.delay_auto(t=0.01, tag="waiting")
         else:
-            self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="wait")
+            self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="waiting")
+        
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
+        self.delay_auto(t=0.01, tag="wait")
+
+        if cfg.expt.checkEF:
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+            self.delay_auto(t=0.01, tag="wait ef 2")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
@@ -71,6 +84,9 @@ class RamseyProgram(QickProgram):
             pins=[0],
             t=self.trig_offset,
         )
+    
+    def collect_shots(self, offset=0):
+        return super().collect_shots(offset=0)
 
 
 class RamseyExperiment(QickExperiment):
@@ -111,24 +127,28 @@ class RamseyExperiment(QickExperiment):
         params = {**params_def, **params}
         if params['checkEF']:
             cfg_qub = self.cfg.device.qubit.pulses.pi_ef
+            params_def["freq"] = self.cfg.device.qubit.f_ef[qi]
         else:
             cfg_qub = self.cfg.device.qubit.pulses.pi_ge
+            params_def["freq"] = self.cfg.device.qubit.f_ge[qi]
         for key in cfg_qub:
             params_def[key] = self.cfg.device.qubit.pulses.pi_ef[key][qi]
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
-        self.cfg.expt = params
+        
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
         elif style == "fast":
             params_def["expts"] = 30
+        params = {**params_def, **params}
+        self.cfg.expt = params
         
         super().check_params(params_def)
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
-    def acquire(self, progress=False, debug=False):
+    def acquire(self, progress=False):
 
         # if self.cfg.expt.ramsey_freq > 0:
         #     self.cfg.expt.ramsey_freq_sign = 1
@@ -136,7 +156,7 @@ class RamseyExperiment(QickExperiment):
         #     self.cfg.expt.ramsey_freq_sign = -1
         # self.cfg.expt.ramsey_freq_abs = abs(self.cfg.expt.ramsey_freq)
 
-        self.param = {"label": "wait", "param": "t", "param_type": "time"}
+        self.param = {"label": "waiting", "param": "t", "param_type": "time"}
         self.cfg.expt.wait_time = QickSweep1D(
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
@@ -206,7 +226,7 @@ class RamseyExperiment(QickExperiment):
         debug=False,
         plot_all=False,
         ax=None,
-        show_hist=False,
+        show_hist=True,
         **kwargs,
     ):
         if data is None:

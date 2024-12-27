@@ -35,7 +35,7 @@ class QickExperiment(Experiment):
             * self.cfg.device.readout.soft_avgs_base
         )
 
-    def acquire(self, prog_name, progress=True, hist=False):
+    def acquire(self, prog_name, progress=True, get_hist=True):
         final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
         prog = prog_name(
             soccfg=self.soccfg,
@@ -60,7 +60,7 @@ class QickExperiment(Experiment):
         avgi = iq_list[0][0][:, 0]
         avgq = iq_list[0][0][:, 1]
 
-        if hist:
+        if get_hist:
             v, hist = self.make_hist(prog)
 
         data = {
@@ -71,7 +71,7 @@ class QickExperiment(Experiment):
             "phases": phases,
             "start_time": current_time,
         }
-        if hist:
+        if get_hist:
             data["bin_centers"] = v
             data["hist"] = hist
 
@@ -187,7 +187,9 @@ class QickExperiment(Experiment):
 
         if show_hist:  # Plot histogram of shots if show_hist is True
             fig2, ax = plt.subplots(1, 1, figsize=(3, 3))
-            ax.plot(data["bin_centers"], data["hist"], "o-")
+            ax.plot(data["bin_centers"], data["hist"]/np.sum(data['hist']), "o-")
+            ax.set_xlabel("I [ADC units]")
+            ax.set_ylabel("Probability")
 
         if save_fig:  # Save figure if save_fig is True
             imname = self.fname.split("\\")[-1]
@@ -198,7 +200,8 @@ class QickExperiment(Experiment):
             plt.show()
 
     def make_hist(self, prog):
-        shots_i, shots_q = prog.collect_shots()
+        offset = self.soccfg._cfg['readouts'][self.cfg.expt.qubit_chan]["iq_offset"]
+        shots_i, shots_q = prog.collect_shots(offset=offset)
         # sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
         hist, bin_edges = np.histogram(shots_i, bins=60)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
@@ -526,6 +529,56 @@ class QickExperiment2D(QickExperimentLoop):
         super().save_data(data=data)
         return self.fname
 
+
+class QickExperiment2DSimple(QickExperiment2D):
+    
+    def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
+
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+
+    def acquire(self, exp, x_sweep, y_sweep, progress=True):
+
+        data = {"avgi": [], "avgq": [], "amps": [], "phases": [],'xpts':[], 'start_time':[], 'bin_centers':[], 'hist':[]}
+
+        yvals = np.arange(len(y_sweep[0]["pts"]))
+        data["time"] = []
+        now = datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = current_time.encode("ascii", "replace")
+
+        for i in tqdm(yvals):
+            for j in range(len(y_sweep)):
+                self.cfg.expt[y_sweep[j]["var"]] = y_sweep[j]["pts"][i]
+            data_new = exp.acquire()
+            for key in data_new:
+                data[key].append(data_new[key])
+
+        
+        return data 
+    
+    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
+        super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, fit=fit)
+
+    def display(
+        self,
+        data=None,
+        ax=None,
+        plot_both=False,
+        title="",
+        xlabel="",
+        ylabel="",
+        **kwargs,
+    ):
+        super().display(
+            data=data,
+            ax=ax,
+            plot_both=plot_both,
+            title=title,
+            xlabel=xlabel,
+            ylabel=ylabel,
+        )
+
+            
 
 class QickExperiment2DLoop(QickExperiment2D):
 

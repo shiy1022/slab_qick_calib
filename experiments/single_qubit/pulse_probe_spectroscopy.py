@@ -44,14 +44,16 @@ class QubitSpecProgram(QickProgram):
 
         if cfg.expt.checkEF:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+            self.delay_auto(t=0.01, tag="wait 1")
 
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
 
         if cfg.expt.checkEF:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+            self.delay_auto(t=0.01, tag="wait 2")
 
         if cfg.expt.sep_readout:
-            self.delay_auto(t=0.01, tag="waiting 2")
+            self.delay_auto(t=0.01, tag="wait")
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
             self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)

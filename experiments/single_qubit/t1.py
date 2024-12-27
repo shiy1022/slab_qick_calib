@@ -60,6 +60,8 @@ class T1Program(QickProgram):
             t=self.trig_offset,
         )
 
+    def collect_shots(self, offset=0):
+        return super().collect_shots(offset=0)
 
 class T1Experiment(QickExperiment):
     """
@@ -134,11 +136,12 @@ class T1Experiment(QickExperiment):
         return data
 
     def display(
-        self, data=None, fit=True, plot_all=False, ax=None, show_hist=False, **kwargs
+        self, data=None, fit=True, plot_all=False, ax=None, show_hist=True, **kwargs
     ):
         qubit = self.cfg.expt.qubit[0]
         title = f"$T_1$ Q{qubit}"
         xlabel = "Wait Time ($\mu$s)"
+
 
         caption_params = [
             {"index": 2, "format": "$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"},           
