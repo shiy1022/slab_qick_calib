@@ -101,8 +101,12 @@ class QickProgram(AveragerProgramV2):
             )
             pulse_args["envelope"] = "ramp"
         else:
+            if "length" in pulse: 
+                length = pulse.length
+            else:
+                length = pulse.sigma 
             style = "const"
-            pulse_args["length"] = pulse.sigma
+            pulse_args["length"] = length
         pulse_args["style"] = style
         self.add_pulse(**pulse_args)
 

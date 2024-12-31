@@ -116,7 +116,7 @@ class RabiExperiment(QickExperiment):
             "soft_avgs": self.soft_avgs,
             "checkEF": False,
             "pulse_ge": True,
-            "start": 0,
+            "start": 0.05,
             "type": "amp",
             "qubit": [qi],
             "pulse_type": "gauss",
@@ -134,10 +134,10 @@ class RabiExperiment(QickExperiment):
             params_def['sigma_inc'] = self.cfg.device.qubit.pulses.pi_ge.sigma_inc[qi]
             params_def['gain'] = self.cfg.device.qubit.pulses.pi_ge.gain[qi]
             params_def['freq'] = self.cfg.device.qubit.f_ge[qi]
-        
-        if params_def["type"]=="amp":
+        self.cfg.expt = {**params_def, **params}
+        if params["type"]=="amp":
             params_def['gain'] = params_def['gain'] * 4
-        elif params_def["type"]=="time":
+        elif params["type"]=="time":
             params_def["sigma"] = 4 * params_def["sigma"]
         
         if style == "fine":
@@ -164,7 +164,7 @@ class RabiExperiment(QickExperiment):
         elif self.cfg.expt.type == "time":
             param = 'sigma'
             self.cfg.expt['length'] = QickSweep1D(
-        "sweep_loop", self.cfg.expt.start*self.cfg.expt.sigma_inc, self.cfg.expt[param]*self.cfg.expt.sigma_inc
+        "sweep_loop", self.cfg.expt.start, self.cfg.expt[param]
     )
             param_pulse = 'total_length'
             

@@ -51,7 +51,7 @@ class RamseyStarkExperiment(QickExperiment):
             "soft_avgs": 2 * self.soft_avgs,
             "start": 0.1,
             "ramsey_freq": 'smart',
-            "stark_gain": 20000,
+            "stark_gain": 0.5,
             "step": 0.0023251488095238095,
             "df": 70,
             "acStark": acStark,
@@ -91,7 +91,8 @@ class RamseyStarkExperiment(QickExperiment):
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.step*self.cfg.expt.expts
         )
 
-        super().acquire(meas.RamseyProgram, progress=progress)
+        data = super().acquire(meas.RamseyProgram, progress=progress)
+        return data
 
     def analyze(self, data=None, fit=True, **kwargs):
         if data is None:
@@ -374,46 +375,35 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        exp_name = 'T2RamseyStark'
+        exp_name = RamseyStarkExperiment
         exp_name(cfg_dict, qi, go=False, params=params)
 
         params_def = {
             "end_gain": self.cfg.device.qubit.max_gain,
             "expts_gain": 20,
-            "start_gain": 5000,
+            "start_gain": 0.15,
             "qubit": [qi],
         }
+        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params, acStark=acStark)
         params = {**params_def, **params}
+        params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False):
-        self.update_config()
 
         self.cfg.expt["end_gain"] = np.min(
-            [
-                self.cfg.device.qubit.max_gain[self.cfg.expt.qubit[0]],
-                self.cfg.expt["end_gain"],
-            ]
-        )
+            [self.cfg.device.qubit.max_gain,self.cfg.expt["end_gain"]])
         gainpts = np.linspace(
             self.cfg.expt["start_gain"],
             self.cfg.expt["end_gain"],
             self.cfg.expt["expts_gain"],
         )
 
-        xvals = np.arange(self.cfg.expt["expts"])
-        phases = 360 * self.cfg.expt["ramsey_freq"] * self.cfg.expt.step * xvals
-        lengths = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(
-            self.cfg.expt["expts"]
-        )
-        x_sweep = [{"var": "length", "pts": lengths}, {"var": "phase", "pts": phases}]
         y_sweep = [{"var": "stark_gain", "pts": gainpts}]
-        super().acquire(
-            RamseyStark2Program, x_sweep=x_sweep, y_sweep=y_sweep, progress=progress
-        )
+        super().acquire(y_sweep=y_sweep, progress=progress)
 
         return self.data
 

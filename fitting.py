@@ -151,8 +151,8 @@ def fitsin(xdata, ydata, fitparams=None, debug=False):
     if fitparams[2] is None: fitparams[2]=max_phase*180/np.pi
     if fitparams[3] is None: fitparams[3]=np.mean(ydata)
     bounds = (
-        [0.5*fitparams[0], 0.1/(max(xdata)-min(xdata)), -360, np.min(ydata)],
-        [2*fitparams[0], 10/(max(xdata)-min(xdata)), 360, np.max(ydata)]
+        [0.5*fitparams[0], 1e-3, -360, np.min(ydata)],
+        [2*fitparams[0], 1000, 360, np.max(ydata)]
         )
     for i, param in enumerate(fitparams):
         if not (bounds[0][i] < param < bounds[1][i]):

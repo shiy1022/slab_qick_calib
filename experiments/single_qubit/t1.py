@@ -46,8 +46,9 @@ class T1Program(QickProgram):
 
         self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
         if cfg.expt.acStark:
+            self.delay_auto(t=0.01, tag="wait_stark")
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
-            self.delay_auto(t=0.01, tag="waiting")
+            self.delay_auto(t=0.01, tag="wait")
         else:
             self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag="wait")
 

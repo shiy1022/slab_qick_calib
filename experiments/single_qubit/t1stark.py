@@ -9,181 +9,13 @@ from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import copy
 import fitting as fitter
-from qick_experiment import QickExperimentLoop, QickExperiment2DLoop
+from qick_experiment import QickExperiment, QickExperiment2DSimple
 import seaborn as sns
+from qick.asm_v2 import QickSweep1D
+import experiments as meas
 
 
-class T1StarkProgram(AveragerProgram):
-    def __init__(self, soccfg, cfg):
-        self.cfg = AttrDict(cfg)
-        self.cfg.update(self.cfg.expt)
-
-        # copy over parameters for the acquire method
-        self.cfg.reps = cfg.expt.reps
-        self.cfg.soft_avgs = cfg.expt.soft_avgs
-
-        super().__init__(soccfg, self.cfg)
-
-    def initialize(self):
-        cfg = AttrDict(self.cfg)
-        self.cfg.update(cfg.expt)
-
-        self.adc_ch = cfg.hw.soc.adcs.readout.ch
-        self.res_ch = cfg.hw.soc.dacs.readout.ch
-        self.res_ch_type = cfg.hw.soc.dacs.readout.type
-        self.qubit_ch = cfg.hw.soc.dacs.qubit.ch
-        self.qubit_ch_type = cfg.hw.soc.dacs.qubit.type
-
-        # self.q_rp = self.ch_page(self.qubit_ch) # get register page for qubit_ch
-        # self.r_wait = 3
-        # self.safe_regwi(self.q_rp, self.r_wait, self.us2cycles(cfg.expt.start))
-
-        self.f_ge = self.freq2reg(cfg.device.qubit.f_ge, gen_ch=self.qubit_ch)
-        self.f_res_reg = self.freq2reg(
-            cfg.device.readout.frequency, gen_ch=self.res_ch, ro_ch=self.adc_ch
-        )
-        self.readout_length_dac = self.us2cycles(
-            cfg.device.readout.readout_length, gen_ch=self.res_ch
-        )
-        self.readout_length_adc = self.us2cycles(
-            cfg.device.readout.readout_length, ro_ch=self.adc_ch
-        )
-        self.readout_length_adc += 1  # ensure the rounding of the clock ticks calculation doesn't mess up the buffer
-
-        # declare res dacs
-        mask = None
-        mixer_freq = 0  # MHz
-        mux_freqs = None  # MHz
-        mux_gains = None
-        ro_ch = self.adc_ch
-        if self.res_ch_type == "int4":
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-        elif self.res_ch_type == "mux4":
-            assert self.res_ch == 6
-            mask = [0, 1, 2, 3]  # indices of mux_freqs, mux_gains list to play
-            mixer_freq = cfg.hw.soc.dacs.readout.mixer_freq
-            mux_freqs = [0] * 4
-            mux_freqs[cfg.expt.qubit_chan] = cfg.device.readout.frequency
-            mux_gains = [0] * 4
-            mux_gains[cfg.expt.qubit_chan] = cfg.device.readout.gain
-
-        self.declare_gen(
-            ch=self.res_ch,
-            nqz=cfg.hw.soc.dacs.readout.nyquist,
-            mixer_freq=mixer_freq,
-            mux_freqs=mux_freqs,
-            mux_gains=mux_gains,
-            ro_ch=ro_ch,
-        )
-
-        # declare qubit dacs
-        mixer_freq = 0
-        if self.qubit_ch_type == "int4":
-            mixer_freq = cfg.hw.soc.dacs.qubit.mixer_freq
-        self.declare_gen(
-            ch=self.qubit_ch, nqz=cfg.hw.soc.dacs.qubit.nyquist, mixer_freq=mixer_freq
-        )
-
-        # declare adcs
-        self.declare_readout(
-            ch=self.adc_ch,
-            length=self.readout_length_adc,
-            freq=cfg.device.readout.frequency,
-            gen_ch=self.res_ch,
-        )
-
-        self.pi_sigma = self.us2cycles(
-            cfg.device.qubit.pulses.pi_ge.sigma, gen_ch=self.qubit_ch
-        )
-
-        # add qubit and readout pulses to respective channels
-        if self.cfg.device.qubit.pulses.pi_ge.type.lower() == "gauss":
-            self.add_gauss(
-                ch=self.qubit_ch,
-                name="pi_qubit",
-                sigma=self.pi_sigma,
-                length=self.pi_sigma * 4,
-            )
-        #    self.set_pulse_registers(ch=self.qubit_ch, style="arb", freq=self.f_ge, phase=0, gain=cfg.device.qubit.pulses.pi_ge.gain, waveform="pi_qubit")
-        else:
-            self.set_pulse_registers(
-                ch=self.qubit_ch,
-                style="const",
-                freq=self.f_ge,
-                phase=0,
-                gain=cfg.expt.start,
-                length=self.pi_sigma,
-            )
-
-        if self.res_ch_type == "mux4":
-            self.set_pulse_registers(
-                ch=self.res_ch, style="const", length=self.readout_length_dac, mask=mask
-            )
-
-        else:
-            self.set_pulse_registers(
-                ch=self.res_ch,
-                style="const",
-                freq=self.f_res_reg,
-                phase=self.deg2reg(-self.cfg.device.readout.phase, gen_ch=self.res_ch),
-                gain=cfg.device.readout.gain,
-                length=self.readout_length_dac,
-            )
-
-        if self.cfg.expt.acStark:
-            self.stark_freq = self.freq2reg(cfg.expt.stark_freq, gen_ch=self.qubit_ch)
-            self.stark_gain = (
-                self.cfg.expt.stark_gain
-            )  # gain of the pulse we are trying to calibrate
-        self.stark_length = self.us2cycles(cfg.expt.length)
-
-        self.sync_all(200)
-
-    def body(self):
-        cfg = AttrDict(self.cfg)
-        self.set_pulse_registers(
-            ch=self.qubit_ch,
-            style="arb",
-            freq=self.f_ge,
-            phase=0,
-            gain=cfg.device.qubit.pulses.pi_ge.gain,
-            waveform="pi_qubit",
-        )
-        if self.cfg.expt.do_exp:
-            self.pulse(ch=self.qubit_ch)
-            # self.sync_all() # align channels
-            if self.cfg.expt.acStark:
-                self.set_pulse_registers(
-                    ch=self.qubit_ch,
-                    style="const",
-                    freq=self.stark_freq,
-                    phase=0,
-                    gain=self.stark_gain,  # gain set by update
-                    length=self.stark_length,
-                )
-                self.pulse(ch=self.qubit_ch)
-                self.sync_all(5)  # align channels and wait 50ns
-            else:
-                self.sync_all(self.stark_length)  # align channels and wait 50ns
-            # self.wait_all(self.stark_length) # wait for the pulse to finish
-
-        self.measure(
-            pulse_ch=self.res_ch,
-            adcs=[self.adc_ch],
-            adc_trig_offset=cfg.device.readout.trig_offset,
-            wait=True,
-            syncdelay=self.us2cycles(cfg.device.readout.final_delay),
-        )
-
-    def collect_shots(self):
-        # collect shots for the relevant adc and I and Q channels
-        cfg = AttrDict(self.cfg)
-        shots_i0 = self.di_buf[0] / self.readout_length_adc  # [self.cfg.expt.qubit]
-        shots_q0 = self.dq_buf[0] / self.readout_length_adc  # [self.cfg.expt.qubit]
-        return shots_i0, shots_q0
-
-
-class T1StarkExperiment(QickExperimentLoop):
+class T1StarkExperiment(QickExperiment):
     """
     T1 Experiment
     Experimental Config:
@@ -202,48 +34,52 @@ class T1StarkExperiment(QickExperimentLoop):
         qi=0,
         go=True,
         params={},
-        prefix="",
-        progress=False,
+        prefix=None,
+        progress=None,
         style="",
+        acStark=True,
         min_r2=None,
         max_err=None,
     ):
 
-        if prefix == "":
+        if prefix is None:
             prefix = f"t1_stark_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
-            "expts": 60,
-            "start": 0.02,
-            "span": self.cfg.device.qubit.T1[qi] * 3.7,
             "reps": 2 * self.reps,
             "soft_avgs": self.soft_avgs,
-            "stark_gain": 20000,
-            "delay_time": self.cfg.device.qubit.T1[qi],
+            "expts": 60,
+            "start": 0.05,
+            "span": 3.7 * self.cfg.device.qubit.T1[qi],
+            "acStark": acStark,
+            "qubit": [qi],
+            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
+            "stark_gain":1,
             "df": 70,
-            "acStark": True,
-            "do_exp": True,
         }
         params = {**params_def, **params}
+        if style == "fine":
+            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+        elif style == "fast":
+            params_def["expts"] = 30
+        
+        
         params["stark_freq"] = self.cfg.device.qubit.f_ge[qi] + params["df"]
-        params["step"] = params["span"] / (params["expts"] - 1)
-        params_exp = {"qubit": [qi], "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi]}
-        self.cfg.expt = {**params, **params_exp}
-
+        
+        self.cfg.expt = {**params_def, **params}
+        super().check_params(params_def)
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
-    def acquire(self, progress=False):
-        q_ind = self.cfg.expt.qubit[0]
-        self.update_config(q_ind)
 
-        lengths = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(
-            self.cfg.expt["expts"]
+    def acquire(self, progress=False):
+        self.param = {"label": "wait", "param": "t", "param_type": "time"}
+        self.cfg.expt.wait_time = QickSweep1D(
+            "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
-        x_sweep = [{"var": "length", "pts": lengths}]
-        super().acquire(T1StarkProgram, x_sweep, progress=progress)
+        super().acquire(meas.T1Program, progress=progress)
 
         return self.data
 
@@ -257,15 +93,16 @@ class T1StarkExperiment(QickExperimentLoop):
 
         return self.data
 
-    def display(self, data=None, fit=True, plot_all=False, ax=None, show_hist=False):
+    def display(self, data=None, fit=True, plot_all=False, ax=None, show_hist=True):
 
-        qubit = self.cfg.expt.qubit
-        df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge
+        q = self.cfg.expt.qubit[0]
+        df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge[q]
         xlabel = "Wait Time ($\mu$s)"
-        captionStr = ["$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"]
-        title = f"$T_1$ Stark Q{qubit} Freq: {df}, Amp: {self.cfg.expt.stark_gain}"
-        var = [2]
+        title = f"$T_1$ Stark Q{q} Freq: {df}, Amp: {self.cfg.expt.stark_gain}"
         fitfunc = fitter.expfunc
+        caption_params = [
+            {"index": 2, "format": "$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"},           
+        ]
 
         super().display(
             data=data,
@@ -276,8 +113,7 @@ class T1StarkExperiment(QickExperimentLoop):
             fit=fit,
             show_hist=show_hist,
             fitfunc=fitfunc,
-            captionStr=captionStr,
-            var=var,
+            caption_params=caption_params,
         )
 
     def save_data(self, data=None):
@@ -285,7 +121,7 @@ class T1StarkExperiment(QickExperimentLoop):
         return self.fname
 
 
-class T1StarkPowerExperiment(QickExperiment2DLoop):
+class T1StarkPowerExperiment(QickExperiment2DSimple):
     """
     Stark Power Rabi Experiment
     Experimental Config:
@@ -309,63 +145,45 @@ class T1StarkPowerExperiment(QickExperiment2DLoop):
         qi=0,
         go=True,
         params={},
-        prefix=None,
-        progress=None,
+        prefix="",
+        progress=False,
         style="",
         min_r2=None,
+        acStark=True,
         max_err=None,
     ):
 
-        if prefix is None:
-            prefix = f"t1_stark_qubit{qi}"
+        if prefix == "":
+            prefix = f"ramsey_stark_amp_qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         params_def = {
-            "expts": 60,
-            "span": 3.7 * self.cfg.device.qubit.T1[qi],
-            "reps": self.reps,
-            "soft_avgs": self.soft_avgs,
-            "start": 0.05,
-            "start_gain": 0,
-            "stop_gain": self.cfg.device.qubit.max_gain,
-            "expts_gain": 10,
-            "acStark": True,
-            "qubit": qi,
-            "df": 70,
-            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
+            "end_gain": self.cfg.device.qubit.max_gain,
+            "expts_gain": 20,
+            "start_gain": 0.15,
+            "qubit": [qi],
         }
-        if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
-        elif style == "fast":
-            params_def["expts"] = 30
-
+        self.expt = T1StarkExperiment(cfg_dict, qi, go=False, params=params, acStark=acStark, style=style)
         params = {**params_def, **params}
-        params["stark_freq"] = self.cfg.device.qubit.f_ge[qi] + params["df"]
-        params["step_gain"] = (params["stop_gain"] - params["start_gain"]) / params[
-            "expts_gain"
-        ]
-
-        params["step"] = params["span"] / params["expts"]
+        params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
-    def acquire(self, progress=False, debug=False):
+    def acquire(self, progress=False):
 
-        self.update_config(q_ind=self.cfg.expt.qubit)
+        self.cfg.expt["end_gain"] = np.min(
+            [self.cfg.device.qubit.max_gain,self.cfg.expt["end_gain"]])
+        gainpts = np.linspace(
+            self.cfg.expt["start_gain"],
+            self.cfg.expt["end_gain"],
+            self.cfg.expt["expts_gain"],
+        )
 
-        lengths = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(
-            self.cfg.expt["expts"]
-        )
-        x_sweep = [{"var": "length", "pts": lengths}]
-        gain_pts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"] * np.arange(
-            self.cfg.expt["expts_gain"]
-        )
-        y_sweep = [{"var": "stark_gain", "pts": gain_pts}]
-        self.cfg.expt.do_exp = True
-        super().acquire(T1StarkProgram, x_sweep, y_sweep, progress=progress)
+        y_sweep = [{"var": "stark_gain", "pts": gainpts}]
+        super().acquire(y_sweep=y_sweep, progress=progress)
 
         return self.data
 
@@ -373,60 +191,54 @@ class T1StarkPowerExperiment(QickExperiment2DLoop):
         if data is None:
             data = self.data
 
-        fitfunc = fitter.expfunc
         fitterfunc = fitter.fitexp
-        super().analyze(fitfunc, fitterfunc, data)
-        # data['t1_fits']= [self.data['fit_avgi'] ]
-        self.data["t1_fits"] = np.array(
-            [self.data["fit_avgi"][i][2] for i in range(len(self.data["fit_avgi"]))]
-        )
+        super().analyze(fitfunc=fitter.expfunc, fitterfunc=fitterfunc, data=data)
+
+        data['offset'] = [data["fit_avgi"][i][0] for i in range(len(data["stark_gain_pts"]))]
+        data['amp'] = [data["fit_avgi"][i][1] for i in range(len(data["stark_gain_pts"]))]
+        data['t1'] = [data["fit_avgi"][i][2] for i in range(len(data["stark_gain_pts"]))]
 
     def display(self, data=None, fit=True, plot_both=False, **kwargs):
         if data is None:
             data = self.data
-        ylabel = "Gain [DAC units]"
-        title = f"Amplitude Stark T1, Frequency: {self.cfg.expt.stark_freq-self.cfg.device.qubit.f_ge} MHz"
-        xlabel = "Wait Time ($\mu$s)"
-        super().display(
-            data=data,
-            title=title,
-            xlabel=xlabel,
-            ylabel=ylabel,
-            fit=fit,
-            plot_both=plot_both,
-        )
+        qubit = self.cfg.expt.qubit[0]
+        df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge[qubit]
 
-        fig2 = plt.figure()
-        plt.plot(
-            data["stark_gain_pts"] ** 2 / np.max(data["stark_gain_pts"] ** 2),
-            data["t1_fits"],
-        )
-        plt.xlabel("Gain Sq")
-        plt.ylabel("T1 (us)")
+        title = f"T1 Stark Power Q{qubit} Freq: {df}"
+        ylabel = "Gain [DAC units]"
+        xlabel = "Wait Time ($\mu$s)"
+        super().display(plot_both=False, title=title, xlabel=xlabel, ylabel=ylabel)
+
+        fig, ax = plt.subplots(3, 1, figsize=(6, 8))
+        
+        if fit:           
+            ax[0].plot(data["stark_gain_pts"], data['offset'])
+            ax[1].plot(data["stark_gain_pts"], data['amp'])
+            ax[2].plot(data["stark_gain_pts"], data['t1'])
+            
+            ax[2].set_xlabel("Gain [DAC units]")
+            ax[0].set_ylabel("Offset")
+            ax[1].set_ylabel("Amplitude")
+            ax[2].set_ylabel("T1")
+            ax[0].set_title(f"T1 Stark Power Q{qubit} Freq: {df}")
+            # print(f'Quadratic Fit: {data['quad_fit'][0]:.3g}x^2 + {data['quad_fit'][1]:.3g}x + {data['quad_fit'][2]:.3g}')
+        sns.set_palette("coolwarm", len(data["stark_gain_pts"]))
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+        for i in range(len(data['stark_gain_pts'])):
+             ax.plot(data['xpts'], data['avgi'][i], linewidth=0.5)#, label=f'Gain {data['stark_gain_pts'][i]}')
 
         imname = self.fname.split("\\")[-1]
-        fig2.savefig(
-            self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "_t1.png"
+        fig.savefig(
+            self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "quad_fit.png"
         )
         plt.show()
-
-        sns.set_palette("coolwarm", n_colors=len(data["t1_fits"]))
-        fig3 = plt.figure()
-        for i in range(len(data["t1_fits"])):
-            plt.plot(
-                data["xpts"],
-                data["avgi"][i],
-                label=f'Gain: {data["stark_gain_pts"][i]}',
-            )
-
-        plt.legend()
 
     def save_data(self, data=None):
         super().save_data(data=data)
         return self.fname
 
 
-class T1StarkPowerContExperiment(QickExperimentLoop):
+class T1StarkPowerContExperiment(QickExperiment):
     """
     Stark Power Rabi Experiment
     Experimental Config:
@@ -580,7 +392,7 @@ class T1StarkPowerContExperiment(QickExperimentLoop):
         return self.fname
 
 
-class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
+class T1StarkPowerContTimeExperiment(QickExperiment2DSimple):
     """
     Stark Power Rabi Experiment
     Experimental Config:
@@ -803,7 +615,7 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DLoop):
         return self.fname
 
 
-class T1StarkPowerContTime(QickExperiment2DLoop):
+class T1StarkPowerContTime(QickExperiment2DSimple):
     """
     Stark Power Rabi Experiment add ground state
     Experimental Config:

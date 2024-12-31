@@ -62,8 +62,10 @@ class RamseyProgram(QickProgram):
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait ef")
 
-        self.pulse(ch=self.qubit_ch, name="pi2_prep", t=0)
+        self.pulse(ch=self.qubit_ch, name="pi2_prep", t=0.0)
+
         if cfg.expt.acStark:
+            self.delay_auto(t=0.01, tag="wait st")
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
             self.delay_auto(t=0.01, tag="waiting")
         else:

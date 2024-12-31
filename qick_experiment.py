@@ -442,7 +442,7 @@ class QickExperiment2D(QickExperimentLoop):
             data["fit_" + ydata] = []
             data["fit_err_" + ydata] = []
             for j in range(len(data["ypts"])):
-                fit_pars = []
+                
                 fit_pars, fit_err, init = fitterfunc(
                     data["xpts"], data[ydata][j], fitparams=None
                 )
@@ -536,7 +536,7 @@ class QickExperiment2DSimple(QickExperiment2D):
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
-    def acquire(self, exp, x_sweep, y_sweep, progress=True):
+    def acquire(self, y_sweep, progress=True):
 
         data = {"avgi": [], "avgq": [], "amps": [], "phases": [],'xpts':[], 'start_time':[], 'bin_centers':[], 'hist':[]}
 
@@ -548,12 +548,20 @@ class QickExperiment2DSimple(QickExperiment2D):
 
         for i in tqdm(yvals):
             for j in range(len(y_sweep)):
-                self.cfg.expt[y_sweep[j]["var"]] = y_sweep[j]["pts"][i]
-            data_new = exp.acquire()
+                self.expt.cfg.expt[y_sweep[j]["var"]] = y_sweep[j]["pts"][i]
+            data_new = self.expt.acquire()
             for key in data_new:
                 data[key].append(data_new[key])
 
-        
+        if "count" in [y_sweep[j]["var"] for j in range(len(y_sweep))]:
+            data["ypts"] = (data["time"] - np.min(data["time"])) / 3600
+        else:
+            data["ypts"] = y_sweep[0]["pts"]
+        for j in range(len(y_sweep)):
+            data[y_sweep[j]["var"] + "_pts"] = y_sweep[j]["pts"]
+
+        data['xpts']=data['xpts'][0]
+        self.data = data
         return data 
     
     def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
