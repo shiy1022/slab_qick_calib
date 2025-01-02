@@ -50,8 +50,8 @@ class RamseyProgram(QickProgram):
             }
             super().make_pulse(pulse, "stark_pulse")
 
-        if cfg.expt.checkEF:
-            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+        #if cfg.expt.checkEF:
+        super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):
 
@@ -67,7 +67,7 @@ class RamseyProgram(QickProgram):
         if cfg.expt.acStark:
             self.delay_auto(t=0.01, tag="wait st")
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
-            self.delay_auto(t=0.01, tag="waiting")
+            self.delay_auto(t=0.025, tag="waiting")
         else:
             self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="waiting")
         
@@ -78,17 +78,23 @@ class RamseyProgram(QickProgram):
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait ef 2")
 
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        
         if self.lo_ch is not None:
             self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
+        self.pulse(ch=self.res_ch, name="readout_pulse", t=0.01)
         self.trigger(
             ros=[self.adc_ch],
             pins=[0],
             t=self.trig_offset,
         )
+        if cfg.expt.active_reset:
+            self.reset(3)
     
     def collect_shots(self, offset=0):
         return super().collect_shots(offset=0)
+    
+    def reset(self, i):
+        super().reset(i)
 
 
 class RamseyExperiment(QickExperiment):
@@ -123,6 +129,7 @@ class RamseyExperiment(QickExperiment):
             "acStark": acStark,
             "checkEF": False,
             "checkZZ": False,
+            'active_reset': False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
@@ -146,6 +153,8 @@ class RamseyExperiment(QickExperiment):
         self.cfg.expt = params
         
         super().check_params(params_def)
+        if self.cfg.expt.active_reset:
+            super().configure_reset()
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)

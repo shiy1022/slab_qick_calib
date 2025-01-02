@@ -37,10 +37,10 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
             auto_cfg = config.update_qubit(cfg_path, 'f_ge', qspec.data['new_freq'], qi)
         
         # Amp Rabi 
-        amp_rabi = meas.AmplitudeRabiExperiment(cfg_dict,qi=qi)
+        amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi)
         if update:
             if amp_rabi.status:
-                config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_gain'], qi)
+                config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
         
         # Run T1 to get sense of coherence times
         t1=meas.T1Experiment(cfg_dict, qi=qi)
@@ -54,7 +54,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
         # Run single shot opt to improve readout 
 
 
-        shot=meas.HistogramExperiment(cfg_dict, qi=qi)
+        shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
         if update:
             config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
             config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
@@ -64,10 +64,10 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
         recenter(qi, cfg_dict)
 
         # Amp rabi to improve pi pulse
-        amp_rabi = meas.AmplitudeRabiExperiment(cfg_dict,qi=qi)
+        amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi)
         if update:
             if amp_rabi.status:
-                config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_gain'], qi)
+                config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
 
         # Run SS Opt fine and SS 
         if single: 
@@ -76,7 +76,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
                 config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi);
                 config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi);
 
-        shot=meas.HistogramExperiment(cfg_dict, qi=qi)
+        shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
         if update:
             config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
             config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);

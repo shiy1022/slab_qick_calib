@@ -36,12 +36,16 @@ class QickExperiment(Experiment):
         )
 
     def acquire(self, prog_name, progress=True, get_hist=True):
-        final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
+        if 'active_reset' in self.cfg.expt and self.cfg.expt.active_reset:
+            final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]]
+        else:
+            final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
         prog = prog_name(
             soccfg=self.soccfg,
             final_delay=final_delay,
             cfg=self.cfg,
         )
+        
         now = datetime.now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         current_time = current_time.encode("ascii", "replace")
@@ -256,6 +260,19 @@ class QickExperiment(Experiment):
         if unexpected_params:
             warnings.warn(f"Unexpected parameters found in params: {unexpected_params}")
 
+
+    def configure_reset(self):
+        qi = self.cfg.expt.qubit[0]
+        params_def = dict(
+            threshold_v =self.cfg.device.readout.threshold[qi], 
+            read_wait=0.1,
+            extra_delay=0.2,
+        )
+        self.cfg.expt = {**params_def, **self.cfg.expt}
+    
+        self.cfg.expt['threshold']=int(self.cfg.expt['threshold_v']*self.cfg.device.readout.readout_length[qi]/0.0032552083333333335)
+
+
     def get_freq(self, fit=True): 
         freq_offset = 0
         q = self.cfg.expt.qubit[0]
@@ -293,6 +310,7 @@ class QickExperimentLoop(QickExperiment):
                 self.cfg.expt[x_sweep[j]["var"]] = x_sweep[j]["pts"][i]
 
             prog = prog_name(soccfg=self.soccfg, cfg=self.cfg)
+            
             avgi, avgq = prog.acquire(
                 self.im[self.cfg.aliases.soc],
                 threshold=None,
@@ -449,6 +467,8 @@ class QickExperiment2D(QickExperimentLoop):
                 data["fit_" + ydata].append(fit_pars)
                 data["fit_err_" + ydata].append(fit_err)
 
+        return data
+
     def display(
         self,
         data=None,
@@ -565,7 +585,8 @@ class QickExperiment2DSimple(QickExperiment2D):
         return data 
     
     def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
-        super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, fit=fit)
+        data=super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, fit=fit)
+        return data
 
     def display(
         self,

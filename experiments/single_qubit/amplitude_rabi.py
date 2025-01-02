@@ -71,6 +71,11 @@ class AmplitudeRabiProgram(QickProgram):
             pins=[0],
             t=self.trig_offset,
         )
+        if cfg.expt.active_reset:
+            self.reset(3)
+
+    def reset(self, i):
+        super().reset(i)
 
 
 # ====================================================== #
@@ -124,6 +129,7 @@ class AmplitudeRabiExperiment(QickExperiment):
             "start_gain": 0,
             "qubit": [qi],
             "pulse_type": "gauss",
+            'active_reset': False,
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}
@@ -148,6 +154,8 @@ class AmplitudeRabiExperiment(QickExperiment):
 
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
+        if self.cfg.expt.active_reset:
+            super().configure_reset()
 
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
@@ -272,6 +280,7 @@ class AmplitudeRabiChevronExperiment(QickExperiment2D):
             "pulse_type": "gauss",
             'span_f':20,
             'expts_f': 30,
+            'active_reset': False,
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}

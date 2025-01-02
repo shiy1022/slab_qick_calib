@@ -35,7 +35,7 @@ class T1Program(QickProgram):
                 "freq": cfg.expt.stark_freq,
                 "gain": cfg.expt.stark_gain,
                 "phase": 0,
-                "type": "const",
+                "type": "flat_len",
             }
             super().make_pulse(pulse, "stark_pulse")
 
@@ -45,6 +45,7 @@ class T1Program(QickProgram):
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+
         if cfg.expt.acStark:
             self.delay_auto(t=0.01, tag="wait_stark")
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
@@ -60,9 +61,14 @@ class T1Program(QickProgram):
             pins=[0],
             t=self.trig_offset,
         )
+        if cfg.expt.active_reset:
+            self.reset(3)
 
     def collect_shots(self, offset=0):
         return super().collect_shots(offset=0)
+    
+    def reset(self, i):
+        super().reset(i)
 
 class T1Experiment(QickExperiment):
     """
@@ -101,6 +107,7 @@ class T1Experiment(QickExperiment):
             "start": 0,
             "span": 3.7 * self.cfg.device.qubit.T1[qi],
             "acStark": False,
+            'active_reset': False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
@@ -112,6 +119,8 @@ class T1Experiment(QickExperiment):
 
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
+        if self.cfg.expt.active_reset:
+            super().configure_reset()
         if go:
             super().run(min_r2=min_r2, max_err=max_err)
 
