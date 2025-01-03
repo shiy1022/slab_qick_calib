@@ -22,22 +22,12 @@ class T1MultiProgram(QickProgram):
 
         super()._initialize(cfg, readout="standard")
 
-        super().make_pi_pulse(
-            cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge"
-        )
+        for i in range(len(self.cfg.expt.qubit)):
+            super().make_pi_pulse(
+                cfg.expt.qubit[i], cfg.device.qubit.f_ge, f"pi_ge_q{i}"
+            )
         
         self.add_loop("wait_loop", cfg.expt.expts)
-
-        if cfg.expt.acStark:
-            pulse = {
-                "sigma": cfg.expt.wait_time,
-                "sigma_inc": 0,
-                "freq": cfg.expt.stark_freq,
-                "gain": cfg.expt.stark_gain,
-                "phase": 0,
-                "type": "const",
-            }
-            super().make_pulse(pulse, "stark_pulse")
 
     def _body(self, cfg):
 
@@ -45,11 +35,7 @@ class T1MultiProgram(QickProgram):
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
-        if cfg.expt.acStark:
-            self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
-            self.delay_auto(t=0.01, tag="waiting")
-        else:
-            self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag="wait")
+        self.delay_auto(t=cfg.expt["wait_time"], tag="wait")
 
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
@@ -161,169 +147,5 @@ class T1MultiExperiment(QickExperiment):
         )
 
     def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
-
-
-class T1Continuous(QickExperiment):
-    """
-    T1 Continuous
-    Experimental Config:
-    expt = dict(
-        start: wait time sweep start [us]
-        step: wait time sweep step
-        expts: number steps in sweep
-        reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
-    )
-    """
-
-    def __init__(
-        self,
-        soccfg=None,
-        path="",
-        prefix="T1Continuous",
-        config_file=None,
-        progress=None,
-    ):
-        super().__init__(
-            soccfg=soccfg,
-            path=path,
-            prefix=prefix,
-            config_file=config_file,
-            progress=progress,
-        )
-
-    def acquire(self, progress=False, debug=False):
-
-        self.update_config(q_ind=self.cfg.expt.qubit)
-        t1 = T1Program(soccfg=self.soccfg, cfg=self.cfg)
-        x_pts, avgi, avgq = t1.acquire(
-            self.im[self.cfg.aliases.soc],
-            threshold=None,
-            load_pulses=True,
-            progress=progress,
-            debug=debug,
-        )
-
-        shots_i, shots_q = t1.collect_shots()
-
-        avgi = avgi[0][0]
-        avgq = avgq[0][0]
-        amps = np.abs(avgi + 1j * avgq)  # Calculating the magnitude
-        phases = np.angle(avgi + 1j * avgq)  # Calculating the phase
-
-        now = datetime.now()
-        current_time = now.strftime("%H:%M:%S")
-        current_time = current_time.encode("ascii", "replace")
-
-        data = {
-            "xpts": x_pts,
-            "avgi": avgi,
-            "avgq": avgq,
-            "amps": amps,
-            "phases": phases,
-            "time": current_time,
-            "raw_i": shots_i,
-            "raw_q": shots_q,
-            "raw_amps": np.abs(shots_i + 1j * shots_q),
-        }
-
-        self.data = data
-        return data
-
-    def analyze(self, data=None, **kwargs):
-        pass
-
-    def display(self, data=None, fit=True, show=False, **kwargs):
-        pass
-
-    def save_data(self, data=None):
-        print(f"Saving {self.fname}")
-        super().save_data(data=data)
-        return self.fname
-
-
-class T1_2D(QickExperiment2D):
-    """
-    sweep_pts = number of points in the 2D sweep
-    """
-
-    def __init__(
-        self,
-        cfg_dict,
-        qi=0,
-        go=True,
-        params={},
-        prefix=None,
-        progress=None,
-        style="",
-        min_r2=None,
-        max_err=None,
-    ):
-
-        if prefix is None:
-            prefix = f"t1_2d_qubit{qi}"
-
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
-
-        params_def = {
-            "expts": 60,
-            "span": 3.7 * self.cfg.device.qubit.T1[qi],
-            "reps": 2 * self.reps,
-            "soft_avgs": self.soft_avgs,
-            "start": 0,
-            "sweep_pts": 200,
-            "qubit": qi,
-            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
-        }
-        if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
-        elif style == "fast":
-            params_def["expts"] = 30
-        params = {**params_def, **params}
-
-        params["step"] = params["span"] / params["expts"]
-        self.cfg.expt = params
-
-        if go:
-            super().run(min_r2=min_r2, max_err=max_err)
-
-    def acquire(self, progress=False, debug=False):
-
-        sweep_pts = np.arange(self.cfg.expt["sweep_pts"])
-        y_sweep = [{"pts": sweep_pts, "var": "count"}]
-        super().acquire(T1Program, y_sweep, progress=progress)
-
-        return self.data
-
-    def analyze(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data = self.data
-
-        fitfunc = fitter.expfunc
-        fitterfunc = fitter.fitexp
-        super().analyze(fitfunc, fitterfunc, data)
-
-    def display(self, data=None, fit=True, ax=None, **kwargs):
-        if data is None:
-            data = self.data
-
-        title = f"$T_1$ 2D Q{self.cfg.expt.qubit}"
-        xlabel = f"Wait Time ($\mu$s)"
-        ylabel = "Time (s)"
-
-        super().display(
-            data=data,
-            ax=ax,
-            title=title,
-            xlabel=xlabel,
-            ylabel=ylabel,
-            fit=fit,
-            **kwargs,
-        )
-
-    def save_data(self, data=None):
-        print(f"Saving {self.fname}")
         super().save_data(data=data)
         return self.fname

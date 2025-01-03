@@ -123,7 +123,7 @@ class RabiExperiment(QickExperiment):
             "pulse_ge": True,
             "type": "amp",
             "pulse_type": "gauss",
-            'active_reset': False,
+            'active_reset': self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
@@ -139,7 +139,7 @@ class RabiExperiment(QickExperiment):
             params_def['sigma_inc'] = self.cfg.device.qubit.pulses.pi_ge.sigma_inc[qi]
             params_def['gain'] = self.cfg.device.qubit.pulses.pi_ge.gain[qi]
             params_def['freq'] = self.cfg.device.qubit.f_ge[qi]
-        self.cfg.expt = {**params_def, **params}
+        params = {**params_def, **params}
         if params["type"]=="amp":
             params_def['max_gain'] = params['gain'] * 4
             params_def['start']=0

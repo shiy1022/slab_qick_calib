@@ -146,7 +146,7 @@ class T1Experiment(QickExperiment):
         return data
 
     def display(
-        self, data=None, fit=True, plot_all=False, ax=None, show_hist=True, **kwargs
+        self, data=None, fit=True, plot_all=False, ax=None, show_hist=False, **kwargs
     ):
         qubit = self.cfg.expt.qubit[0]
         title = f"$T_1$ Q{qubit}"

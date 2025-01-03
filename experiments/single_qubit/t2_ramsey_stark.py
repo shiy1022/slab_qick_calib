@@ -435,7 +435,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         super().display(plot_both=False, title=title, xlabel=xlabel, ylabel=ylabel)
 
         
-
         fig, ax = plt.subplots(1, 1, figsize=(6, 4))
         ax = [ax]
         if fit:
@@ -453,6 +452,7 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
             ax[0].set_title(f"Stark Power Ramsey Q{qubit} Freq: {df}")
             # print(f'Quadratic Fit: {data['quad_fit'][0]:.3g}x^2 + {data['quad_fit'][1]:.3g}x + {data['quad_fit'][2]:.3g}')
 
+        # Plot raw data
         fig3, ax = plt.subplots(1, 1, figsize=(6, 8))
         for i in range(len(data['stark_gain_pts'])):
             ax.plot(data['xpts'], data['avgi'][i]+18*i)#, label=f'Gain {data['stark_gain_pts'][i]}')
@@ -467,5 +467,5 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         super().save_data(data=data)
         return self.fname
 
-    def quad_fit(x, a, b, c):
-            return a * x**2 + b * x + c
+def quad_fit(x, a, b, c):
+        return a * x**2 + b * x + c

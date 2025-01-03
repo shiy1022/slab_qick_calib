@@ -393,7 +393,10 @@ def fit_single_shot(d, plot=True, rot=True):
     #pg = ['mag', 'cen', 'wid', 'mag', 'cen']
     pg = [0.99, vg, sigma, 0.01, ve]
     #print(pg)
-    paramsg2, params_err = curve_fit(two_gaussians, vhg, histg, p0=pg)
+    try: 
+        paramsg2, params_err = curve_fit(two_gaussians, vhg, histg, p0=pg)
+    except:
+        paramsg2 = np.nan
     #print(paramsg2)
     #print(paramsg2-pg)
 
@@ -627,14 +630,19 @@ class HistogramExperiment(QickExperiment):
             data=data, plot=False, span=span, verbose=verbose
         )
         data.update(params)
-        data2, p, paramsg, paramse2 = fit_single_shot(data, plot=False)
-        data.update(p)
-        data["vhg"]=data2["vhg"]
-        data["histg"]=data2["histg"]
-        data["vhe"]=data2["vhe"]
-        data["histe"]=data2["histe"]
-        data["paramsg"] = paramsg
-        data["shots"] = self.cfg.expt.shots
+        try:
+            data2, p, paramsg, paramse2 = fit_single_shot(data, plot=False)
+            data.update(p)
+            data["vhg"]=data2["vhg"]
+            data["histg"]=data2["histg"]
+            data["vhe"]=data2["vhe"]
+            data["histe"]=data2["histe"]
+            data["paramsg"] = paramsg
+            data["shots"] = self.cfg.expt.shots
+        except:
+            print('Fits failed')
+             
+        
 
         return data
 
@@ -691,6 +699,7 @@ class HistogramExperiment(QickExperiment):
 
     def check_reset(self): 
         fig, ax = plt.subplots(2,1, figsize=(6,7))
+        fig.suptitle(f"Q{self.cfg.expt.qubit[0]}")
         v, hist = make_hist(self.data['Ig'], nbins=50)
         ax[0].semilogy(v, hist, color=blue, linewidth=1)
         ax[1].semilogy(v, hist, color=blue, linewidth=1)
@@ -1199,8 +1208,8 @@ class SingleShotOptExperiment(QickExperiment):
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
         plt.show()
 
-        do_more= self.check_edges()
-        return do_more
+        self.do_more= self.check_edges()
+        
     
     def save_data(self, data=None):
         super().save_data(data=data)
@@ -1215,18 +1224,9 @@ class SingleShotOptExperiment(QickExperiment):
             max_fid = np.max(fid)
             if (max_fid - old_fid)/old_fid > 0.1:
                 print("Fidelity is not maximized at the center of the sweep.")
-                edge_indices = [
-                    (0, 0, 0),
-                    (0, 0, fid_expts[2] - 1),
-                    (0, fid_expts[1] - 1, 0),
-                    (0, fid_expts[1] - 1, fid_expts[2] - 1),
-                    (fid_expts[0] - 1, 0, 0),
-                    (fid_expts[0] - 1, 0, fid_expts[2] - 1),
-                    (fid_expts[0] - 1, fid_expts[1] - 1, 0),
-                    (fid_expts[0] - 1, fid_expts[1] - 1, fid_expts[2] - 1),
-                ]
-                if any(fid[idx] == max_fid for idx in edge_indices):
-                    print("Max fidelity is found at one of the edge elements.")
+                max_indices = np.unravel_index(np.argmax(fid), fid.shape)
+                print(f"Max fidelity found at indices: {max_indices}")
+                if max_indices[1]==0 or max_indices[1]==fid_expts[1]-1 or max_indices[2]==0 or max_indices[2]==fid_expts[2]-1:
                     do_more=True
         else:
             print("Not all elements in fid_expts are odd.")
