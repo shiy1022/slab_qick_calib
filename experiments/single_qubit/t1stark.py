@@ -1,12 +1,8 @@
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpl_patches
 import numpy as np
 from qick import *
-from qick.helpers import gauss
 import time
-from slab import Experiment, AttrDict
 from tqdm import tqdm_notebook as tqdm
-from datetime import datetime
 import copy
 import fitting as fitter
 from qick_experiment import QickExperiment, QickExperiment2DSimple

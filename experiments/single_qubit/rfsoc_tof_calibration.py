@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm_notebook as tqdm
 
 from qick import *
-from slab import AttrDict
+from exp_handling.datamanagement import AttrDict
 from qick_experiment import QickExperiment
 from qick_program import QickProgram
 

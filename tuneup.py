@@ -1,11 +1,8 @@
-import autocalib_config as cfg
 import experiments as meas
 import config
 import matplotlib.pyplot as plt
-import fitting as fitter
 import numpy as np
 import scipy.constants as cs
-import warnings
 
 
 def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
@@ -208,123 +205,5 @@ def measure_temp(cfg_dict, qi, npts=14, reps=None, soft_avgs=None, chan=None):
     print(rabief_nopulse.data["best_fit"][0])
 
     return qubit_temp, population
-
-
-def recenter_smart(
-    qi, cfg_dict, start="T2r", freq=0.3, max_err=0.45, min_r2=0.1, max_t1=500
-):
-
-
-    # get original frequency
-    auto_cfg = config.load(cfg_dict["cfg_file"])
-    start_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
-    freqs = [start_freq]
-
-    # If ramsey is more than 250 kHz away, recenter with qspec. 
-    # If it starts with spectroscopy, call find_spec, then run amp_rabi 
-    # If fit is failing, try to debug 
-    
-    params = [
-        {"coarse": True, "span": 70},
-        {"span": 25},
-        {"fine": True},
-        {"ramsey_freq": 1.5 * freq, "span": np.pi / np.abs(freq)},
-        {},
-        {"ramsey_freq": "smart", "npts": 200},
-    ]
-    freq_error = []
-    scan_info = {"scans": scans, "params": params}
-    if start == "T2r":
-        level = 3
-    elif start == "qspec":
-        level = 2
-    else:
-        level = 0
-
-    i = 0
-    all_done = False
-    ntries = 12
-    while i < ntries and not all_done:
-        print(f"Level {level}, try {i}")
-        prog = run_scan_level(
-            qi, cfg_dict, scan_info, level, min_r2=min_r2, max_t1=max_t1
-        )
-        if prog.status:
-            if level > 2:
-                freq_error.append(prog.data["f_err"])
-                print(f"New f error is {freq_error[-1]:0.3f} MHz")
-            if level == 3:
-                params[4]["ramsey_freq"] = freq * 0.7
-                params[4]["span"] = np.pi / np.abs(freq * 0.7)
-
-            if level == len(scans) - 1:
-                all_done = True
-            else:
-                level += 1
-
-            freqs.append(prog.data["new_freq"])
-        else:
-            if prog is not None and "new_ramsey_freq" in prog.data:
-                params[3]["ramsey_freq"] = prog.data["new_ramsey_freq"]
-                params[3]["span"] = np.pi / np.abs(prog.data["new_ramsey_freq"])
-                level = 3
-            else:
-                level -= 1
-        i += 1
-
-    print(f"Change in frequency: {freqs[-1]-freqs[-1]:0.3f} MHz")
-    auto_cfg = config.load(cfg_dict["cfg_file"])
-    end_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
-    print(f"Qubit {qi} recentered from {start_freq} to {end_freq}")
-
-    if i == ntries:
-        return False
-    else:
-        return True
-
-
-def run_scan_level(qi, cfg_dict, scan_info, level, min_r2=0.1, max_t1=500):
-
-    if level <= 2:
-        soft_avgs = 3
-    else:
-        soft_avgs = 1
-    scan_info["params"][level]["soft_avgs"] = soft_avgs
-    prog = scan_info["scans"][level](
-        cfg_dict, qi, params=scan_info["params"][level], min_r2=min_r2
-    )
-    if level > 2 and prog.status:
-        freq_arg = np.argmin(np.abs(prog.data["t2r_adjust"]))
-        freq = prog.data["t2r_adjust"][freq_arg]
-        if np.abs(freq) > 2 * np.abs(prog.cfg.expt.ramsey_freq):
-            prog.status = False
-            prog.data["new_ramsey_freq"] = 1.3 * freq
-    if prog.status:
-        config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
-
-    # if qspec fine, run amp rabi
-    if level == 2 and prog.status:
-        amp_rabi = meas.AmplitudeRabiExperiment(cfg_dict, qi=qi, min_r2=min_r2)
-        if amp_rabi.status:
-            config.update_qubit(
-                cfg_dict["cfg_file"],
-                ("pulses", "pi_ge", "gain"),
-                int(amp_rabi.data["pi_length"]),
-                qi,
-            )
-        else:
-            prog.status = False
-            prog = None
-
-    return prog
-
-    # If you are coming from Ramsey and had signal, try using the frequency you got to recenter iwth
-    # If not, use the ramsey with larger frequency
-    # First check ramsey with larger frequency - say 2 MHz
-    # If that converges, then try with smaller frequency
-    # If can't do ramsey, do qubit spec with 8 MHz span low pwoer
-    # If not, do it with medium power and 25 MHz
-    # If not do it with high power and 100 MHz
-    # I think whenever it works, you then call it again.
 
 

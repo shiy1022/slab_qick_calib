@@ -3,7 +3,7 @@ import numpy as np
 from qick import *
 from qick.helpers import gauss
 
-from slab import Experiment, AttrDict
+from exp_handling.datamanagement import AttrDict
 from tqdm import tqdm_notebook as tqdm
 
 import scipy as sp

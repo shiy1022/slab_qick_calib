@@ -4,8 +4,7 @@ from tqdm import tqdm_notebook as tqdm
 import time
 
 from qick import *
-from qick.helpers import gauss
-from slab import Experiment, AttrDict
+from exp_handling.datamanagement import AttrDict
 from scipy.signal import find_peaks
 from qick_experiment import QickExperiment, QickExperiment2D
 from qick_program import QickProgram

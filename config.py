@@ -1,5 +1,5 @@
 import yaml
-from slab import AttrDict
+from exp_handling.datamanagement import AttrDict
 from functools import reduce
 import numpy as np
 

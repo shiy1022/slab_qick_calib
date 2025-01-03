@@ -1,4 +1,3 @@
-import autocalib_config as cfg
 import experiments as meas
 import config
 import matplotlib.pyplot as plt

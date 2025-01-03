@@ -4,12 +4,12 @@ import numpy as np
 from qick import *
 from qick.helpers import gauss
 
-from slab import Experiment, AttrDict
+from exp_handling.datamanagement import AttrDict
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import fitting as fitter
 from qick_experiment import QickExperiment, QickExperiment2D
-from qick_program import QickProgram
+from qick_program import QickProgram, QickProgram2Q
 from qick.asm_v2 import QickSweep1D
 
 
@@ -22,9 +22,9 @@ class T12Q_Program(QickProgram):
 
         super()._initialize(cfg, readout="standard")
 
-        super().make_pi_pulse(
-            cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge"
-        )
+    
+        for q in cfg.expt.qubit:
+            super().make_pi_pulse(q, cfg.device.qubit.f_ge, f"pi_ge_{q}")
         
         self.add_loop("wait_loop", cfg.expt.expts)
 
