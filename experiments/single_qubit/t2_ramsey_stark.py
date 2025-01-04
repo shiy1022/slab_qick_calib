@@ -52,12 +52,12 @@ class RamseyStarkExperiment(QickExperiment):
             "start": 0.1,
             "ramsey_freq": 'smart',
             "stark_gain": 0.5,
-            "step": 0.0023251488095238095,
+            "step": 1/430,
             "df": 70,
-            "acStark": acStark,
+            "acStark": True,
             "checkEF": False,
             "checkZZ": False,
-            'active_reset': False,
+            'active_reset': self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
@@ -438,7 +438,7 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         ax = [ax]
         if fit:
             freq = [data["fit_avgi"][i][1] for i in range(len(data["stark_gain_pts"]))]
-            ax[0].plot(data["stark_gain_pts"], freq)
+            ax[0].plot(data["stark_gain_pts"], freq,'o')
 
             ax[0].plot(
                 data["stark_gain_pts"],
@@ -453,8 +453,11 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
 
         # Plot raw data
         fig3, ax = plt.subplots(1, 1, figsize=(6, 8))
+        off = 0 
         for i in range(len(data['stark_gain_pts'])):
-            ax.plot(data['xpts'], data['avgi'][i]+18*i)#, label=f'Gain {data['stark_gain_pts'][i]}')
+            
+            ax.plot(data['xpts'], data['avgi'][i]+off)#, label=f'Gain {data['stark_gain_pts'][i]}')
+            off += 2*data['fit_avgi'][i][0]
 
         imname = self.fname.split("\\")[-1]
         fig.savefig(

@@ -32,7 +32,7 @@ class T1Program(QickProgram):
                 "freq": cfg.expt.stark_freq,
                 "gain": cfg.expt.stark_gain,
                 "phase": 0,
-                "type": "flat_len",
+                "type": "const",
             }
             super().make_pulse(pulse, "stark_pulse")
 
@@ -104,7 +104,7 @@ class T1Experiment(QickExperiment):
             "start": 0,
             "span": 3.7 * self.cfg.device.qubit.T1[qi],
             "acStark": False,
-            'active_reset': False,
+            'active_reset': self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }

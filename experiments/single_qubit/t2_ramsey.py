@@ -128,7 +128,7 @@ class RamseyExperiment(QickExperiment):
             "acStark": acStark,
             "checkEF": False,
             "checkZZ": False,
-            'active_reset': False,
+            'active_reset': self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }

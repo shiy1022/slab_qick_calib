@@ -71,6 +71,8 @@ class RamseyEchoProgram(QickProgram):
             t=self.trig_offset,
             ddr4=True,
         )
+        if self.cfg.expt.active_reset:
+            super().configure_reset()
 
 
 class RamseyEchoExperiment(QickExperiment):
@@ -116,6 +118,7 @@ class RamseyEchoExperiment(QickExperiment):
             "span": 3 * self.cfg.device.qubit.T2e[qi],
             "start": 0.1,
             "ramsey_freq": 'smart',
+            "active_reset": self.cfg.device.readout.active_reset[qi],
             "num_pi": 1,
             "type": "cp",            
             "qubit": [qi],
@@ -132,7 +135,8 @@ class RamseyEchoExperiment(QickExperiment):
 
         self.cfg.expt = params
         
-
+        if self.cfg.expt.active_reset:
+            super().configure_reset()
         super().check_params(params_def)
 
         if go:

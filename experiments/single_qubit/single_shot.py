@@ -450,7 +450,6 @@ class HistogramProgram(QickProgram):
         super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
         super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
-        self.trig_offset = cfg.device.readout.trig_offset[cfg.expt.qubit[0]]
 
     def _body(self, cfg):
 

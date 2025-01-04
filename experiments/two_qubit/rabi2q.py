@@ -17,7 +17,6 @@ from qick.asm_v2 import QickSweep1D
 from scipy.optimize import curve_fit
 # ====================================================== #
 
-
 class RabiProgram_2Q(QickProgram2Q):
     def __init__(self, soccfg, final_delay, cfg):
         super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
@@ -112,15 +111,16 @@ class Rabi_2Q(QickExperiment2Q):
         min_r2=None,
         max_err=None,
     ):
-        prefix = "amp_rabi"
-        if 'checkEF' in params and params['checkEF']:
-            if 'pulse_ge' in params and not params['pulse_ge']:
-                prefix += f"ef_no_ge"
-            else:
-                prefix = f"ef"
+        if prefix is None:
+            prefix = "amp_rabi"
+            if 'checkEF' in params and params['checkEF']:
+                if 'pulse_ge' in params and not params['pulse_ge']:
+                    prefix += f"ef_no_ge"
+                else:
+                    prefix = f"ef"
 
-        for q in qi: 
-            prefix += f"_qubit{q}"
+            for q in qi: 
+                prefix += f"_Q{q}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
         params_def = {
@@ -178,8 +178,9 @@ class Rabi_2Q(QickExperiment2Q):
         self.cfg.expt['gain'] = [QickSweep1D(
         "sweep_loop", self.cfg.expt.start[i], self.cfg.expt.max_gain[i]) for i in range(len(self.qubit))]
         self.cfg.expt.length = [self.cfg.expt.sigma[q] * self.cfg.expt.sigma_inc[q] for q in range(len(self.qubit))]
-        
-        self.param = {"label": "qubit_pulse", "param": param_pulse, "param_type": "pulse"}
+        self.param = []
+        for i in range(len(self.qubit)):            
+            self.param.append({"label": f"qubit_pulse_{i}", "param": param_pulse, "param_type": "pulse"})
         
         super().acquire(RabiProgram_2Q, progress=progress)
 
@@ -197,18 +198,20 @@ class Rabi_2Q(QickExperiment2Q):
                 fitfunc=fitfunc, fitterfunc=fitterfunc, fit=fit, **kwargs
             )
 
-        # Get pi length from fit
-        ydata_lab = ["amps", "avgi", "avgq"]
-        for ydata in ydata_lab:
-            pi_length = fitter.fix_phase(data["fit_" + ydata])
-            data["pi_length_" + ydata] = pi_length
-        data["pi_length"] = fitter.fix_phase(data["best_fit"])
+        # # Get pi length from fit
+        # ydata_lab = ["amps", "avgi", "avgq"]
+        # for ydata in ydata_lab:
+        #     for i in range(len(data["amps"])):
+        #         pi_length = fitter.fix_phase(data["fit_" + ydata][i])
+        #         data["pi_length_" + ydata + str(i)] = pi_length
+           
+        #         data["pi_length_"+str(i)] = fitter.fix_phase(data[i]["best_fit"])
         return data
 
     def display(
         self,
         data=None,
-        fit=True,
+        fit=False,
         plot_all=False,
         ax=None,
         show_hist=False,
@@ -229,8 +232,9 @@ class Rabi_2Q(QickExperiment2Q):
         title += f" Rabi Q{q} (Pulse {param} {self.cfg.expt[param]}"
 
         fitfunc = fitter.sinfunc
-        caption_params = [{'index':"pi_length", 
-                          'format':"$\pi$ length: {val:.3f}"}]
+        caption_params =[]
+        # caption_params = [{'index':"pi_length", 
+        #                   'format':"$\pi$ length: {val:.3f}"}]
         
         if self.cfg.expt.checkEF:
             title = title + ", EF)"

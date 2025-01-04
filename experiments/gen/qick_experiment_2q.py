@@ -35,7 +35,7 @@ class QickExperiment2Q(Experiment):
             * self.cfg.device.readout.soft_avgs_base
         )
 
-    def acquire(self, prog_name, progress=True, get_hist=True):
+    def acquire(self, prog_name, progress=True, get_hist=False):
         if 'active_reset' in self.cfg.expt and self.cfg.expt.active_reset:
             final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]]
         else:
@@ -45,6 +45,7 @@ class QickExperiment2Q(Experiment):
             final_delay=final_delay,
             cfg=self.cfg,
         )
+        amps, phases, avgi, avgq = [], [], [], []
         
         now = datetime.now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -59,10 +60,11 @@ class QickExperiment2Q(Experiment):
         )
         xpts = self.get_params(prog)
 
-        amps = np.abs(iq_list[0][0].dot([1, 1j]))
-        phases = np.angle(iq_list[0][0].dot([1, 1j]))
-        avgi = iq_list[0][0][:, 0]
-        avgq = iq_list[0][0][:, 1]
+        for i in range(len(iq_list)):            
+            amps.append(np.abs(iq_list[i][0].dot([1, 1j])))
+            phases.append(np.angle(iq_list[i][0].dot([1, 1j])))
+            avgi.append(iq_list[i][0][:, 0])
+            avgq.append(iq_list[i][0][:, 1])
 
         if get_hist:
             v, hist = self.make_hist(prog)
@@ -92,29 +94,28 @@ class QickExperiment2Q(Experiment):
         # Perform fits on each quadrature
         ydata_lab = ["amps", "avgi", "avgq"]
         for i, ydata in enumerate(ydata_lab):
-            (
-                data["fit_" + ydata],
-                data["fit_err_" + ydata],
-                data["fit_init_" + ydata],
-            ) = fitterfunc(data["xpts"][1:-1], data[ydata][1:-1], fitparams=None)
+            for j in range(len(data['amps'])):
+                (
+                    data["fit_" + ydata+"_"+str(j)],
+                    data["fit_err_" + ydata+"_"+str(j)],
+                    data["fit_init_" + ydata+"_"+str(j)],
+                ) = fitterfunc(data["xpts"][j][1:-1], data[ydata][j][1:-1], fitparams=None)
 
         # Get best fit and save error info.
         
-        if use_i: 
+        for j in range(len(data['amps'])):
             i_best = "avgi"
-            fit_pars = data["fit_avgi"]
-            fit_err = data["fit_err_avgi"]
-        else:
-            fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
-
-        r2 = fitter.get_r2(data["xpts"][1:-1], data[i_best][1:-1], fitfunc, fit_pars)
-        data["r2"] = r2
-        data["best_fit"] = fit_pars
-        i_best = i_best.encode("ascii", "ignore")
-        data["i_best"] = i_best
-        fit_err = np.mean(np.abs(fit_err / fit_pars))
-        data["fit_err"] = fit_err
-        print(f"R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}")
+            fit_pars = data["fit_avgi_"+str(j)]
+            fit_err = data["fit_err_avgi_"+str(j)]
+        
+            r2 = fitter.get_r2(data["xpts"][j][1:-1], data[i_best][j][1:-1], fitfunc, fit_pars)
+            data["r2_"+str(j)] = r2
+            data["best_fit_"+str(j)] = fit_pars
+            i_best = i_best.encode("ascii", "ignore")
+            data["i_best_"+str(j)] = i_best
+            fit_err = np.mean(np.abs(fit_err / fit_pars))
+            data["fit_err_"+str(j)] = fit_err
+            print(f"R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}")
 
         return data
 
@@ -150,44 +151,44 @@ class QickExperiment2Q(Experiment):
             ydata_lab = ["amps", "avgi", "avgq"]
         else:
             if ax is None:
-                fig, a = plt.subplots(1, 1, figsize=(7.5, 4))
-                ax = [a]
+                fig, ax = plt.subplots(2, 1, figsize=(7.5, 6))
             ylabels = ["I [ADC units]"]
             ydata_lab = ["avgi"]
             ax[0].set_title(title)
 
         for i, ydata in enumerate(ydata_lab):
-            ax[i].plot(data["xpts"][1:-1], data[ydata][1:-1], "o-")
+            for k in range(len(data[ydata])):
+                ax[k].plot(data["xpts"][k][1:-1], data[ydata][k][1:-1], "o-")
 
-            if fit:
-                p = data["fit_" + ydata]
-                pCov = data["fit_err_" + ydata]
-                caption = ""
-                for j in range(len(caption_params)):
-                    if j > 0:
-                        caption += "\n"
-                    if isinstance(caption_params[j]["index"],int):
-                        ind = caption_params[j]["index"]
-                        caption += caption_params[j]["format"].format(
-                            val=(p[ind]), err=np.sqrt(pCov[ind, ind])
-                        )
-                    else:
-                        var = caption_params[j]["index"]
-                        caption += caption_params[j]["format"].format(
-                            val=data[var + "_" + ydata]
-                        )
-                ax[i].plot(
-                    data["xpts"][1:-1], fitfunc(data["xpts"][1:-1], *p), label=caption
-                )
-                ax[i].set_ylabel(ylabels[i])
-                ax[i].set_xlabel(xlabel)
-                ax[i].legend()
-            if debug:  # Plot initial guess if debug is True
-                pinit = data["init_guess_" + ydata]
-                print(pinit)
-                ax[i].plot(
-                    data["xpts"], fitfunc(data["xpts"], *pinit), label="Initial Guess"
-                )
+                if fit:
+                    p = data["fit_" + ydata]
+                    pCov = data["fit_err_" + ydata]
+                    caption = ""
+                    for j in range(len(caption_params)):
+                        if j > 0:
+                            caption += "\n"
+                        if isinstance(caption_params[j]["index"],int):
+                            ind = caption_params[j]["index"]
+                            caption += caption_params[j]["format"].format(
+                                val=(p[ind]), err=np.sqrt(pCov[ind, ind])
+                            )
+                        else:
+                            var = caption_params[j]["index"]
+                            caption += caption_params[j]["format"].format(
+                                val=data[var + "_" + ydata]
+                            )
+                    ax[i].plot(
+                        data["xpts"][1:-1], fitfunc(data["xpts"][1:-1], *p), label=caption
+                    )
+                    ax[i].set_ylabel(ylabels[i])
+                    ax[i].set_xlabel(xlabel)
+                    ax[i].legend()
+                if debug:  # Plot initial guess if debug is True
+                    pinit = data["init_guess_" + ydata]
+                    print(pinit)
+                    ax[i].plot(
+                        data["xpts"], fitfunc(data["xpts"], *pinit), label="Initial Guess"
+                    )
 
         if show_hist:  # Plot histogram of shots if show_hist is True
             fig2, ax = plt.subplots(1, 1, figsize=(3, 3))
@@ -245,14 +246,17 @@ class QickExperiment2Q(Experiment):
         return self.fname
 
     def get_params(self, prog):
-        if self.param["param_type"] == "pulse":
-            xpts = prog.get_pulse_param(
-                self.param["label"], self.param["param"], as_array=True
-            )
-        else:
-            xpts = prog.get_time_param(
-                self.param["label"], self.param["param"], as_array=True
-            )
+        xpts = []
+        if isinstance(self.param, dict):
+            param = [self.param]
+        else: 
+            param = self.param
+        for p in param:
+            if p["param_type"] == "pulse":
+                xpts.append(prog.get_pulse_param(p["label"], p["param"], as_array=True))
+            else:
+                xpts.append(prog.get_time_param(p["label"], p["param"], as_array=True))
+        
         return xpts
     
     def check_params(self, params_def):

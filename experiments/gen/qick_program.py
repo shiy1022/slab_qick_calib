@@ -1,8 +1,7 @@
 from qick.asm_v2 import AveragerProgramV2
 from exp_handling.datamanagement import AttrDict
 from qick import *
-
-
+import numpy as np
 class QickProgram(AveragerProgramV2):
     def __init__(self, soccfg, final_delay=50, cfg={}):
         self.cfg = AttrDict(cfg)
@@ -180,7 +179,8 @@ class QickProgram2Q(AveragerProgramV2):
         self.qubit_ch_type = [cfg.hw.soc.dacs.qubit.type[q] for q in self.qubits]
         self.res_nqz = [cfg.hw.soc.dacs.readout.nyquist[q] for q in self.qubits]
         self.qubit_nqz = [cfg.hw.soc.dacs.qubit.nyquist[q] for q in self.qubits]
-        self.trig_offset = [cfg.device.readout.trig_offset[q] for q in self.qubits]        
+        self.trig_offset = [cfg.device.readout.trig_offset[q] for q in self.qubits]  
+        #self.trig_offset = np.max(self.trig_offset)      
 
         if readout == "standard":
             self.readout_length = [cfg.device.readout.readout_length[q] for q in self.qubits]
@@ -228,10 +228,7 @@ class QickProgram2Q(AveragerProgramV2):
             self.declare_gen(ch=self.qubit_ch[q], nqz=self.qubit_nqz[q])
 
     def _body(self, cfg):
-        cfg = AttrDict(self.cfg)
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-        self.trigger(ros=[self.adc_ch], pins=[0], t=self.trig_offset, ddr4=True)
+        pass
 
     def make_pulse(self, q, pulse, name):
         pulse = AttrDict(pulse)

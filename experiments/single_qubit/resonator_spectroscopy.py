@@ -474,7 +474,7 @@ class ResSpecPower(QickExperiment2D):
         ]  # float(self.cfg.hw.lo.readout.frequency)*1e-6 + self.cfg.device.readout.lo_sideband*(self.cfg.hw.soc.dacs.readout.mixer_freq + data['xpts'])
         outer_sweep = data["gain_pts"]
 
-        amps = data["amps"]
+        amps = copy.deepcopy(data["amps"])
         for i in range(len(amps)):
             amps[i, :] = amps[i, :] / np.median(amps[i, :])
 

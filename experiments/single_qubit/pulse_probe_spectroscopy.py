@@ -19,7 +19,6 @@ class QubitSpecProgram(QickProgram):
 
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
-        q = cfg.expt.qubit[0]
 
         super()._initialize(cfg, readout="standard")
 

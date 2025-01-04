@@ -81,6 +81,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
             config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
             config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
 
+        # Once readout tuned and qubit centered, get all the coherences. 
         # Run Ramsey for coherence 
         t2r= get_coherence(meas.RamseyExperiment, qi, cfg_dict,par='T2r')
 

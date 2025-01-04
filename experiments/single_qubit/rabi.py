@@ -155,7 +155,7 @@ class RabiExperiment(QickExperiment):
             params_def["reps"] = 40 * params_def["reps"]
             params_def["soft_avgs"] = 40 * params_def["soft_avgs"]
             params_def["pulse_ge"] = False
-
+        params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
         if self.cfg.expt.active_reset:
@@ -398,3 +398,5 @@ def chevron_freq(x, w0):
 
 def chevron_amp(x, w0, a):
     return a/(1 + (x/w0)**2)
+
+
