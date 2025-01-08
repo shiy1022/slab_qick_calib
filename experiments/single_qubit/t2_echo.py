@@ -71,8 +71,9 @@ class RamseyEchoProgram(QickProgram):
             t=self.trig_offset,
             ddr4=True,
         )
-        if self.cfg.expt.active_reset:
-            super().configure_reset()
+        if cfg.expt.active_reset:
+            self.reset(3)
+        
 
 
 class RamseyEchoExperiment(QickExperiment):
@@ -104,6 +105,7 @@ class RamseyEchoExperiment(QickExperiment):
         style="",
         min_r2=None,
         max_err=None,
+        display=True,
     ):
         # span=None, expts=100, ramsey_freq=0.1, reps=None, soft_avgs=None,
         if prefix is None:
@@ -140,7 +142,7 @@ class RamseyEchoExperiment(QickExperiment):
         super().check_params(params_def)
 
         if go:
-            super().run(min_r2=min_r2, max_err=max_err)
+            super().run(display=display,min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
         # is this still needed?

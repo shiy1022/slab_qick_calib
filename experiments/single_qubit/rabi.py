@@ -143,6 +143,7 @@ class RabiExperiment(QickExperiment):
         if params["type"]=="amp":
             params_def['max_gain'] = params['gain'] * 4
             params_def['start']=0
+            params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
         elif params["type"]=="length":
             params_def["sigma"] = 4 * params["sigma"]
             params_def["start"] = 3/430
@@ -155,7 +156,7 @@ class RabiExperiment(QickExperiment):
             params_def["reps"] = 40 * params_def["reps"]
             params_def["soft_avgs"] = 40 * params_def["soft_avgs"]
             params_def["pulse_ge"] = False
-        params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
+        
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
         if self.cfg.expt.active_reset:
@@ -210,9 +211,10 @@ class RabiExperiment(QickExperiment):
         self,
         data=None,
         fit=True,
-        plot_all=False,
+        plot_all=True,
         ax=None,
         show_hist=False,
+        rescale=False,
         **kwargs,
     ):
         if data is None:
@@ -248,6 +250,7 @@ class RabiExperiment(QickExperiment):
             show_hist=show_hist,
             fitfunc=fitfunc,
             caption_params=caption_params,
+            rescale=rescale,
         )
 
     def save_data(self, data=None):

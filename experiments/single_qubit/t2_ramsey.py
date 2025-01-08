@@ -68,7 +68,7 @@ class RamseyProgram(QickProgram):
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
             self.delay_auto(t=0.025, tag="waiting")
         else:
-            self.delay_auto(t=cfg.expt.wait_time + 0.01, tag="waiting")
+            self.delay_auto(t=cfg.expt.wait_time, tag="waiting")
         
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
         self.delay_auto(t=0.01, tag="wait")
@@ -110,6 +110,7 @@ class RamseyExperiment(QickExperiment):
         style="",
         min_r2=None,
         max_err=None,
+        display=True,
     ):
         if 'checkEF' in params and params['checkEF']:
             prefix = f"ramsey_ef_qubit{qi}"
@@ -156,7 +157,7 @@ class RamseyExperiment(QickExperiment):
             super().configure_reset()
 
         if go:
-            super().run(min_r2=min_r2, max_err=max_err)
+            super().run(display=display,min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False):
 
@@ -187,8 +188,8 @@ class RamseyExperiment(QickExperiment):
             if fit_twofreq:
                 fitterfunc = fitter.fittwofreq_decaysin
             else:
-                fitterfunc = fitter.fitdecaysin
-            fitfunc = fitter.decaysin
+                fitterfunc = fitter.fitdecayslopesin
+                fitfunc = fitter.decayslopesin
 
             super().analyze(fitterfunc=fitterfunc, fitfunc=fitfunc)
 
@@ -251,7 +252,7 @@ class RamseyExperiment(QickExperiment):
         if fit_twofreq:
             fitfunc = fitter.twofreq_decaysin
         else:
-            fitfunc = fitter.decaysin
+            fitfunc = fitter.decayslopesin
         title += f" (Freq: {self.cfg.expt.ramsey_freq:.3f} MHz)"
 
         caption_params = [

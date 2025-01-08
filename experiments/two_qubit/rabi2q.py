@@ -62,7 +62,6 @@ class RabiProgram_2Q(QickProgram2Q):
                 self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
             self.delay_auto(t=0.01, tag="wait ef 2")
         
-        
         for q in range(len(cfg.expt.qubit)):
             self.pulse(ch=self.res_ch[q], name=f"readout_pulse_{q}", t=0)
             if self.lo_ch[q] is not None:
@@ -214,7 +213,7 @@ class Rabi_2Q(QickExperiment2Q):
         fit=False,
         plot_all=False,
         ax=None,
-        show_hist=False,
+        show_hist=True,
         **kwargs,
     ):
         if data is None:
@@ -229,12 +228,15 @@ class Rabi_2Q(QickExperiment2Q):
             title = 'Length'
             param = 'gain'
             xlabel = "Pulse Length ($\mu$s)"
-        title += f" Rabi Q{q} (Pulse {param} {self.cfg.expt[param]}"
+
+        title_list = []
+        for i in range(len(self.cfg.expt.qubit)):
+            title_list.append(title + f" Rabi Q{self.cfg.expt.qubit[i]} (Pulse {param} {self.cfg.expt[param][i]})")
 
         fitfunc = fitter.sinfunc
-        caption_params =[]
-        # caption_params = [{'index':"pi_length", 
-        #                   'format':"$\pi$ length: {val:.3f}"}]
+        #caption_params =[]
+        caption_params = [{'index':"pi_length", 
+                           'format':"$\pi$ length: {val:.3f}"}]
         
         if self.cfg.expt.checkEF:
             title = title + ", EF)"
@@ -245,7 +247,7 @@ class Rabi_2Q(QickExperiment2Q):
             data=data,
             ax=ax,
             plot_all=plot_all,
-            title=title,
+            title=title_list,
             xlabel=xlabel,
             fit=fit,
             show_hist=show_hist,
@@ -345,11 +347,8 @@ class RabiChevron_2Q(QickExperiment2DSimple):
             data["chevron_freq"] = p
             data["chevron_amp"] = p2
 
-            
-        
 
-
-    def display(self, data=None, fit=True, plot_both=False, **kwargs):
+    def display(self, data=None, fit=True, plot_both=False, show_hist=False,**kwargs):
         if data is None:
             data = self.data
         if self.cfg.expt.checkEF: 
@@ -364,18 +363,21 @@ class RabiChevron_2Q(QickExperiment2DSimple):
             title = 'Length'
             param = 'gain'
             xlabel = "Pulse Length ($\mu$s)"
-        title += f" Rabi Q{self.cfg.expt.qubit[0]} (Pulse {param} {self.cfg.expt[param]}"
+        title_list=[]
+        for i in range(len(self.cfg.expt.qubit)):
+            title_list[i] = title+ f" Rabi Q{self.cfg.expt.qubit[0]} (Pulse {param} {self.cfg.expt[param]}"
 
         xlabel = xlabel
         ylabel = "Frequency [MHz]"
 
         super().display(
-            title=title,
+            title=title_list,
             xlabel=xlabel,
             ylabel=ylabel,
             data=data,
             fit=fit,
             plot_both=plot_both,
+            show_hist=show_hist,
             **kwargs,
         )
 

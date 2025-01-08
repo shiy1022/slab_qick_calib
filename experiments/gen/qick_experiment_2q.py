@@ -35,7 +35,7 @@ class QickExperiment2Q(Experiment):
             * self.cfg.device.readout.soft_avgs_base
         )
 
-    def acquire(self, prog_name, progress=True, get_hist=False):
+    def acquire(self, prog_name, progress=True, get_hist=True):
         if 'active_reset' in self.cfg.expt and self.cfg.expt.active_reset:
             final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]]
         else:
@@ -66,9 +66,6 @@ class QickExperiment2Q(Experiment):
             avgi.append(iq_list[i][0][:, 0])
             avgq.append(iq_list[i][0][:, 1])
 
-        if get_hist:
-            v, hist = self.make_hist(prog)
-
         data = {
             "xpts": xpts,
             "avgi": avgi,
@@ -78,6 +75,7 @@ class QickExperiment2Q(Experiment):
             "start_time": current_time,
         }
         if get_hist:
+            v, hist = self.make_hist(prog)
             data["bin_centers"] = v
             data["hist"] = hist
 
@@ -127,7 +125,7 @@ class QickExperiment2Q(Experiment):
         title="",
         xlabel="",
         fit=True,
-        show_hist=False,
+        show_hist=True,
         fitfunc=None,
         caption_params=[],
         debug=False,
@@ -143,6 +141,7 @@ class QickExperiment2Q(Experiment):
         else:
             save_fig = False
 
+        nq = len(self.cfg.expt.qubit)
         # Plot all 3 data sets or just I
         if plot_all:
             fig, ax = plt.subplots(3, 1, figsize=(7.5, 9.5))
@@ -151,18 +150,19 @@ class QickExperiment2Q(Experiment):
             ydata_lab = ["amps", "avgi", "avgq"]
         else:
             if ax is None:
-                fig, ax = plt.subplots(2, 1, figsize=(7.5, 6))
+                fig, ax = plt.subplots(nq, 1, figsize=(7, 7))
             ylabels = ["I [ADC units]"]
             ydata_lab = ["avgi"]
-            ax[0].set_title(title)
+            for i in range(nq):
+                ax[i].set_title(title[i])
 
         for i, ydata in enumerate(ydata_lab):
-            for k in range(len(data[ydata])):
+            for k in range(nq):
                 ax[k].plot(data["xpts"][k][1:-1], data[ydata][k][1:-1], "o-")
 
                 if fit:
-                    p = data["fit_" + ydata]
-                    pCov = data["fit_err_" + ydata]
+                    p = data["fit_" + ydata+"_"+str(k)]
+                    pCov = data["fit_err_" + ydata +"_"+str(k)]
                     caption = ""
                     for j in range(len(caption_params)):
                         if j > 0:
@@ -177,12 +177,12 @@ class QickExperiment2Q(Experiment):
                             caption += caption_params[j]["format"].format(
                                 val=data[var + "_" + ydata]
                             )
-                    ax[i].plot(
-                        data["xpts"][1:-1], fitfunc(data["xpts"][1:-1], *p), label=caption
+                    ax[k].plot(
+                        data["xpts"][k][1:-1], fitfunc(data["xpts"][k][1:-1], *p), label=caption
                     )
-                    ax[i].set_ylabel(ylabels[i])
-                    ax[i].set_xlabel(xlabel)
-                    ax[i].legend()
+                ax[k].set_ylabel(ylabels[i])
+                ax[k].set_xlabel(xlabel)
+                ax[k].legend()
                 if debug:  # Plot initial guess if debug is True
                     pinit = data["init_guess_" + ydata]
                     print(pinit)
@@ -191,10 +191,11 @@ class QickExperiment2Q(Experiment):
                     )
 
         if show_hist:  # Plot histogram of shots if show_hist is True
-            fig2, ax = plt.subplots(1, 1, figsize=(3, 3))
-            ax.plot(data["bin_centers"], data["hist"]/np.sum(data['hist']), "o-")
-            ax.set_xlabel("I [ADC units]")
-            ax.set_ylabel("Probability")
+            fig2, ax = plt.subplots(1, nq, figsize=(3*nq, 3))
+            for i in range(nq):
+                ax[i].plot(data["bin_centers"][i], data["hist"][i]/np.sum(data['hist'][i]), "o-")
+                ax[i].set_xlabel("I [ADC units]")
+            ax[0].set_ylabel("Probability")
 
         if save_fig:  # Save figure if save_fig is True
             imname = self.fname.split("\\")[-1]
@@ -205,11 +206,16 @@ class QickExperiment2Q(Experiment):
             plt.show()
 
     def make_hist(self, prog):
-        offset = self.soccfg._cfg['readouts'][self.cfg.expt.qubit_chan]["iq_offset"]
+        offset = []
+        for q in self.cfg.expt.qubit_chan:
+            offset.append(self.soccfg._cfg['readouts'][q]["iq_offset"])
         shots_i, shots_q = prog.collect_shots(offset=offset)
         # sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
-        hist, bin_edges = np.histogram(shots_i, bins=60)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        hist, bin_centers = [], []
+        for q in range(len(self.cfg.expt.qubit_chan)):
+            h, bin_edges = np.histogram(shots_i[q], bins=60)
+            bin_centers.append((bin_edges[:-1] + bin_edges[1:]) / 2)
+            hist.append(h)
         return bin_centers, hist
 
     def run(
@@ -266,15 +272,16 @@ class QickExperiment2Q(Experiment):
 
 
     def configure_reset(self):
-        qi = self.cfg.expt.qubit[0]
+        qi = self.cfg.expt.qubit
         params_def = dict(
-            threshold_v =self.cfg.device.readout.threshold[qi], 
+            threshold_v =[self.cfg.device.readout.threshold[q] for q in qi], 
             read_wait=0.1,
             extra_delay=0.2,
         )
         self.cfg.expt = {**params_def, **self.cfg.expt}
+        readout_length = [self.cfg.device.readout.readout_length[q] for q in qi]
     
-        self.cfg.expt['threshold']=int(self.cfg.expt['threshold_v']*self.cfg.device.readout.readout_length[qi]/0.0032552083333333335)
+        self.cfg.expt['threshold']=[int(self.cfg.expt['threshold_v'][q]*readout_length[q]/0.0032552083333333335) for q in range(len(qi))]
 
 
     def get_freq(self, fit=True): 

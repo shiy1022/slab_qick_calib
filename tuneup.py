@@ -206,4 +206,60 @@ def measure_temp(cfg_dict, qi, npts=14, reps=None, soft_avgs=None, chan=None):
 
     return qubit_temp, population
 
+import seaborn as sns
+def make_hist(d, nbins=200):
+    hist, bin_edges = np.histogram(d, bins=nbins, density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    return bin_centers, hist
 
+def plot_reset(d):     
+    blue = "#4053d3"
+    red = "#b51d14"
+    fig, ax = plt.subplots(3,2, figsize=(8,8))
+    ax = ax.flatten()
+    b  = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d[0].data['Igr']))
+    for i, shot in enumerate(d):
+        v, hist = make_hist(shot.data['Ig'], nbins=50)
+        ax[i].semilogy(v, hist, color=blue)
+        ax[i].set_title(shot.cfg.expt.threshold_v)
+        for j in range(len(shot.data['Igr'])):
+            v, hist = make_hist(shot.data['Igr'][j],  nbins=50)
+            ax[i].semilogy(v, hist,color=b[j])
+    
+    fig.tight_layout()
+    fig, ax = plt.subplots(3,2, figsize=(8,8))
+    ax = ax.flatten()
+    for i, shot in enumerate(d):
+        v, hist = make_hist(shot.data['Ig'], nbins=50)
+        ax[i].semilogy(v, hist, color=red)
+        v, hist = make_hist(shot.data['Ie'], nbins=50)
+        ax[i].semilogy(v, hist, color=blue)
+        ax[i].set_title(shot.cfg.expt.threshold_v)
+        for j in range(len(shot.data['Ier'])):
+            v, hist = make_hist(shot.data['Ier'][j], nbins=50)
+            ax[i].semilogy(v, hist,color=b[j])
+
+    fig.tight_layout()
+
+    fig, ax = plt.subplots(2,1, figsize=(8,8))
+    b  = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d))
+    
+    for i, shot in enumerate(d):
+        v, hist = make_hist(shot.data['Ig'], nbins=50)
+        ax[0].semilogy(v, hist, color=blue, linewidth=1)
+        ax[1].semilogy(v, hist, color=blue, linewidth=1)
+
+        v, hist = make_hist(shot.data['Ie'], nbins=50)
+        ax[1].semilogy(v, hist, color=red, linewidth=1)
+
+        v, hist = make_hist(shot.data['Igr'][-1,:], nbins=50)
+        ax[0].semilogy(v, hist,label=f"{shot.cfg.expt.threshold_v:0.1f}", color=b[i])
+
+        v, hist = make_hist(shot.data['Ier'][-1,:], nbins=50)
+        ax[1].semilogy(v, hist,label=shot.cfg.expt.threshold_v, color=b[i])
+    ax[0].legend()
+
+    ax[0].set_title('Ground state')
+    ax[1].set_title('Excited state')
+
+    

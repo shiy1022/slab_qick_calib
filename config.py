@@ -48,10 +48,11 @@ def in_rng(val, rng_vals):
         return val
 
 
+
 def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
     cfg = load(file_name)
     if not np.isnan(value):
-        if not isinstance(value, int) and not isinstance(value, str):
+        if not isinstance(value, int) and not isinstance(value, str) and not isinstance(value, bool) :
             value = float(round(value, sig))
         if rng_vals is not None:
             value = in_rng(value, rng_vals)
@@ -79,10 +80,26 @@ def update_readout(
     if not np.isnan(value):
         if rng_vals is not None:
             value = in_rng(value, rng_vals)
-        if not isinstance(value, int) and not isinstance(value, str):
+        if not isinstance(value, int) and not isinstance(value, str) and not isinstance(value, np.bool_):
             value = float(round(value, sig))
         old_value = cfg["device"]["readout"][field][qubit_i]
         cfg["device"]["readout"][field][qubit_i] = value
+        save(cfg, file_name)
+        if verbose:
+            print(f"*Set cfg resonator {qubit_i} {field} to {value} from {old_value}*")
+    return cfg
+
+def update_stark(
+    file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None
+):
+    cfg = load(file_name)
+    if not np.isnan(value):
+        if rng_vals is not None:
+            value = in_rng(value, rng_vals)
+        if not isinstance(value, int) and not isinstance(value, str):
+            value = float(round(value, sig))
+        old_value = cfg["stark"][field][qubit_i]
+        cfg["stark"][field][qubit_i] = value
         save(cfg, file_name)
         if verbose:
             print(f"*Set cfg resonator {qubit_i} {field} to {value} from {old_value}*")

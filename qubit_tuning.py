@@ -7,7 +7,6 @@ import scipy.constants as cs
 import warnings
 from datetime import datetime
 import tuneup 
-update_readout=False
 max_t1=500
 max_err = 1
 min_r2 = 0.35
@@ -17,15 +16,25 @@ plt.rcParams['legend.handlelength'] = 0.5
 def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, single=False, max_t1=500, max_err=1, min_r2=0.35, tol=0.3):
         cfg_path = cfg_dict['cfg_file']
         auto_cfg = config.load(cfg_path)
+        
         # Resonator spectroscopy 
         rspec = meas.ResSpec(cfg_dict, qi=qi, params={'span':'kappa'})
-        if update_readout and rspec.status: 
+        if readout and rspec.status: 
             auto_cfg = config.update_readout(cfg_path, 'frequency', rspec.data['fit'][0], qi)
         if update and rspec.status:
             auto_cfg = config.update_readout(cfg_path, 'qi', rspec.data['fit'][1], qi)
             auto_cfg = config.update_readout(cfg_path, 'qe', rspec.data['fit'][2], qi)
             auto_cfg = config.update_readout(cfg_path, 'kappa', rspec.data['kappa'], qi, rng_vals=[0.03, 10])
-        
+
+        if not first_time: 
+            # Run single shot opt to improve readout 
+            shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
+            if update:
+                config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
+                config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
+                config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
+                config.update_readout(cfg_path, 'sigma', shot.data['sigma'], qi);
+                config.update_readout(cfg_path, 'tm', shot.data['tm'],qi);
         # Fine qubit spectroscopy
         qspec=meas.QubitSpec(cfg_dict, qi=qi, style='fine', params={'span':3,'expts':85,'soft_avgs':3, 'length':'t1'})     
         if not qspec.status:
@@ -40,27 +49,33 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
         if update:
             if amp_rabi.status:
                 config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
+                
+
         
         # Run T1 to get sense of coherence times
-        t1=meas.T1Experiment(cfg_dict, qi=qi)
-        if update and t1.status: 
-            auto_cfg = config.update_qubit(cfg_path, 'T1', t1.data['new_t1_i'], qi,sig=2, rng_vals=[1.5, max_t1*2])
-            auto_cfg = config.update_readout(cfg_path, 'final_delay', 6*t1.data['new_t1'], qi, sig=2,rng_vals=[10, 1000])
-            if first_time:
-                auto_cfg = config.update_qubit(cfg_path, 'T2r', t1.data['new_t1_i'], qi,sig=2, rng_vals=[1.5, max_t1*2])
-                auto_cfg = config.update_qubit(cfg_path, 'T2e', 2*t1.data['new_t1'], qi,sig=2, rng_vals=[1.5, max_t1*2])
+        if first_time:
+            t1=meas.T1Experiment(cfg_dict, qi=qi)
+            if update and t1.status: 
+                auto_cfg = config.update_qubit(cfg_path, 'T1', t1.data['new_t1_i'], qi,sig=2, rng_vals=[1.5, max_t1*2])
+                auto_cfg = config.update_readout(cfg_path, 'final_delay', 6*t1.data['new_t1'], qi, sig=2,rng_vals=[10, 1000])
+                if first_time:
+                    auto_cfg = config.update_qubit(cfg_path, 'T2r', t1.data['new_t1_i'], qi,sig=2, rng_vals=[1.5, max_t1*2])
+                    auto_cfg = config.update_qubit(cfg_path, 'T2e', 2*t1.data['new_t1'], qi,sig=2, rng_vals=[1.5, max_t1*2])
 
-        # Run single shot opt to improve readout 
-
-
-        shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
-        if update:
-            config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
-            config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
-            config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
+            # Run single shot opt to improve readout 
+            shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
+            if update:
+                config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
+                config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
+                config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
+                config.update_readout(cfg_path, 'sigma', shot.data['sigma'], qi);
+                config.update_readout(cfg_path, 'tm', shot.data['tm'],qi);
 
         # Run Ramsey first to center
-        recenter(qi, cfg_dict)
+        if first_time: 
+            recenter(qi, cfg_dict, style='coarse')
+        else:
+            recenter(qi, cfg_dict, style='fine')
 
         # Amp rabi to improve pi pulse
         amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi)
@@ -80,6 +95,8 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
             config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
             config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
             config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
+            config.update_readout(cfg_path, 'sigma', shot.data['sigma'], qi);
+            config.update_readout(cfg_path, 'tm', shot.data['tm'],qi);
 
         # Once readout tuned and qubit centered, get all the coherences. 
         # Run Ramsey for coherence 
@@ -219,7 +236,7 @@ def get_coherence(
             err = np.abs(new_par - old_par) / old_par
         elif prog.data["fit_err"] > max_err:
             print("Fit Error too high")
-            params["span"] = 2 * new_par # Usually occurs because too little signal 
+            params["span"] = 2 * old_par * 3 # Usually occurs because too little signal 
             err = 2 * tol
         else:
             print("Failed")
@@ -236,14 +253,18 @@ def get_coherence(
     return prog
 
 def recenter(
-    qi, cfg_dict, max_err=0.45, min_r2=0.1, max_t1=500
+    qi, cfg_dict, max_err=0.45, min_r2=0.1, max_t1=500, style='coarse',
 ):
 
     # get original frequency
     auto_cfg = config.load(cfg_dict["cfg_file"])
     start_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
     freqs = [start_freq]
-    params = {'ramsey_freq':0.2}
+    if style=='coarse':
+        freq = 0.2 
+    else:
+        freq = 0.2
+    params = {'ramsey_freq':freq}
     freq_error = []
 
     i = 0
@@ -264,7 +285,11 @@ def recenter(
             params['span'] = span
             config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
         elif prog.data["fit_err"] > max_err:
-            params['ramsey_freq'] = 2*params['ramsey_freq']
+            if params['ramsey_freq'] == 'smart':
+                params['ramsey_freq'] = 0.2
+            else:
+                params['ramsey_freq'] = 2*params['ramsey_freq']
+                params['span']=auto_cfg.device.qubit.T2r[qi]*1.5
         else:
             qspec=find_spec(qi,cfg_dict,  start='fine')
 
@@ -272,6 +297,7 @@ def recenter(
             if prog is not None and "new_ramsey_freq" in prog.data:
                 params["ramsey_freq"] = prog.data["new_ramsey_freq"]
                 params["span"] = np.pi / np.abs(prog.data["new_ramsey_freq"])
+                params['soft_avgs']=2
 
         i += 1
 

@@ -17,7 +17,7 @@ red = "#b51d14"
 int_rgain = True
 
 
-def hist(data, plot=True, span=None, ax=None, verbose=False):
+def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
     """
     span: histogram limit is the mean +/- span
     """
@@ -131,16 +131,9 @@ def hist(data, plot=True, span=None, ax=None, verbose=False):
     if plot:
         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 6))
 
-        # ng, binsg, pg = axs[1, 0].hist(
-        #     Ig_new, bins=numbins, range=xlims, color=blue, label="g", alpha=0.5
-        # )
-        # ne, binse, pe = axs[1, 0].hist(
-        #     Ie_new, bins=numbins, range=xlims, color=red, label="e", alpha=0.5
-        # )
-
+        # Plot unrotated data 
         axs[0, 0].plot(Ig, Qg, ".", label="g", color=blue, alpha=a, markersize=m)
         axs[0, 0].plot(Ie, Qe, ".", label="e", color=red, alpha=a, markersize=m)
-
         if plot_f:
             axs[0, 0].plot(If, Qf, ".", label="f", color="g", alpha=a, markersize=m)
         axs[0, 0].plot(xg, yg, color="k", marker="o")
@@ -148,90 +141,73 @@ def hist(data, plot=True, span=None, ax=None, verbose=False):
         if plot_f:
             axs[0, 0].plot(xf, yf, color="k", marker="o")
 
-        # axs[0,0].set_xlabel('I [ADC levels]')
+        axs[0,0].set_xlabel('I [ADC levels]')
         axs[0, 0].set_ylabel("Q [ADC levels]")
         axs[0, 0].legend(loc="upper right")
         axs[0, 0].set_title("Unrotated")
         axs[0, 0].axis("equal")
 
-        axs[0, 1].plot(
-            Ig_new, Qg_new, ".", label="g", color=blue, alpha=a, markersize=m
-        )
+        # Plot rotated data
+        axs[0, 1].plot(Ig_new, Qg_new, ".", label="g", color=blue, alpha=a, markersize=m)
         axs[0, 1].plot(Ie_new, Qe_new, ".", label="e", color=red, alpha=a, markersize=m)
         if plot_f:
-            axs[0, 1].plot(
-                If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m
-            )
+            axs[0, 1].plot(If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m)
         axs[0, 1].plot(xg_new, yg_new, color="k", marker="o")
         axs[0, 1].plot(xe_new, ye_new, color="k", marker="o")
         axs[0, 1].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
                    transform=axs[0, 1].transAxes, fontsize=10, 
                    verticalalignment='top', horizontalalignment='right', 
                    bbox=dict(facecolor='white', alpha=0.5))
-        if plot_f:
-            axs[0, 1].scatter(xf, yf, color="k", marker="o")
 
         axs[0,1].set_xlabel('I [ADC levels]')
         lgnd=axs[0, 1].legend(loc='lower right')
         lgnd.legendHandles[0].set_markersize(6)
         lgnd.legendHandles[1].set_markersize(6)
         axs[0, 1].set_title("Angle: {:.2f}$^\circ$".format(theta * 180 / np.pi))
-        axs[0, 1].axis("equal")
+        axs[0, 1].axis("equal")        
 
-        if plot_f:
-            nf, binsf, pf = axs[1, 0].hist(
-                If_new, bins=numbins, range=xlims, color="g", label="f", alpha=0.5
-            )
+        # Plot histogram 
         axs[1, 0].set_ylabel("Counts")
         axs[1, 0].set_xlabel("I [ADC levels]")
         axs[1, 0].legend(loc="upper right")
         axs[1, 0].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
         axs[1, 0].axvline(thresholds[0], color="0.2", linestyle="--")
-        axs[1,0].plot(data["vhg"], data["histg"], '.-',color=blue, markersize=0.5, linewidth=0.3)
+        axs[1, 0].plot(data["vhg"], data["histg"], '.-',color=blue, markersize=0.5, linewidth=0.3)
         axs[1, 0].fill_between(data["vhg"], data["histg"], color=blue, alpha=0.3)
         axs[1, 0].fill_between(data["vhe"], data["histe"], color=red, alpha=0.3)
         axs[1,0].plot(data["vhe"], data["histe"], '.-',color=red, markersize=0.5, linewidth=0.3)
         axs[1,0].plot(data["vhg"], gaussian(data["vhg"], 1, *data['paramsg']), 'k', linewidth=1)
         axs[1,0].plot(data["vhe"], excited_func(data["vhe"], data['vg'], data['ve'], data['sigma'], data['tm']), 'k', linewidth=1)
         if plot_f:
+            nf, binsf, pf = axs[1, 0].hist(
+                If_new, bins=numbins, range=xlims, color="g", label="f", alpha=0.5
+            )
             axs[1, 0].axvline(thresholds[1], color="0.2", linestyle="--")
             axs[1, 0].axvline(thresholds[2], color="0.2", linestyle="--")
-        bin_cent = (binsg[1:] + binsg[:-1]) / 2
-        axs[1,1].semilogy(bin_cent, ng, color=blue)
-        bin_cent = (binse[1:] + binse[:-1]) / 2
-        axs[1,1].semilogy(bin_cent, ne, color=red)
-        
-        # axs[1, 1].plot(
-        #     np.nan,
-        #     np.nan,
-        #     color="white",
-        #     label="Threshold: {:.2f}".format(thresholds[0]),
-        # )
-        # axs[1, 1].plot(
-        #     np.nan,
-        #     np.nan,
-        #     color="white",
-        #     label="Angle: {:.2f}$^\circ$".format(theta * 180 / np.pi),
-        # )
+
+                
         sigma = data['sigma']
         tm = data['tm']
         txt = f"Threshold: {thresholds[0]:.2f}"
         txt += f" \n Width: {sigma:.2f}"
         txt += f" \n $T_m/T_1$: {tm:.2f}"
-        axs[1, 0].text(0.025, 0.975, txt, 
+        axs[1, 0].text(0.025, 0.965, txt, 
                transform=axs[1, 0].transAxes, fontsize=10, 
                verticalalignment='top', horizontalalignment='left', 
                bbox=dict(facecolor='none', edgecolor='black', alpha=0.5))
 
-        if plot_f:
-            axs[1, 1].plot(binsf[:-1], np.cumsum(nf), "g", label="f")
-            axs[1, 1].axvline(thresholds[1], color="0.2", linestyle="--")
-            axs[1, 1].axvline(thresholds[2], color="0.2", linestyle="--")
-        #axs[1, 1].legend()
+        # Plot log histogram         
+        bin_cent = (binsg[1:] + binsg[:-1]) / 2
+        axs[1,1].semilogy(bin_cent, ng, color=blue)
+        bin_cent = (binse[1:] + binse[:-1]) / 2
+        axs[1,1].semilogy(bin_cent, ne, color=red)
+        
         axs[1, 1].set_xlabel("I [ADC levels]")
         axs[0, 0].set_xlabel("I [ADC levels]")
 
         plt.subplots_adjust(hspace=0.25, wspace=0.15)
+        if qubit is not None: 
+            fig.suptitle(f"Single Shot Histogram Analysis Q{qubit}")
         fig.tight_layout()
         plt.show()
     else:
@@ -283,7 +259,6 @@ def hist(data, plot=True, span=None, ax=None, verbose=False):
 def gaussian(x, mag, cen, wid):
     return mag / np.sqrt(2 * np.pi) / wid * np.exp(-((x - cen) ** 2) / 2 / wid**2)
 
-
 def two_gaussians(x, mag1, cen1, wid, mag2, cen2):
     return 1 / np.sqrt(2 * np.pi) / wid * (mag1 *np.exp(-((x - cen1) ** 2) / 2 / wid**2) + mag2 * np.exp(-((x - cen2) ** 2) / 2 / wid**2))
 
@@ -291,7 +266,6 @@ def make_hist(d, nbins=200):
     hist, bin_edges = np.histogram(d, bins=nbins, density=True)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     return bin_centers, hist
-
 
 # Histogram and fit ground state data
 def fit_gaussian(d, nbins=200, p0=None, plot=True):
@@ -303,7 +277,6 @@ def fit_gaussian(d, nbins=200, p0=None, plot=True):
         plt.plot(v, hist, "k.")
         plt.plot(v, gaussian(v, 1, *params), label="g")
     return params, v, hist
-
 
 # Tail from T1 decay
 # vg = ground state voltage, ve = excited state voltage, tm = measurement time/T1 time, sigma = SD of measurement noise
@@ -320,12 +293,10 @@ def distfn(v, vg, ve, sigma, tm):
         )
     )
 
-
 # Fit function for excited state
 def excited_func(x, vg, ve, sigma, tm):
     y = gaussian(x, 1, ve, sigma) * np.exp(-tm) + distfn(x, vg, ve, sigma, tm)
     return y
-
 
 # Fit for sum of excited and ground states (adds in fitting of relative magnitudes)
 def fit_all(x, mag_g, vg, ve, sigma, tm):
@@ -335,17 +306,14 @@ def fit_all(x, mag_g, vg, ve, sigma, tm):
     )
     return ye + yg
 
-
 def rotate(x, y, theta):
     return x * np.cos(theta) - y * np.sin(theta), x * np.sin(theta) + y * np.cos(theta)
-
 
 def full_rotate(d, theta):
     
     d["Ig"], d["Qg"] = rotate(d["Ig"], d["Qg"], theta)
     d["Ie"], d["Qe"] = rotate(d["Ie"], d["Qe"], theta)
     return d
-
 
 # Fit single shot data
 def fit_single_shot(d, plot=True, rot=True):
@@ -469,7 +437,7 @@ class HistogramProgram(QickProgram):
         self.trigger(ros=[self.adc_ch], pins=[0],t=self.trig_offset)
 
         if cfg.expt.active_reset:
-            self.reset(3)
+            self.reset(5)
 
 
     def reset(self, i):
@@ -508,6 +476,7 @@ class HistogramExperiment(QickExperiment):
         check_f=False,
         params={},
         style="",
+        display=True,
     ):
 
         if prefix is None:
@@ -534,7 +503,7 @@ class HistogramExperiment(QickExperiment):
             super().configure_reset()
         
         if go:
-            self.go(analyze=True, display=True, progress=True, save=True)
+            self.go(analyze=True, display=display, progress=True, save=True)
 
     def acquire(self, progress=False, debug=False):
 
@@ -562,11 +531,7 @@ class HistogramExperiment(QickExperiment):
         data["Ig"] = iq_list[0][0][:, 0]
         data["Qg"] = iq_list[0][0][:, 1]
         if self.cfg.expt.active_reset:
-            data["Igr1"]=iq_list[0][1][:, 0]
-            data["Igr2"]=iq_list[0][2][:, 0]
-            data["Igr3"]=iq_list[0][3][:, 0]
-            #data["Igr4"]=iq_list[0][4][:, 0]
-            #data["Igr5"]=iq_list[0][5][:, 0]
+            data["Igr"]=iq_list[0][1:,:, 0]
         irawg, qraw = histpro.collect_shots()
         
         #rawd = [iraw[-1], qraw[-1]]
@@ -595,11 +560,7 @@ class HistogramExperiment(QickExperiment):
             #print("buffered readout:", rawd)
             #print("feedback readout:", self.soc.read_mem(2,'dmem'))
             if self.cfg.expt.active_reset:
-                data["Ier1"]=iq_list[0][1][:, 0]
-                data["Ier2"]=iq_list[0][2][:, 0]
-                data["Ier3"]=iq_list[0][3][:, 0]
-                #data["Ier4"]=iq_list[0][4][:, 0]
-                #data["Ier5"]=iq_list[0][5][:, 0]
+                data["Ier"]=iq_list[0][1:,:, 0]
             #print(f"{np.mean(irawg)} mean raw g, {np.mean(irawe)} mean raw e")
 
         # Excited state shots
@@ -640,8 +601,6 @@ class HistogramExperiment(QickExperiment):
         except:
             print('Fits failed')
              
-        
-
         return data
 
     def display(
@@ -664,7 +623,7 @@ class HistogramExperiment(QickExperiment):
             savefig = True
 
         params, fig = hist(
-            data=data, plot=plot, verbose=verbose, span=span, ax=ax
+            data=data, plot=plot, verbose=verbose, span=span, ax=ax, qubit=self.cfg.expt.qubit[0]
         )
         fids = params["fids"]
         thresholds = params["thresholds"]
@@ -681,12 +640,9 @@ class HistogramExperiment(QickExperiment):
         if self.cfg.expt.check_f:
             print(f"Threshold gf: {thresholds[1]:.3f}")
             print(f"Threshold ef: {thresholds[2]:.3f}")
-        qubit = self.cfg.expt.qubit[0]
         imname = self.fname.split("\\")[-1]
 
         if savefig:
-            fig.suptitle(f"Single Shot Histogram Analysis Q{qubit}")
-            fig.tight_layout()
             plt.show()
             fig.savefig(
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
@@ -696,20 +652,42 @@ class HistogramExperiment(QickExperiment):
         super().save_data(data=data)
 
     def check_reset(self): 
+        nbins=75
         fig, ax = plt.subplots(2,1, figsize=(6,7))
         fig.suptitle(f"Q{self.cfg.expt.qubit[0]}")
-        v, hist = make_hist(self.data['Ig'], nbins=50)
-        ax[0].semilogy(v, hist, color=blue, linewidth=1)
-        ax[1].semilogy(v, hist, color=blue, linewidth=1)
+        vg, histg = make_hist(self.data['Ig'], nbins=nbins)
+        ax[0].semilogy(vg, histg, color=blue, linewidth=2)
+        ax[1].semilogy(vg, histg, color=blue, linewidth=2)
+        b  = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(self.data['Igr']))
+        ve, histe = make_hist(self.data['Ie'], nbins=nbins)
+        ax[1].semilogy(ve, histe, color=red, linewidth=2)
+        for i in range(len(self.data['Igr'])):
+            v, hist = make_hist(self.data['Igr'][i], nbins=nbins)
+            ax[0].semilogy(v, hist, color=b[i], linewidth=1, label=f'{i+1}')
+            v, hist = make_hist(self.data['Ier'][i], nbins=nbins)
+            ax[1].semilogy(v, hist, color=b[i], linewidth=1, label=f'{i+1}')
 
-        v, hist = make_hist(self.data['Ie'], nbins=50)
-        ax[1].semilogy(v, hist, color=red, linewidth=1)
+        def find_bin_closest_to_value(bins, value):
+            return np.argmin(np.abs(bins - value))
 
-        v, hist = make_hist(self.data['Igr3'], nbins=50)
-        ax[0].semilogy(v, hist,'k', label=self.cfg.expt.threshold_v)
+        ind= find_bin_closest_to_value(v, self.data['ie'])
+        ind_e= find_bin_closest_to_value(ve, self.data['ie'])
+        ind_g= find_bin_closest_to_value(vg, self.data['ie'])
 
-        v, hist = make_hist(self.data['Ier3'], nbins=50)
-        ax[1].semilogy(v, hist,'k', label=self.cfg.expt.threshold_v)
+        reset_level = hist[ind]
+        e_level = histe[ind_e]
+        g_level = histg[ind_g]
+
+        print(f"Reset is {reset_level/e_level:3g} of e and {reset_level/g_level:3g} of g")
+
+        self.data['reset_e'] = reset_level/e_level
+        self.data['reset_g'] = reset_level/g_level
+
+
+
+        
+
+        
         ax[0].legend()
 
         ax[0].set_title('Ground state')

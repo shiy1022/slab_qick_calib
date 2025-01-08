@@ -90,6 +90,7 @@ class T1Experiment(QickExperiment):
         style="",
         min_r2=None,
         max_err=None,
+        display=True,
     ):
 
         if prefix is None:
@@ -119,7 +120,7 @@ class T1Experiment(QickExperiment):
         if self.cfg.expt.active_reset:
             super().configure_reset()
         if go:
-            super().run(min_r2=min_r2, max_err=max_err)
+            super().run(display=display, min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
         self.param = {"label": "wait", "param": "t", "param_type": "time"}
@@ -143,7 +144,7 @@ class T1Experiment(QickExperiment):
         return data
 
     def display(
-        self, data=None, fit=True, plot_all=False, ax=None, show_hist=False, **kwargs
+        self, data=None, fit=True, plot_all=False, ax=None, show_hist=False, rescale=True,**kwargs
     ):
         qubit = self.cfg.expt.qubit[0]
         title = f"$T_1$ Q{qubit}"
@@ -165,6 +166,7 @@ class T1Experiment(QickExperiment):
             show_hist=show_hist,
             fitfunc=fitfunc,
             caption_params=caption_params,
+            rescale=rescale,
         )
 
     def save_data(self, data=None):

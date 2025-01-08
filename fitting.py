@@ -213,6 +213,51 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
             pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov, fitparams
+
+
+
+def decayslopesin(x, *p):
+    yscale, freq, phase_deg, decay, y0, slope = p
+    x0 = -(phase_deg+180)/360/freq
+    # x0 = 0
+    return yscale * np.sin(2*np.pi*freq*x + phase_deg*np.pi/180) * np.exp(-(x-x0)/decay) + y0 + slope*(x-x0)
+
+def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
+    # yscale, freq, phase_deg, decay, y0
+    
+    if fitparams is None: fitparams = [None]*6
+    max_freq, max_phase = fourier_init(xdata, ydata, debug)
+
+    if fitparams[0] is None: fitparams[0]=max(ydata)-min(ydata)
+    if fitparams[1] is None: fitparams[1]=max_freq
+    # if fitparams[2] is None: fitparams[2]=0
+    if fitparams[2] is None: fitparams[2]=max_phase*180/np.pi
+    if fitparams[3] is None: fitparams[3]=max(xdata) - min(xdata)
+    if fitparams[4] is None: fitparams[4]=np.mean(ydata)
+    if fitparams[5] is None: fitparams[5]=(max(ydata)-min(ydata))/(max(xdata) - min(xdata))
+    bounds = (
+        [0.6*fitparams[0], 1e-3, -360, 0.1, np.min(ydata), -np.inf],
+        [1.5*fitparams[0], 1e3, 360, np.inf, np.max(ydata), np.inf]
+        )
+    for i, param in enumerate(fitparams):
+        if not (bounds[0][i] < param < bounds[1][i]):
+            fitparams[i] = np.mean((bounds[0][i], bounds[1][i]))
+            print(f'Attempted to init fitparam {i} to {param}, which is out of bounds {bounds[0][i]} to {bounds[1][i]}. Instead init to {fitparams[i]}')
+    pOpt = fitparams
+
+    pCov = np.full(shape=(len(fitparams), len(fitparams)), fill_value=np.inf)
+    try:
+        pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
+        # return pOpt, pCov
+    except RuntimeError: 
+        try: 
+            fitparams[2]=-fitparams[2]
+            pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
+        except:
+            print('Warning: fit failed!')
+            pOpt = [np.nan]*len(pOpt)
+        # return 0, 0
+    return pOpt, pCov, fitparams
     
 
 # ====================================================== #

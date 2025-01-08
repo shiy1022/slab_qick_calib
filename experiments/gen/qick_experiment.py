@@ -7,7 +7,7 @@ from datetime import datetime
 import fitting as fitter
 import time
 import warnings
-
+from scipy.optimize import curve_fit
 
 class QickExperiment(Experiment):
     def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
@@ -81,13 +81,18 @@ class QickExperiment(Experiment):
         self.data = data
         return data
 
-    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, use_i=True, **kwargs):
+    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=True, use_i=False, get_hist=True, **kwargs):
         if data is None:
             data = self.data
         # Remove the last point from fit in case weird edge measurements
-
+        
         # Perform fits on each quadrature
         ydata_lab = ["amps", "avgi", "avgq"]
+
+        if get_hist:
+            self.scale_ge()
+            ydata_lab.append("scale_data")
+        
         for i, ydata in enumerate(ydata_lab):
             (
                 data["fit_" + ydata],
@@ -103,6 +108,8 @@ class QickExperiment(Experiment):
             fit_err = data["fit_err_avgi"]
         else:
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
+
+
 
         r2 = fitter.get_r2(data["xpts"][1:-1], data[i_best][1:-1], fitfunc, fit_pars)
         data["r2"] = r2
@@ -124,6 +131,7 @@ class QickExperiment(Experiment):
         xlabel="",
         fit=True,
         show_hist=False,
+        rescale=False,
         fitfunc=None,
         caption_params=[],
         debug=False,
@@ -141,16 +149,20 @@ class QickExperiment(Experiment):
 
         # Plot all 3 data sets or just I
         if plot_all:
-            fig, ax = plt.subplots(3, 1, figsize=(7.5, 9.5))
+            fig, ax = plt.subplots(3, 1, figsize=(7, 9.5))
             fig.suptitle(title)
-            ylabels = ["Amplitude [ADC units]", "I [ADC units]", "Q [ADC units]"]
+            ylabels = ["Amplitude (ADC units)", "I (ADC units)", "Q (ADC units)"]
             ydata_lab = ["amps", "avgi", "avgq"]
         else:
             if ax is None:
-                fig, a = plt.subplots(1, 1, figsize=(7.5, 4))
+                fig, a = plt.subplots(1, 1, figsize=(7, 4))
                 ax = [a]
-            ylabels = ["I [ADC units]"]
-            ydata_lab = ["avgi"]
+            if rescale: 
+                ylabels = ['Excited State Probability']
+                ydata_lab = ['scale_data']
+            else:
+                ylabels = ["I (ADC units)"]
+                ydata_lab = ["avgi"]
             ax[0].set_title(title)
 
         for i, ydata in enumerate(ydata_lab):
@@ -176,9 +188,10 @@ class QickExperiment(Experiment):
                 ax[i].plot(
                     data["xpts"][1:-1], fitfunc(data["xpts"][1:-1], *p), label=caption
                 )
-                ax[i].set_ylabel(ylabels[i])
-                ax[i].set_xlabel(xlabel)
                 ax[i].legend()
+            ax[i].set_ylabel(ylabels[i])
+            ax[i].set_xlabel(xlabel)
+            
             if debug:  # Plot initial guess if debug is True
                 pinit = data["init_guess_" + ydata]
                 print(pinit)
@@ -188,7 +201,11 @@ class QickExperiment(Experiment):
 
         if show_hist:  # Plot histogram of shots if show_hist is True
             fig2, ax = plt.subplots(1, 1, figsize=(3, 3))
-            ax.plot(data["bin_centers"], data["hist"]/np.sum(data['hist']), "o-")
+            ax.plot(data["bin_centers"], data["hist"], "o-")
+            try:
+                ax.plot(data['bin_centers'], two_gaussians_decay(data['bin_centers'], *data['hist_fit']), label='Fit')
+            except:
+                pass
             ax.set_xlabel("I [ADC units]")
             ax.set_ylabel("Probability")
 
@@ -204,7 +221,7 @@ class QickExperiment(Experiment):
         offset = self.soccfg._cfg['readouts'][self.cfg.expt.qubit_chan]["iq_offset"]
         shots_i, shots_q = prog.collect_shots(offset=offset)
         # sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
-        hist, bin_edges = np.histogram(shots_i, bins=60)
+        hist, bin_edges = np.histogram(shots_i, bins=60, density=True)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         return bin_centers, hist
 
@@ -215,7 +232,7 @@ class QickExperiment(Experiment):
         display=True,
         save=True,
         min_r2=0.9,
-        max_err=0.1,
+        max_err=1e6,
     ):
         if min_r2 is None:
             min_r2 = 0.1
@@ -257,7 +274,6 @@ class QickExperiment(Experiment):
         if unexpected_params:
             warnings.warn(f"Unexpected parameters found in params: {unexpected_params}")
 
-
     def configure_reset(self):
         qi = self.cfg.expt.qubit[0]
         params_def = dict(
@@ -268,7 +284,6 @@ class QickExperiment(Experiment):
         self.cfg.expt = {**params_def, **self.cfg.expt}
     
         self.cfg.expt['threshold']=int(self.cfg.expt['threshold_v']*self.cfg.device.readout.readout_length[qi]/0.0032552083333333335)
-
 
     def get_freq(self, fit=True): 
         freq_offset = 0
@@ -289,6 +304,35 @@ class QickExperiment(Experiment):
         #     self.data["freq_fit"][0] = freq_offset + self.data["fit"][0]
         #     self.data["freq_init"][0] = freq_offset + self.data["init"][0]
 
+    def scale_ge(self): 
+        hist = self.data['hist']
+        bin_centers = self.data['bin_centers']
+        v_rng = np.max(bin_centers) - np.min(bin_centers)
+        
+        p0 = [0.5, np.min(bin_centers)+v_rng/3, v_rng/10, np.max(bin_centers)-v_rng/3]
+        try:
+            popt, pcov = curve_fit(two_gaussians, bin_centers, hist, p0=p0)
+            vg = popt[1]
+            ve = popt[3]
+            if 'tm' in self.cfg.device.readout and self.cfg.device.readout.tm[self.cfg.expt.qubit[0]]!=0:
+                tm = self.cfg.device.readout.tm[self.cfg.expt.qubit[0]]
+                sigma = self.cfg.device.readout.sigma[self.cfg.expt.qubit[0]]
+                p0 = [popt[0], vg, ve]
+                popt, pcov = curve_fit(lambda x, mag_g, vg, ve: two_gaussians_decay(x, mag_g, vg, ve, sigma, tm), bin_centers, hist, p0=p0)
+                popt = np.concatenate((popt, [sigma, tm]))
+            
+            dv = popt[2] - popt[1]
+            self.data['scale_data'] = (self.data['avgi']-popt[1])/dv
+            self.data['hist_fit']=popt
+        except:
+            self.data['scale_data'] = self.data['avgi']
+
+        
+        
+        
+
+
+
         
 class QickExperimentLoop(QickExperiment):
 
@@ -296,8 +340,13 @@ class QickExperimentLoop(QickExperiment):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
     def acquire(self, prog_name, x_sweep, progress=True, hist=False):
-
+        
+        if 'active_reset' in self.cfg.expt and self.cfg.expt.active_reset:
+            final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]]
+        else:
+            final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
         data = {"xpts": [], "avgi": [], "avgq": [], "amps": [], "phases": []}
+        shots_i =[]
         now = datetime.now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         current_time = current_time.encode("ascii", "replace")
@@ -306,17 +355,28 @@ class QickExperimentLoop(QickExperiment):
             for j in range(len(x_sweep)):
                 self.cfg.expt[x_sweep[j]["var"]] = x_sweep[j]["pts"][i]
 
-            prog = prog_name(soccfg=self.soccfg, cfg=self.cfg)
+            prog = prog_name(soccfg=self.soccfg, final_delay=final_delay, cfg=self.cfg)
             
-            avgi, avgq = prog.acquire(
+            iq_list = prog.acquire(
                 self.im[self.cfg.aliases.soc],
+                soft_avgs=self.cfg.expt.soft_avgs,
                 threshold=None,
                 load_pulses=True,
                 progress=False,
             )
-            data = self.stow_data(avgi, avgq, data)
+            # should add get_params to this to do this properly
+            data = self.stow_data(iq_list, data)
+            offset = self.soccfg._cfg['readouts'][self.cfg.expt.qubit_chan]["iq_offset"]
+            shots_i_new, shots_q = prog.collect_shots(offset=offset)
+            shots_i.append(shots_i_new)
+
+
+
             data["xpts"].append(x_sweep[0]["pts"][i])
 
+        bin_centers, hist = self.make_hist(shots_i)
+        data["bin_centers"] = bin_centers
+        data["hist"] = hist
         for k, a in data.items():
             data[k] = np.array(a)
 
@@ -347,7 +407,7 @@ class QickExperimentLoop(QickExperiment):
         title="",
         xlabel="",
         fit=True,
-        show_hist=False,
+        show_hist=True,
         fitfunc=None,
         captionStr=[],
         var=[],
@@ -386,8 +446,10 @@ class QickExperimentLoop(QickExperiment):
             max_err=max_err,
         )
 
-    def make_hist(self, prog):
-        super().make_hist(prog=prog)
+    def make_hist(self, shots_i):
+        hist, bin_edges = np.histogram(shots_i, bins=60)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        return bin_centers, hist
 
     def update_config(self, q_ind=None):
         super().update_config(q_ind=q_ind)
@@ -604,98 +666,31 @@ class QickExperiment2DSimple(QickExperiment2D):
             ylabel=ylabel,
         )
 
-            
 
-class QickExperiment2DLoop(QickExperiment2D):
+def gaussian(x, mag, cen, wid):
+    return mag / np.sqrt(2 * np.pi) / wid * np.exp(-((x - cen) ** 2) / 2 / wid**2)
 
-    def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+def two_gaussians(x, mag1, cen1, wid, cen2):
+    return 1 / np.sqrt(2 * np.pi) / wid * (mag1 *np.exp(-((x - cen1) ** 2) / 2 / wid**2) + (1-mag1) * np.exp(-((x - cen2) ** 2) / 2 / wid**2))
 
-    def acquire(self, prog_name, x_sweep, y_sweep, progress=True):
+def distfn(v, vg, ve, sigma, tm):
+    from scipy.special import erf
 
-        xvals = np.arange(len(x_sweep[0]["pts"]))
-        yvals = np.arange(len(y_sweep[0]["pts"]))
-        now = datetime.now()
-        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        current_time = current_time.encode("ascii", "replace")
-
-        data = {
-            "xpts": [],
-            "ypts": [],
-            "avgi": [],
-            "avgq": [],
-            "amps": [],
-            "phases": [],
-        }
-        for k in tqdm(yvals, disable=not progress):
-            for j in range(len(y_sweep)):
-                var = y_sweep[j]["var"]
-                self.cfg.expt[var] = y_sweep[j]["pts"][k]
-            data["avgi"].append([])
-            data["avgq"].append([])
-            data["amps"].append([])
-            data["phases"].append([])
-
-            for i in tqdm(xvals, disable=True):
-                for j in range(len(x_sweep)):
-                    var = x_sweep[j]["var"]
-                    self.cfg.expt[var] = x_sweep[j]["pts"][i]
-
-                prog = prog_name(soccfg=self.soccfg, cfg=self.cfg)
-                avgi, avgq = prog.acquire(
-                    self.im[self.cfg.aliases.soc],
-                    threshold=None,
-                    load_pulses=True,
-                    progress=False,
-                )
-                data = self.stow_data(avgi, avgq, data)
-
-        for j in range(len(y_sweep)):
-            data[y_sweep[j]["var"] + "_pts"] = y_sweep[j]["pts"]
-        for j in range(len(x_sweep)):
-            data[x_sweep[j]["var"] + "_pts"] = x_sweep[j]["pts"]
-        data["xpts"] = x_sweep[0]["pts"]
-        data["ypts"] = y_sweep[0]["pts"]
-        for k, a in data.items():
-            data[k] = np.array(a)
-
-        data["start_time"] = current_time
-        self.data = data
-        return data
-
-    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
-        super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, fit=fit)
-
-    def display(
-        self,
-        data=None,
-        ax=None,
-        plot_both=False,
-        title="",
-        xlabel="",
-        ylabel="",
-        **kwargs,
-    ):
-        super().display(
-            data=data,
-            ax=ax,
-            plot_both=plot_both,
-            title=title,
-            xlabel=xlabel,
-            ylabel=ylabel,
+    dv = ve - vg
+    return np.abs(
+        tm
+        / 2
+        / dv
+        * np.exp(tm * (tm * sigma**2 / 2 / dv**2 - (v - vg) / dv))
+        * (
+            erf((tm * sigma**2 / dv + ve - v) / np.sqrt(2) / sigma)
+            + erf((-tm * sigma**2 / dv + v - vg) / np.sqrt(2) / sigma)
         )
+    )
 
-    def stow_data(self, avgi, avgq, data):
-        avgi = avgi[0][0]
-        avgq = avgq[0][0]
-        amp = np.abs(avgi + 1j * avgq)  # Calculating the magnitude
-        phase = np.angle(avgi + 1j * avgq)  # Calculating the phase
-        data["avgi"][-1].append(avgi)
-        data["avgq"][-1].append(avgq)
-        data["amps"][-1].append(amp)
-        data["phases"][-1].append(phase)
-        return data
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
+def two_gaussians_decay(x, mag_g, vg, ve, sigma, tm):
+    yg = gaussian(x, mag_g, vg, sigma)
+    ye = gaussian(x, 1-mag_g, ve, sigma) * np.exp(-tm) +(1-mag_g)* distfn(
+        x, vg, ve, sigma, tm
+    )
+    return ye + yg

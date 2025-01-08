@@ -142,202 +142,6 @@ class RamseyStarkExperiment(QickExperiment):
         super().save_data(data=data)
         return self.fname
 
-
-class RamseyStarkFreqExperiment(QickExperiment2DSimple):
-    """
-    Stark Power Rabi Experiment
-    Experimental Config:
-    expt = dict(
-        start_f: start qubit frequency (MHz),
-        step_f: frequency step (MHz),
-        expts_f: number of experiments in frequency,
-        start_gain: qubit gain [dac level]
-        step_gain: gain step [dac level]
-        expts_gain: number steps
-        reps: number averages per expt
-        soft_avgs: number repetitions of experiment sweep
-        sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
-        pulse_type: 'gauss' or 'const'
-    )
-    """
-
-    def __init__(
-        self,
-        soccfg=None,
-        path="",
-        prefix="RamseyStarkFreq",
-        config_file=None,
-        progress=None,
-        im=None,
-    ):
-        super().__init__(
-            soccfg=soccfg,
-            path=path,
-            prefix=prefix,
-            config_file=config_file,
-            progress=progress,
-            im=im,
-        )
-
-    def acquire(self, progress=False, debug=False):
-        # expand entries in config that are length 1 to fill all qubits
-        num_qubits_sample = len(self.cfg.device.qubit.f_ge)
-        for subcfg in (self.cfg.device.readout, self.cfg.device.qubit, self.cfg.hw.soc):
-            for key, value in subcfg.items():
-                if isinstance(value, dict):
-                    for key2, value2 in value.items():
-                        for key3, value3 in value2.items():
-                            if not (isinstance(value3, list)):
-                                value2.update({key3: [value3] * num_qubits_sample})
-                elif not (isinstance(value, list)):
-                    subcfg.update({key: [value] * num_qubits_sample})
-
-        if self.cfg.expt.checkZZ:
-            assert len(self.cfg.expt.qubits) == 2
-            qZZ, qTest = self.cfg.expt.qubits
-            assert qZZ != 1
-            assert qTest == 1
-        else:
-            qTest = self.cfg.expt.qubits[0]
-
-        freqpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"] * np.arange(
-            self.cfg.expt["expts_f"]
-        )
-        data = {
-            "xpts": [],
-            "freqpts": [],
-            "avgi": [],
-            "avgq": [],
-            "amps": [],
-            "phases": [],
-        }
-        adc_ch = self.cfg.hw.soc.adcs.readout.ch
-        xvals = np.arange(self.cfg.expt["expts"])
-        phases = 360 * self.cfg.expt["ramsey_freq"] * self.cfg.expt.step * xvals
-        lengths = self.cfg.expt["start"] + self.cfg.expt["step"] * np.arange(
-            self.cfg.expt["expts"]
-        )
-
-        for freq in tqdm(freqpts):
-            self.cfg.expt.stark_freq = freq
-            data["xpts"].append([])
-            data["avgi"].append([])
-            data["avgq"].append([])
-            data["amps"].append([])
-            data["phases"].append([])
-            for i in range(len(xvals)):
-                length = lengths[i]
-                phase = phases[i]
-                self.cfg.expt.length = float(length)
-                self.cfg.expt.phase = float(phase)
-
-                ramsey = RamseyStark2Program(soccfg=self.soccfg, cfg=self.cfg)
-                # print(ramsey)
-                self.prog = ramsey
-                avgi, avgq = ramsey.acquire(
-                    self.im[self.cfg.aliases.soc],
-                    threshold=None,
-                    load_pulses=True,
-                    progress=False,
-                )
-                avgi = avgi[0][0]
-                avgq = avgq[0][0]
-                amp = np.abs(avgi + 1j * avgq)  # Calculating the magnitude
-                phase = np.angle(avgi + 1j * avgq)  # Calculating the phase
-                data["xpts"][-1].append(length)
-                data["avgi"][-1].append(avgi)
-                data["avgq"][-1].append(avgq)
-                data["amps"][-1].append(amp)
-                data["phases"][-1].append(phase)
-
-        data["freqpts"] = freqpts
-        for k, a in data.items():
-            data[k] = np.array(a)
-        self.data = data
-        return data
-
-    def analyze(self, data=None, fit=True, **kwargs):
-        if data is None:
-            data = self.data
-
-        fitterfunc = fitter.fitdecaysin
-        ydata_lab = ["amps", "avgi", "avgq"]
-        ydata_lab = ["avgi"]
-        for i, ydata in enumerate(ydata_lab):
-            data["fit_" + ydata] = []
-            for i in range(len(data["freqpts"])):
-                fit_pars = []
-                # data['fit_' + ydata], data['fit_err_' + ydata] = fitterfunc(data['xpts'], data[ydata], fitparams=None)
-                fit_pars, fit_err, init = fitterfunc(
-                    data["xpts"][i], data[ydata][i], fitparams=None
-                )
-                r2 = fitter.get_r2(data["xpts"], data[ydata], fitter.decaysin, fit_pars)
-                fit_err = np.mean(np.abs(fit_err / fit_pars))
-                if r2 > 0 and fit_err < 0.5:
-                    data["fit_" + ydata].append(fit_pars)
-                else:
-                    data["fit_" + ydata].append([np.nan] * len(fit_pars))
-
-    def display(self, data=None, fit=True, plot_both=False, **kwargs):
-        if data is None:
-            data = self.data
-
-        x_sweep = data["xpts"]
-        y_sweep = data["freqpts"]
-        avgi = data["avgi"]
-        avgq = data["avgq"]
-
-        if plot_both:
-            fig = plt.figure(figsize=(10, 8))
-            plt.subplot(
-                211,
-                title="Frequency Stark Ramsey Gain" + self.cfg.expt.stark_gain,
-                ylabel="Gain [DAC units]",
-            )
-            plt.pcolormesh(x_sweep, y_sweep, avgi, cmap="viridis", shading="auto")
-
-            plt.colorbar(label="I (ADC level)")
-            plt.clim(vmin=None, vmax=None)
-
-            plt.subplot(212, xlabel="Gain [DAC units]", ylabel="Amplitude [MHz]")
-            plt.pcolormesh(x_sweep, y_sweep, avgq, cmap="viridis", shading="auto")
-
-            plt.colorbar(label="Q (ADC level)")
-            plt.clim(vmin=None, vmax=None)
-        else:
-            fig = plt.figure(figsize=(10, 6))
-            plt.title("Frequency Stark Ramsey")
-            plt.ylabel("Gain [DAC units]")
-            plt.pcolormesh(x_sweep, y_sweep, avgi, cmap="viridis", shading="auto")
-
-            plt.colorbar(label="I (ADC level)")
-            plt.clim(vmin=None, vmax=None)
-
-        plt.tight_layout()
-        plt.show()
-        if fit:
-            plt.figure()
-            freq = [data["fit_avgi"][i][1] for i in range(len(data["freqpts"]))]
-            plt.plot(data["freqpts"], freq)
-
-        plt.figure(figsize=(10, 6))
-        for i in range(len(data["freqpts"])):
-            plt.plot(
-                data["xpts"][i],
-                data["avgi"][i] + 3 * i,
-                label=f'Gain {data["freqpts"][i]}',
-            )
-
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
-        plt.show()
-
-    def save_data(self, data=None):
-        print(f"Saving {self.fname}")
-        super().save_data(data=data)
-        return self.fname
-
-
 class RamseyStarkPowerExperiment(QickExperiment2DSimple):
     """
     Initialize the T2 Ramsey Stark experiment.
@@ -468,6 +272,129 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
     def save_data(self, data=None):
         super().save_data(data=data)
         return self.fname
+
+class RamseyStarkFreqExperiment(QickExperiment2DSimple):
+    """
+    Initialize the T2 Ramsey Stark experiment.
+    self.cfg.expt:
+        start (float): Wait time tau in microseconds.
+        step (float): Step size in microseconds.
+        expts (int): Number of experiments.
+        start_gain (int): Starting gain value.
+        end_gain (int): Ending gain value.
+        expts_gain (int): Gain value for experiments.
+        ramsey_freq (float): Ramsey frequency in MHz.
+        reps (int): Number of repetitions.
+        soft_avgs (int): Number of soft_avgs.
+        qubit (list): List containing the qubit index.
+        stark_freq (float): Stark frequency.
+        checkZZ (bool): Flag to check ZZ interaction.
+        checkEF (bool): Flag to check EF interaction.
+        acStark (bool): Flag to enable AC Stark effect.
+        qubit_chan (int): Qubit channel for readout.
+    """
+
+    def __init__(
+        self,
+        cfg_dict,
+        qi=0,
+        go=True,
+        params={},
+        prefix="",
+        progress=False,
+        style="",
+        min_r2=None,
+        acStark=True,
+        max_err=None,
+    ):
+
+        if prefix == "":
+            prefix = f"ramsey_stark_freq_qubit{qi}"
+
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        exp_name = RamseyStarkExperiment
+        exp_name(cfg_dict, qi, go=False, params=params)
+
+        params_def = {
+            "end_df": 200,
+            "expts_df": 20,
+            "start_df": 5,
+            "qubit": [qi],
+        }
+        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params, acStark=acStark)
+        params = {**params_def, **params}
+        params['start_freq'] = self.cfg.device.qubit.f_ge[qi] + params['start_df']
+        params['end_freq'] = self.cfg.device.qubit.f_ge[qi] + params['end_df']
+        params = {**self.expt.cfg.expt, **params}
+        self.cfg.expt = params
+
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
+
+    def acquire(self, progress=False):
+
+        freq_pts = np.linspace(
+            self.cfg.expt["start_freq"],
+            self.cfg.expt["end_freq"],
+            self.cfg.expt["expts_df"],
+        )
+
+        y_sweep = [{"var": "stark_freq", "pts": freq_pts}]
+        super().acquire(y_sweep=y_sweep, progress=progress)
+
+        return self.data
+
+    def analyze(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data = self.data
+
+        fitterfunc = fitter.fitsin
+        super().analyze(fitfunc=fitter.sinfunc, fitterfunc=fitterfunc, data=data)
+        self.data['freq'] = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
+
+    def display(self, data=None, fit=True, plot_both=False, **kwargs):
+        if data is None:
+            data = self.data
+        qubit = self.cfg.expt.qubit[0]
+        gain = self.cfg.expt.stark_gain
+
+        title = f"Stark Freq Ramsey Q{qubit} Gain: {gain}"
+        ylabel = "Frequency (MHz)"
+        xlabel = "Wait Time ($\mu$s)"
+        super().display(plot_both=False, title=title, xlabel=xlabel, ylabel=ylabel)
+
+        
+        fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+        ax = [ax]
+        if fit:
+             self.data['freq'] = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
+             ax[0].plot(data["ypts"], self.data['freq'],'o')
+             alpha = self.cfg.device.qubit.f_ge[qubit]-self.cfg.device.qubit.f_ef[qubit]
+             df = data['ypts']-self.cfg.device.qubit.f_ge[qubit]
+             df2 = data['ypts']-self.cfg.device.qubit.f_ef[qubit]
+             exp_val = np.abs(alpha*gain**2/df/df2)*500
+             inds = exp_val<30 
+             ax[0].plot(data["ypts"][inds], exp_val[inds],'.')
+
+        # Plot raw data
+        fig3, ax = plt.subplots(1, 1, figsize=(6, 8))
+        off = 0 
+        for i in range(len(data['ypts'])):
+            
+            ax.plot(data['xpts'], data['avgi'][i]+off)#, label=f'Gain {data['stark_gain_pts'][i]}')
+            off += 2*data['fit_avgi'][i][0]
+
+        # imname = self.fname.split("\\")[-1]
+        # fig.savefig(
+        #     self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "quad_fit.png"
+        # )
+        # plt.show()
+
+    def save_data(self, data=None):
+        super().save_data(data=data)
+        return self.fname
+
 
 def quad_fit(x, a, b, c):
         return a * x**2 + b * x + c

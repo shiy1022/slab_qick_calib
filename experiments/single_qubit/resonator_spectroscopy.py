@@ -369,7 +369,6 @@ class ResSpecPower(QickExperiment2D):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         params_def = {
-            "final_delay": 5,
             "reps": self.reps / 1000,
             "soft_avgs": self.soft_avgs,
             "rng": 100,
@@ -381,6 +380,7 @@ class ResSpecPower(QickExperiment2D):
             "expts_gain": 20,
             "f_off": 4,
             "min_reps": 100,
+            "final_delay": 5,
             "log": True,
             "qubit": [qi],
             "pulse_e": pulse_e,
@@ -388,14 +388,14 @@ class ResSpecPower(QickExperiment2D):
             "pulse_type": "const",
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
-        params_def["start"] = (
+        params = {**params_def, **params}
+        params["start"] = (
             self.cfg.device.readout.frequency[qi]
-            - params_def["span"] / 2
-            - params_def["f_off"]
+            - params["span"] / 2
+            - params["f_off"]
         )
 
-        # combine params and params_Def, preferreing params
-        params = {**params_def, **params}
+        
 
         self.cfg.expt = params
 

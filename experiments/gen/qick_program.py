@@ -155,10 +155,12 @@ class QickProgram(AveragerProgramV2):
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(0.01)
             self.label(f"NOPULSE{n}")
-            self.trigger(ros=[self.adc_ch], pins=[0], t=self.trig_offset)
-            self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-            if self.lo_ch is not None:
-                self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
+
+            if n<i-1:
+                self.trigger(ros=[self.adc_ch], pins=[0], t=self.trig_offset)
+                self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+                if self.lo_ch is not None:
+                    self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
 
 
 class QickProgram2Q(AveragerProgramV2):
@@ -274,19 +276,19 @@ class QickProgram2Q(AveragerProgramV2):
         self.make_pulse(i, pulse, f"{name}_{i}")
         return pulse
 
-
     def collect_shots(self, offset=0):
-
+        i_shots_list, q_shots_list = [], []
         for i, (ch, rocfg) in enumerate(self.ro_chs.items()):
             nsamp = rocfg["length"]
             iq_raw = self.get_raw()
-            i_shots = iq_raw[i][:, :, 0, 0] / nsamp - offset
+            i_shots = iq_raw[i][:, :, 0, 0] / nsamp - offset[i]
             i_shots = i_shots.flatten()
-            q_shots = iq_raw[i][:, :, 0, 1] / nsamp - offset
+            q_shots = iq_raw[i][:, :, 0, 1] / nsamp - offset[i]
             q_shots = q_shots.flatten()
-        return i_shots, q_shots
+            i_shots_list.append(i_shots)
+            q_shots_list.append(q_shots)
+        return i_shots_list, q_shots_list
     
-
     def reset(self, i):
         for n in range(i):
             cfg = AttrDict(self.cfg)
@@ -294,12 +296,20 @@ class QickProgram2Q(AveragerProgramV2):
             self.delay_auto(cfg.expt.read_wait + cfg.expt.extra_delay)
             
             # read the input, test a threshold, and jump
-            self.read_and_jump(ro_ch=self.adc_ch, component='I', threshold=cfg.expt.threshold, test='<', label=f'NOPULSE{n}')
-            
-            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+            for q in range(len(self.adc_ch)):
+                self.read_and_jump(ro_ch=self.adc_ch[q], component='I', threshold=cfg.expt.threshold[q], test='<', label=f'NOPULSE{n}_{q}')
+                self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
+                self.label(f"NOPULSE{n}_{q}")
             self.delay_auto(0.01)
-            self.label(f"NOPULSE{n}")
-            self.trigger(ros=[self.adc_ch], pins=[0], t=self.trig_offset)
-            self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-            if self.lo_ch is not None:
-                self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
+            
+            if n<i-1:
+                for q in range(len(cfg.expt.qubit)):
+                    self.pulse(ch=self.res_ch[q], name=f"readout_pulse_{q}", t=0)
+                    if self.lo_ch[q] is not None:
+                        self.pulse(ch=self.lo_ch[q], name=f"mix_pulse_{q}", t=0.0)
+                    self.trigger(
+                    ros=[self.adc_ch[q]],
+                    pins=[0],
+                    t=self.trig_offset[q],
+                    )
+
