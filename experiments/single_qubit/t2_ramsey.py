@@ -141,7 +141,7 @@ class RamseyExperiment(QickExperiment):
             cfg_qub = self.cfg.device.qubit.pulses.pi_ge
             params_def["freq"] = self.cfg.device.qubit.f_ge[qi]
         for key in cfg_qub:
-            params_def[key] = self.cfg.device.qubit.pulses.pi_ef[key][qi]
+            params_def[key] = cfg_qub[key][qi]
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
         

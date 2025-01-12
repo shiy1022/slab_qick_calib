@@ -27,16 +27,18 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
             auto_cfg = config.update_readout(cfg_path, 'kappa', rspec.data['kappa'], qi, rng_vals=[0.03, 10])
 
         if not first_time: 
-            # Run single shot opt to improve readout 
             shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
             if update:
-                config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
-                config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
-                config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
+                config.update_readout(cfg_path, 'phase', shot.data['angle'], qi);
+                config.update_readout(cfg_path, 'threshold', shot.data['thresholds'][0], qi);
+                config.update_readout(cfg_path, 'fidelity', shot.data['fids'][0], qi);
                 config.update_readout(cfg_path, 'sigma', shot.data['sigma'], qi);
                 config.update_readout(cfg_path, 'tm', shot.data['tm'],qi);
+                if shot.data['fids'][0]>0.06:
+                    config.update_qubit(cfg_path, 'tuned_up', True, qi);
+        
         # Fine qubit spectroscopy
-        qspec=meas.QubitSpec(cfg_dict, qi=qi, style='fine', params={'span':3,'expts':85,'soft_avgs':3, 'length':'t1'})     
+        qspec=meas.QubitSpec(cfg_dict, qi=qi, style='fine', params={'span':3,'expts':85,'soft_avgs':2, 'length':'t1'})     
         if not qspec.status:
             find_spec(qi, cfg_dict, start="medium")
 
@@ -65,11 +67,13 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
             # Run single shot opt to improve readout 
             shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
             if update:
-                config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
-                config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
-                config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
+                config.update_readout(cfg_path, 'phase', shot.data['angle'], qi);
+                config.update_readout(cfg_path, 'threshold', shot.data['thresholds'][0], qi);
+                config.update_readout(cfg_path, 'fidelity', shot.data['fids'][0], qi);
                 config.update_readout(cfg_path, 'sigma', shot.data['sigma'], qi);
                 config.update_readout(cfg_path, 'tm', shot.data['tm'],qi);
+                if shot.data['fids'][0]>0.06:
+                    config.update_qubit(cfg_path, 'tuned_up', True, qi);
 
         # Run Ramsey first to center
         if first_time: 
@@ -106,7 +110,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
         t1= get_coherence(meas.T1Experiment, qi, cfg_dict,par='T1')
 
         # Run T2 Echo 
-        t2e = meas.RamseyEchoExperiment(cfg_dict, qi=qi, params={'ramsey_freq':'smart'})
+        t2= get_coherence(meas.RamseyEchoExperiment, qi, cfg_dict,par='T2e')
         #t2e= get_coherence(meas.RamseyEchoExperiment, qi, cfg_dict,par='T2e')
 
         # Run chi 
@@ -125,39 +129,61 @@ def make_summary_figure(cfg_dict, progs, qi):
     progs['t1'].display(ax=[ax[0,1]])
     progs['t2r'].display(ax=[ax[1,0]])
     progs['t2e'].display(ax=[ax[1,1]])
-    progs['shot'].display(ax=[ax[0,2],ax[1,2]], plot=False)
+    progs['shot'].display(ax=[ax[0,2],ax[1,2]])
     progs['rspec'].display(ax=[ax[2,0]])
-    progs['qspec'].display(ax=[ax[2,2]], plot_all=False)
 
+    
+    
     cap = f'Length: {auto_cfg.device.readout.readout_length[qi]:0.2f} $\mu$s'
     cap += f'\nGain: {auto_cfg.device.readout.gain[qi]}'
     ax[0,2].text(0.02, 0.05, cap, transform=ax[0,2].transAxes, fontsize=10,
-                verticalalignment='bottom', horizontalalignment='left', bbox=dict(facecolor='white', alpha=0.8))       
+                verticalalignment='bottom', horizontalalignment='left', bbox=dict(facecolor='white', alpha=0.8))
+
+    chi_fig(ax[2,1], qi, progs)
     
+    progs['qspec'].display(ax=[ax[2,2]], plot_all=False)
     
+
     ax[2,2].set_title(f'Qubit Freq: {auto_cfg.device.qubit.f_ge[qi]:0.2f} MHz')
     ax[2,2].axvline(x=auto_cfg.device.qubit.f_ge[qi], color='k', linestyle='--')
 
-    ax[2,1].set_title(f'Chi Measurement Q{qi}')
-    ax[2,1].plot(progs['chid'][1].data['xpts'], progs['chid'][1].data['amps'], label='No Pulse')
-    ax[2,1].plot(progs['chid'][0].data['xpts'], progs['chid'][0].data['amps'], label=f'e Pulse')
-    chi_val = progs['chid'][0].data['chi_val']
-    cap=f'$\chi=${chi_val:0.2f} MHz'
-    ax[2,1].text(0.04, 0.35, cap, transform=ax[2,1].transAxes, fontsize=10,
-                    verticalalignment='bottom', horizontalalignment='left', bbox=dict(facecolor='white', alpha=0.8))
-    ax[2,1].axvline(x=progs['chid'][0].data['cval'], color='k', linestyle='--')  # Add vertical line at selected point
-    ax[2,1].axvline(x=progs['chid'][0].data['rval'], color='k', linestyle='--')
-    ax[2,1].legend()
-    ax[2,1].set_ylabel('Amplitude')
-    ax[2,1].set_xlabel('Frequency (MHz)')
-    plt.show()
+    # ax[2,1].set_title(f'Chi Measurement Q{qi}')
+    # ax[2,1].plot(progs['chid'][1].data['xpts'], progs['chid'][1].data['amps'], label='No Pulse')
+    # ax[2,1].plot(progs['chid'][0].data['xpts'], progs['chid'][0].data['amps'], label=f'e Pulse')
+    
+    # chi_val = progs['chid'][0].data['chi_val']
+    # cap=f'$\chi=${chi_val:0.2f} MHz'
+    # ax[2,1].text(0.04, 0.35, cap, transform=ax[2,1].transAxes, fontsize=10,
+    #                 verticalalignment='bottom', horizontalalignment='left', bbox=dict(facecolor='white', alpha=0.8))
+    # ax[2,1].axvline(x=progs['chid'][0].data['cval'], color='k', linestyle='--')  # Add vertical line at selected point
+    # ax[2,1].axvline(x=progs['chid'][0].data['rval'], color='k', linestyle='--')
+    # ax[2,1].legend()
+    # ax[2,1].set_ylabel('Amplitude')
+    # ax[2,1].set_xlabel('Frequency (MHz)')
+    
     fig.tight_layout()
+    plt.show()
     
     datestr = datetime.now().strftime("%Y%m%d_%H%M")
     fname = cfg_dict['expt_path'] + f'images\\summary\\qubit{qi}_tuneup_{datestr}.png'
     print(fname)
     fig.savefig(fname)
 
+
+def chi_fig(ax, qi, progs):
+    ax.set_title(f'Chi Measurement Q{qi}')
+    ax.plot(progs['chid'][1].data['xpts'], progs['chid'][1].data['amps'], label='No Pulse')
+    ax.plot(progs['chid'][0].data['xpts'], progs['chid'][0].data['amps'], label=f'e Pulse')
+    
+    chi_val = progs['chid'][0].data['chi_val']
+    cap=f'$\chi=${chi_val:0.2f} MHz'
+    ax.text(0.04, 0.35, cap, transform=ax.transAxes, fontsize=10,
+                    verticalalignment='bottom', horizontalalignment='left', bbox=dict(facecolor='white', alpha=0.8))
+    ax.axvline(x=progs['chid'][0].data['cval'], color='k', linestyle='--')  # Add vertical line at selected point
+    ax.axvline(x=progs['chid'][0].data['rval'], color='k', linestyle='--')
+    ax.legend()
+    ax.set_ylabel('Amplitude')
+    ax.set_xlabel('Frequency (MHz)')
 
 def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.1):
 
@@ -192,7 +218,8 @@ def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.1)
         if level<0:
             print('Coarsest scan failed, adding more power and reps')
             auto_cfg = config.load(cfg_dict["cfg_file"])
-            auto_cfg.device.readout.spec_gain[qi] = auto_cfg.device.readout.spec_gain[qi]*2 
+            # does this work?
+            auto_cfg.device.qubit.spec_gain[qi] = auto_cfg.device.qubit.spec_gain[qi]*2 
             auto_cfg.device.readout.reps[qi] = auto_cfg.device.readout.reps[qi]*2
             level=0
         i += 1
@@ -253,7 +280,7 @@ def get_coherence(
     return prog
 
 def recenter(
-    qi, cfg_dict, max_err=0.45, min_r2=0.1, max_t1=500, style='coarse',
+    qi, cfg_dict, max_err=0.5, min_r2=0.1, max_t1=500, style='coarse',
 ):
 
     # get original frequency
@@ -270,14 +297,14 @@ def recenter(
     i = 0
     err = 1 
     tol = 0.02
-    ntries = 5
+    ntries = 3
     while i < ntries and err>tol :
         print(f"Try {i}")
         prog = meas.RamseyExperiment(cfg_dict, qi=qi, params=params)
         if prog.status:
             freq_error.append(prog.data["f_err"])
             err = np.abs(freq_error[-1])
-            print(f"New f error is {freq_error[-1]:0.3f} MHz")
+            print(f"Scan successful. New f error is {freq_error[-1]:0.3f} MHz")
             freqs.append(prog.data["new_freq"])
             params['ramsey_freq'] = err * 0.7 
             span = np.pi / np.abs(err * 0.7)
@@ -285,19 +312,25 @@ def recenter(
             params['span'] = span
             config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
         elif prog.data["fit_err"] > max_err:
+            
             if params['ramsey_freq'] == 'smart':
+                print("Fit Error too high, increasing ramsey frequency")
                 params['ramsey_freq'] = 0.2
             else:
+                print("Fit Error too high, increasing ramsey frequency and span")
                 params['ramsey_freq'] = 2*params['ramsey_freq']
                 params['span']=auto_cfg.device.qubit.T2r[qi]*1.5
         else:
+            print("Fit failed, trying spectroscopy.")
             qspec=find_spec(qi,cfg_dict,  start='fine')
-
-            recenter(qi, cfg_dict)
-            if prog is not None and "new_ramsey_freq" in prog.data:
-                params["ramsey_freq"] = prog.data["new_ramsey_freq"]
-                params["span"] = np.pi / np.abs(prog.data["new_ramsey_freq"])
-                params['soft_avgs']=2
+            if style!='giveup':
+                recenter(qi, cfg_dict, style='giveup')
+            else:
+                print('Failed to recenter')
+            # if prog is not None and "new_ramsey_freq" in prog.data:
+            #     params["ramsey_freq"] = prog.data["new_ramsey_freq"]
+            #     params["span"] = np.pi / np.abs(prog.data["new_ramsey_freq"])
+            #     params['soft_avgs']=2
 
         i += 1
 
@@ -311,3 +344,25 @@ def recenter(
         return False
     else:
         return True
+    
+def meas_opt(cfg_dict, qubit_list, params=None, update=True, start_coarse=True):
+    if params is None:
+        params = {}
+    cfg_path = cfg_dict['cfg_file']
+    for qi in qubit_list: 
+        do_more=True
+        if start_coarse:
+            while do_more:
+                shotopt=meas.SingleShotOptExperiment(cfg_dict, qi=qi,params=params)
+                do_more=shotopt.do_more
+                if update:
+                    config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi);
+                    config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi);
+        do_more=True
+        while do_more:
+            shotopt=meas.SingleShotOptExperiment(cfg_dict, qi=qi,params=params, style='fine')
+            do_more=shotopt.do_more
+            if update:
+                config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi);
+                config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi);
+            

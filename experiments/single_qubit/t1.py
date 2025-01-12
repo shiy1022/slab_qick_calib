@@ -16,14 +16,22 @@ class T1Program(QickProgram):
 
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
-
-        super()._initialize(cfg, readout="standard")
+        self.add_loop("wait_loop", cfg.expt.expts)
+        if cfg.expt.measT1:
+            q = cfg.expt.qubit[0]
+            self.readout_length = cfg.device.readout.readout_length[q]+cfg.expt.wait_time
+            self.frequency = cfg.device.readout.frequency[q]
+            self.gain = cfg.device.readout.gain[q]
+            self.phase = cfg.device.readout.phase[q]
+            super()._initialize(cfg, readout="custom")
+        else:
+            super()._initialize(cfg, readout="standard")
 
         super().make_pi_pulse(
             cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge"
         )
         
-        self.add_loop("wait_loop", cfg.expt.expts)
+        
 
         if cfg.expt.acStark:
             pulse = {
@@ -47,17 +55,29 @@ class T1Program(QickProgram):
             self.delay_auto(t=0.01, tag="wait_stark")
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
             self.delay_auto(t=0.01, tag="wait")
+        elif cfg.expt.measT1:
+            self.delay_auto(t=0.01, tag="wait")
+            self.pulse(ch=self.qubit_ch, name="readout_pulse", t=0)
+            if self.lo_ch is not None:
+                self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         else:
             self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag="wait")
-
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-        if self.lo_ch is not None:
-            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
-        self.trigger(
-            ros=[self.adc_ch],
-            pins=[0],
-            t=self.trig_offset,
-        )
+        
+        if cfg.expt.measT1: 
+            self.trigger(
+                ros=[self.adc_ch],
+                pins=[0],
+                t=self.trig_offset + cfg.expt["wait_time"],
+            )
+        else:
+            self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+            if self.lo_ch is not None:
+                self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
+            self.trigger(
+                ros=[self.adc_ch],
+                pins=[0],
+                t=self.trig_offset,
+            )
         if cfg.expt.active_reset:
             self.reset(3)
 
@@ -105,6 +125,7 @@ class T1Experiment(QickExperiment):
             "start": 0,
             "span": 3.7 * self.cfg.device.qubit.T1[qi],
             "acStark": False,
+            "measT1": False,
             'active_reset': self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
@@ -115,6 +136,8 @@ class T1Experiment(QickExperiment):
         elif style == "fast":
             params_def["expts"] = 30
 
+        #params_def.update(params)
+        #self.cfg.expt = params_def
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
         if self.cfg.expt.active_reset:

@@ -231,15 +231,26 @@ class QickExperiment(Experiment):
         analyze=True,
         display=True,
         save=True,
-        min_r2=0.9,
-        max_err=1e6,
+        min_r2=0.1,
+        max_err=1,
+        disp_kwargs=None,
     ):
         if min_r2 is None:
             min_r2 = 0.1
         if max_err is None:
-            max_err = 0.5
+            max_err = 1
+        if disp_kwargs is None:
+            disp_kwargs = {}
+            # These might be rescale, show_hist, plot_all. Eventually, want to put plot_all into the config. 
 
-        self.go(progress=progress, analyze=analyze, display=display, save=save)
+        data=self.acquire(progress)
+        if analyze:
+            data=self.analyze(data)
+        if save:
+            self.save_data(data)
+        if display:
+            self.display(data, **disp_kwargs)
+
         if (
             "fit_err" in self.data
             and "r2" in self.data
@@ -326,12 +337,6 @@ class QickExperiment(Experiment):
             self.data['hist_fit']=popt
         except:
             self.data['scale_data'] = self.data['avgi']
-
-        
-        
-        
-
-
 
         
 class QickExperimentLoop(QickExperiment):

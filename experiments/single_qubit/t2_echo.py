@@ -164,8 +164,8 @@ class RamseyEchoExperiment(QickExperiment):
         if data is None:
             data = self.data
         if fit:
-            fitfunc = fitter.decaysin
-            fitterfunc = fitter.fitdecaysin
+            fitfunc = fitter.decayslopesin
+            fitterfunc = fitter.fitdecayslopesin
             super().analyze(fitfunc, fitterfunc, data, **kwargs)
             
 
@@ -206,7 +206,7 @@ class RamseyEchoExperiment(QickExperiment):
 
         xlabel = "Wait Time ($\mu$s)"
         title = f"Ramsey Echo Q{qubit} (Freq: {self.cfg.expt.ramsey_freq:.4} MHz)"
-        fitfunc = fitter.decaysin
+        fitfunc = fitter.decayslopesin
         caption_params = [
             {"index": 3, "format": "$T_2$ Echo : {val:.4} $\pm$ {err:.2g} $\mu$s"},
             {"index": 1, "format": "Freq. : {val:.3} $\pm$ {err:.1} MHz"},        

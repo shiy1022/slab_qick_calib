@@ -111,6 +111,8 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
     tind = contrast.argmax()
     thresholds.append(binsg[tind])
     fids.append(contrast[tind])
+    err_e = np.cumsum(ne)[tind]/ne.sum()
+    err_g = 1-np.cumsum(ng)[tind]/ng.sum()
 
     if plot_f:
         contrast = np.abs(
@@ -129,61 +131,79 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
     m = 0.7
     a = 0.25
     if plot:
-        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 6))
+        if ax is None:
+            fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 6))
+            ax = [axs[0,1],axs[1,0]]
+            
+            # Plot unrotated data 
+            axs[0, 0].plot(Ig, Qg, ".", label="g", color=blue, alpha=a, markersize=m)
+            axs[0, 0].plot(Ie, Qe, ".", label="e", color=red, alpha=a, markersize=m)
+            if plot_f:
+                axs[0, 0].plot(If, Qf, ".", label="f", color="g", alpha=a, markersize=m)
+            axs[0, 0].plot(xg, yg, color="k", marker="o")
+            axs[0, 0].plot(xe, ye, color="k", marker="o")
+            if plot_f:
+                axs[0, 0].plot(xf, yf, color="k", marker="o")
 
-        # Plot unrotated data 
-        axs[0, 0].plot(Ig, Qg, ".", label="g", color=blue, alpha=a, markersize=m)
-        axs[0, 0].plot(Ie, Qe, ".", label="e", color=red, alpha=a, markersize=m)
-        if plot_f:
-            axs[0, 0].plot(If, Qf, ".", label="f", color="g", alpha=a, markersize=m)
-        axs[0, 0].plot(xg, yg, color="k", marker="o")
-        axs[0, 0].plot(xe, ye, color="k", marker="o")
-        if plot_f:
-            axs[0, 0].plot(xf, yf, color="k", marker="o")
+            axs[0,0].set_xlabel('I [ADC levels]')
+            axs[0, 0].set_ylabel("Q [ADC levels]")
+            axs[0, 0].legend(loc="upper right")
+            axs[0, 0].set_title("Unrotated")
+            axs[0, 0].axis("equal")
+            set_fig=True
 
-        axs[0,0].set_xlabel('I [ADC levels]')
-        axs[0, 0].set_ylabel("Q [ADC levels]")
-        axs[0, 0].legend(loc="upper right")
-        axs[0, 0].set_title("Unrotated")
-        axs[0, 0].axis("equal")
+            # Plot log histogram         
+            bin_cent = (binsg[1:] + binsg[:-1]) / 2
+            axs[1,1].semilogy(bin_cent, ng, color=blue)
+            bin_cent = (binse[1:] + binse[:-1]) / 2
+            axs[1,1].semilogy(bin_cent, ne, color=red)
+            
+            axs[1, 1].set_xlabel("I [ADC levels]")
+            axs[0, 0].set_xlabel("I [ADC levels]")
 
+            plt.subplots_adjust(hspace=0.25, wspace=0.15)
+            if qubit is not None: 
+                fig.suptitle(f"Single Shot Histogram Analysis Q{qubit}")
+        else:
+            set_fig=False
+        
         # Plot rotated data
-        axs[0, 1].plot(Ig_new, Qg_new, ".", label="g", color=blue, alpha=a, markersize=m)
-        axs[0, 1].plot(Ie_new, Qe_new, ".", label="e", color=red, alpha=a, markersize=m)
+        ax[0].plot(Ig_new, Qg_new, ".", label="g", color=blue, alpha=a, markersize=m)
+        ax[0].plot(Ie_new, Qe_new, ".", label="e", color=red, alpha=a, markersize=m)
         if plot_f:
-            axs[0, 1].plot(If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m)
-        axs[0, 1].plot(xg_new, yg_new, color="k", marker="o")
-        axs[0, 1].plot(xe_new, ye_new, color="k", marker="o")
-        axs[0, 1].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
-                   transform=axs[0, 1].transAxes, fontsize=10, 
+            ax[0].plot(If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m)
+        ax[0].plot(xg_new, yg_new, color="k", marker="o")
+        ax[0].plot(xe_new, ye_new, color="k", marker="o")
+        ax[0].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
+                   transform=ax[0].transAxes, fontsize=10, 
                    verticalalignment='top', horizontalalignment='right', 
                    bbox=dict(facecolor='white', alpha=0.5))
 
-        axs[0,1].set_xlabel('I [ADC levels]')
-        lgnd=axs[0, 1].legend(loc='lower right')
+        ax[0].set_xlabel('I [ADC levels]')
+        lgnd=ax[0].legend(loc='lower right')
         lgnd.legendHandles[0].set_markersize(6)
         lgnd.legendHandles[1].set_markersize(6)
-        axs[0, 1].set_title("Angle: {:.2f}$^\circ$".format(theta * 180 / np.pi))
-        axs[0, 1].axis("equal")        
+        ax[0].set_title("Angle: {:.2f}$^\circ$".format(theta * 180 / np.pi))
+        ax[0].axis("equal")        
 
         # Plot histogram 
-        axs[1, 0].set_ylabel("Counts")
-        axs[1, 0].set_xlabel("I [ADC levels]")
-        axs[1, 0].legend(loc="upper right")
-        axs[1, 0].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
-        axs[1, 0].axvline(thresholds[0], color="0.2", linestyle="--")
-        axs[1, 0].plot(data["vhg"], data["histg"], '.-',color=blue, markersize=0.5, linewidth=0.3)
-        axs[1, 0].fill_between(data["vhg"], data["histg"], color=blue, alpha=0.3)
-        axs[1, 0].fill_between(data["vhe"], data["histe"], color=red, alpha=0.3)
-        axs[1,0].plot(data["vhe"], data["histe"], '.-',color=red, markersize=0.5, linewidth=0.3)
-        axs[1,0].plot(data["vhg"], gaussian(data["vhg"], 1, *data['paramsg']), 'k', linewidth=1)
-        axs[1,0].plot(data["vhe"], excited_func(data["vhe"], data['vg'], data['ve'], data['sigma'], data['tm']), 'k', linewidth=1)
+        ax[1].set_ylabel("Counts")
+        ax[1].set_xlabel("I [ADC levels]")
+        ax[1].legend(loc="upper right")
+        ax[1].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
+        ax[1].axvline(thresholds[0], color="0.2", linestyle="--")
+        ax[1].plot(data["vhg"], data["histg"], '.-',color=blue, markersize=0.5, linewidth=0.3)
+        ax[1].fill_between(data["vhg"], data["histg"], color=blue, alpha=0.3)
+        ax[1].fill_between(data["vhe"], data["histe"], color=red, alpha=0.3)
+        ax[1].plot(data["vhe"], data["histe"], '.-',color=red, markersize=0.5, linewidth=0.3)
+        ax[1].plot(data["vhg"], gaussian(data["vhg"], 1, *data['paramsg']), 'k', linewidth=1)
+        ax[1].plot(data["vhe"], excited_func(data["vhe"], data['vg'], data['ve'], data['sigma'], data['tm']), 'k', linewidth=1)
         if plot_f:
-            nf, binsf, pf = axs[1, 0].hist(
+            nf, binsf, pf = ax[1].hist(
                 If_new, bins=numbins, range=xlims, color="g", label="f", alpha=0.5
             )
-            axs[1, 0].axvline(thresholds[1], color="0.2", linestyle="--")
-            axs[1, 0].axvline(thresholds[2], color="0.2", linestyle="--")
+            ax[1].axvline(thresholds[1], color="0.2", linestyle="--")
+            ax[1].axvline(thresholds[2], color="0.2", linestyle="--")
 
                 
         sigma = data['sigma']
@@ -191,24 +211,15 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
         txt = f"Threshold: {thresholds[0]:.2f}"
         txt += f" \n Width: {sigma:.2f}"
         txt += f" \n $T_m/T_1$: {tm:.2f}"
-        axs[1, 0].text(0.025, 0.965, txt, 
-               transform=axs[1, 0].transAxes, fontsize=10, 
+        ax[1].text(0.025, 0.965, txt, 
+               transform=ax[1].transAxes, fontsize=10, 
                verticalalignment='top', horizontalalignment='left', 
                bbox=dict(facecolor='none', edgecolor='black', alpha=0.5))
 
-        # Plot log histogram         
-        bin_cent = (binsg[1:] + binsg[:-1]) / 2
-        axs[1,1].semilogy(bin_cent, ng, color=blue)
-        bin_cent = (binse[1:] + binse[:-1]) / 2
-        axs[1,1].semilogy(bin_cent, ne, color=red)
-        
-        axs[1, 1].set_xlabel("I [ADC levels]")
-        axs[0, 0].set_xlabel("I [ADC levels]")
-
-        plt.subplots_adjust(hspace=0.25, wspace=0.15)
-        if qubit is not None: 
-            fig.suptitle(f"Single Shot Histogram Analysis Q{qubit}")
-        fig.tight_layout()
+        if set_fig:
+            fig.tight_layout()
+        else:
+            fig=None
         plt.show()
     else:
         fig = None
@@ -217,43 +228,7 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
         if plot_f:
             nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
 
-    if ax is not None:
-        a = 0.25
-        m = 0.7
-        ax[0].plot(Ig_new, Qg_new, ".", label="g", color=blue, alpha=a, markersize=m)
-        ax[0].plot(Ie_new, Qe_new, ".", label="e", color=red, alpha=a, markersize=m)
-
-        ax[0].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
-                   transform=ax[0].transAxes, fontsize=10, 
-                   verticalalignment='top', horizontalalignment='right', 
-                   bbox=dict(facecolor='white', alpha=0.5))
-        if plot_f:
-            ax[0].plot(If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m)
-
-        # ax[0].set_xlabel('I [ADC levels]')
-        #ax[0].legend(loc="upper right")
-        ax[0].set_title("Rotated")
-        ax[0].axis("equal")
-
-        """X and Y ranges for histogram"""
-
-        ng, binsg, pg = ax[1].hist(
-            Ig_new, bins=numbins, range=xlims, color=blue, label="g", alpha=0.5
-        )
-        ne, binse, pe = ax[1].hist(
-            Ie_new, bins=numbins, range=xlims, color=red, label="e", alpha=0.5
-        )
-        if plot_f:
-            nf, binsf, pf = ax[1].hist(
-                If_new, bins=numbins, range=xlims, color="g", label="f", alpha=0.5
-            )
-        ax[1].set_ylabel("Counts")
-        ax[1].set_xlabel("I [ADC levels]")
-        ax[1].legend(loc="upper right")
-        ax[1].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
-        ax[1].axvline(thresholds[0], color="0.2", linestyle="--")
-        
-    params = {'fids': fids, 'thresholds': thresholds, 'angle': theta * 180 / np.pi, 'ig':xg_new, 'ie':xe_new}
+    params = {'fids': fids, 'thresholds': thresholds, 'angle': theta * 180 / np.pi, 'ig':xg_new, 'ie':xe_new, 'err_e':err_e, 'err_g':err_g}
     return params, fig
 
 def gaussian(x, mag, cen, wid):
@@ -816,9 +791,16 @@ class SingleShotOptExperiment(QickExperiment):
         fpts = self.cfg.expt["start_f"] + self.cfg.expt["step_f"] * np.arange(
             self.cfg.expt["expts_f"]
         )
+
+        max_gain = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"] * (
+            self.cfg.expt["expts_gain"] - 1
+        )
+        if max_gain > self.cfg.device.qubit.max_gain:
+            self.cfg.expt["step_gain"] = (self.cfg.device.qubit.max_gain - self.cfg.expt["start_gain"])/(self.cfg.expt["expts_gain"]-1)
         gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"] * np.arange(
             self.cfg.expt["expts_gain"]
         )
+        
         lenpts = self.cfg.expt["start_len"] + self.cfg.expt["step_len"] * np.arange(
             self.cfg.expt["expts_len"]
         )
@@ -907,8 +889,11 @@ class SingleShotOptExperiment(QickExperiment):
                         if not check_f
                         else results["thresholds"][1]
                     )
-                    tm[f_ind, g_ind, l_ind] = results["tm"]
-                    sigma[f_ind, g_ind, l_ind] = results["sigma"]
+                    try:
+                        tm[f_ind, g_ind, l_ind] = results["tm"]
+                        sigma[f_ind, g_ind, l_ind] = results["sigma"]
+                    except: 
+                        pass
                     angle[f_ind, g_ind, l_ind] = results["angle"]
                     # print(f'freq: {f}, gain: {gain}, len: {l}')
                     # print(f'\tfid ge [%]: {100*results["fids"][0]}')
@@ -1185,6 +1170,8 @@ class SingleShotOptExperiment(QickExperiment):
         plt.show()
 
         self.do_more= self.check_edges()
+        if self.data['gain']==1: # change to max_gain 
+            self.do_more=False
         
     
     def save_data(self, data=None):

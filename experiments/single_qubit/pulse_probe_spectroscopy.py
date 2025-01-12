@@ -92,15 +92,13 @@ class QubitSpec(QickExperiment):
         max_err=None,
     ):
 
-        prefix = "qubit_spectroscopy_"
-        if 'checkEF' in params and params["checkEF"]:
-            prefix = prefix + "ef"
-        prefix += style + f"_qubit{qi}"
+        ef = "ef" if "checkEF" in params and params["checkEF"] else ""
+        prefix = f"qubit_spectroscopy_{ef}_{style}_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         # Define default parameters
         max_length = 100  # Based on qick error messages, but not investigated
-        spec_gain = self.cfg.device.readout.spec_gain[qi]
+        spec_gain = self.cfg.device.qubit.spec_gain[qi]
         low_gain = self.cfg.device.qubit.low_gain
 
         if style == 'huge':

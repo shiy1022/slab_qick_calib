@@ -314,14 +314,15 @@ class ResSpec(QickExperiment):
             ax[1].set_xlabel("Readout Frequency (MHz)")
             ax[1].set_ylabel("Phase (radians)")
             ax[1].plot(data["freq"][1:-1], data["phase_fix"], ".-")
-
+            
             fig.tight_layout()
+            plt.show()
             imname = self.fname.split("\\")[-1]
             fig.savefig(
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
             )
 
-        plt.show()
+        
 
     def save_data(self, data=None):
         super().save_data(data=data)
