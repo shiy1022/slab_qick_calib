@@ -445,7 +445,7 @@ class HistogramExperiment(QickExperiment):
         self,
         cfg_dict,
         prefix=None,
-        progress=None,
+        progress=True,
         qi=0,
         go=True,
         check_f=False,
@@ -478,7 +478,7 @@ class HistogramExperiment(QickExperiment):
             super().configure_reset()
         
         if go:
-            self.go(analyze=True, display=display, progress=True, save=True)
+            self.go(analyze=True, display=display, progress=progress, save=True)
 
     def acquire(self, progress=False, debug=False):
 

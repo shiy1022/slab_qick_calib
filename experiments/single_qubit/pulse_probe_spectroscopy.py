@@ -46,13 +46,15 @@ class QubitSpecProgram(QickProgram):
             self.delay_auto(t=0.01, tag="wait 1")
 
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
+        
+        if cfg.expt.sep_readout:
+            self.delay_auto(t=0.01, tag="wait")
 
         if cfg.expt.checkEF:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait 2")
+        
 
-        if cfg.expt.sep_readout:
-            self.delay_auto(t=0.01, tag="wait")
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
             self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
@@ -238,14 +240,15 @@ class QubitSpecPower(QickExperiment2D):
         max_err=None,
     ):
 
-        prefix = "qubit_spectroscopy_power_"
-        if checkEF:
-            prefix = prefix + "ef"
-        prefix += style + f"_qubit{qi}"
+        
+        if checkEF: ef = 'ef_'
+        else: ef = ''
+
+        prefix += style + f"qubit_spectroscopy_power_{ef}qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         # Define default parameters
-        max_length = 150
+        max_length = 100
         if style == "coarse":
             params_def = {"span": 800, "expts": 500}
         elif style == "fine":
@@ -253,11 +256,11 @@ class QubitSpecPower(QickExperiment2D):
         else:
             params_def = {"span": 120, "expts": 200}
         if checkEF:
-            params_def["gain"] = 2 * params_def["gain"]
+            params_def["gain"] = 3 * params_def["gain"]
         params_def2 = {
             "final_delay": 10,
             "length": 25,
-            "reps": self.reps,
+            "reps": 2*self.reps,
             "soft_avgs": self.soft_avgs,
             "rng": 50,
             "max_gain": self.cfg.device.qubit.max_gain,

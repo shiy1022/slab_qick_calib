@@ -146,20 +146,20 @@ class RabiExperiment(QickExperiment):
                 
         if params["sweep"]=="amp":
             params_def['max_gain'] = params['gain'] * 4
-            params_def['start']=0
+            params_def['start']=0.003
             params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
         elif params["sweep"]=="length":
             params_def["sigma"] = 4 * params["sigma"]
-            params_def["start"] = 3/430 # Change this to get info from soc 
+            params_def["start"] = 2/430 # Change this to get info from soc 
         
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
         elif style == "fast":
             params_def["expts"] = 25
         elif style == "temp":
-            params_def["reps"] = 40 * params_def["reps"]
-            params_def["soft_avgs"] = 40 * params_def["soft_avgs"]
-            params_def["pulse_ge"] = False
+            params["reps"] = 40 * params["reps"]
+            params["soft_avgs"] = 40 * params["soft_avgs"]
+            params["pulse_ge"] = False
         
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
@@ -341,11 +341,13 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             qubit_freq= self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]
             freq = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
             amp = [data["fit_avgi"][i][0] for i in range(len(data["ypts"]))]
-
-            p, _ = curve_fit(chevron_freq, data["ypts"]-qubit_freq, freq)
-            p2, _ = curve_fit(chevron_amp, data["ypts"]-qubit_freq, amp)
-            data["chevron_freq"] = p
-            data["chevron_amp"] = p2
+            try:
+                p, _ = curve_fit(chevron_freq, data["ypts"]-qubit_freq, freq)
+                p2, _ = curve_fit(chevron_amp, data["ypts"]-qubit_freq, amp)
+                data["chevron_freq"] = p
+                data["chevron_amp"] = p2
+            except:
+                pass
 
             
         

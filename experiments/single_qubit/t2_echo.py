@@ -98,7 +98,7 @@ class RamseyEchoExperiment(QickExperiment):
         self,
         cfg_dict,
         prefix=None,
-        progress=None,
+        progress=True,
         qi=0,
         go=True,
         params={},
@@ -142,7 +142,7 @@ class RamseyEchoExperiment(QickExperiment):
         super().check_params(params_def)
 
         if go:
-            super().run(display=display,min_r2=min_r2, max_err=max_err)
+            super().run(display=display,progress=progress,min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False, debug=False):
         # is this still needed?

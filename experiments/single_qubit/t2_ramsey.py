@@ -105,7 +105,7 @@ class RamseyExperiment(QickExperiment):
         go=True,
         params={},
         prefix=None,
-        progress=None,
+        progress=True,
         acStark=False,
         style="",
         min_r2=None,
@@ -113,9 +113,10 @@ class RamseyExperiment(QickExperiment):
         display=True,
     ):
         if 'checkEF' in params and params['checkEF']:
-            prefix = f"ramsey_ef_qubit{qi}"
+            ef='ef_'
         else:
-            prefix = f"ramsey_qubit{qi}"
+            ef=''
+        prefix = f"ramsey_{ef}qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
@@ -157,7 +158,7 @@ class RamseyExperiment(QickExperiment):
             super().configure_reset()
 
         if go:
-            super().run(display=display,min_r2=min_r2, max_err=max_err)
+            super().run(display=display,progress=progress,min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False):
 
@@ -184,7 +185,6 @@ class RamseyExperiment(QickExperiment):
             # fitparams=[amp, freq (non-angular), phase (deg), decay time, amp offset, decay time offset]
             # fitparams=[yscale0, freq0, phase_deg0, decay0, y00, x00, yscale1, freq1, phase_deg1, y01] # two fit freqs
             # Remove the first and last point from fit in case weird edge measurements
-            fitparams = None
             if fit_twofreq:
                 fitterfunc = fitter.fittwofreq_decaysin
             else:
@@ -210,10 +210,12 @@ class RamseyExperiment(QickExperiment):
                         ),
                         key=abs,
                     )
-
-            fit_pars, fit_err, t2r_adjust, i_best = fitter.get_best_fit(
-                self.data, get_best_data_params=["f_adjust_ramsey"]
-            )
+            if self.cfg.device.qubit.tuned_up[self.cfg.expt.qubit[0]]:
+                t2r_adjust = data["f_adjust_ramsey_avgi"]
+            else:
+                fit_pars, fit_err, t2r_adjust, i_best = fitter.get_best_fit(
+                    self.data, get_best_data_params=["f_adjust_ramsey"]
+                )
             data["t2r_adjust"] = t2r_adjust
 
             if self.cfg.expt.checkEF:

@@ -83,7 +83,8 @@ class ResSpec(QickExperiment):
         self,
         cfg_dict,
         prefix="",
-        progress=None,
+        progress=True,
+        display=True,
         qi=0,
         go=True,
         params={},
@@ -135,7 +136,7 @@ class ResSpec(QickExperiment):
                 self.analyze(fit=False, peaks=True)
                 self.display(fit=False, peaks=True)
             else:
-                super().run()
+                super().run(display=display, progress=progress)
 
     def acquire(self, progress=False):
 
@@ -364,20 +365,22 @@ class ResSpecPower(QickExperiment2D):
         pulse_e=False,
     ):
         if pulse_e:
-            prefix = f"resonator_spectroscopy_power_sweep_ef_qubit{qi}"
-        else:
-            prefix = f"resonator_spectroscopy_power_sweep_qubit{qi}"
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+            ef = 'ef_'
+        else: 
+            ef = ''
+
+        prefix = f"resonator_spectroscopy_power_sweep_{ef}qubit{qi}"
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
-            "reps": self.reps / 1000,
+            "reps": self.reps / 600,
             "soft_avgs": self.soft_avgs,
             "rng": 100,
             "max_gain": self.cfg.device.qubit.max_gain,
             "span": 15,
             "expts": 200,
-            "start_gain": 50,
-            "step_gain": 1000,
+            "start_gain": 0.003,
+            "step_gain": 0.05,
             "expts_gain": 20,
             "f_off": 4,
             "min_reps": 100,
@@ -395,8 +398,6 @@ class ResSpecPower(QickExperiment2D):
             - params["span"] / 2
             - params["f_off"]
         )
-
-        
 
         self.cfg.expt = params
 

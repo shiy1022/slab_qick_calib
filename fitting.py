@@ -220,7 +220,7 @@ def decayslopesin(x, *p):
     yscale, freq, phase_deg, decay, y0, slope = p
     x0 = -(phase_deg+180)/360/freq
     # x0 = 0
-    return yscale * np.sin(2*np.pi*freq*x + phase_deg*np.pi/180) * np.exp(-(x-x0)/decay) + y0 + slope*(x-x0)
+    return yscale * (np.sin(2*np.pi*freq*x + phase_deg*np.pi/180)+slope) * np.exp(-(x-x0)/decay) + y0
 
 def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
     # yscale, freq, phase_deg, decay, y0
@@ -234,7 +234,7 @@ def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
     if fitparams[2] is None: fitparams[2]=max_phase*180/np.pi
     if fitparams[3] is None: fitparams[3]=max(xdata) - min(xdata)
     if fitparams[4] is None: fitparams[4]=np.mean(ydata)
-    if fitparams[5] is None: fitparams[5]=(max(ydata)-min(ydata))/(max(xdata) - min(xdata))
+    if fitparams[5] is None: fitparams[5]=0
     bounds = (
         [0.6*fitparams[0], 1e-3, -360, 0.1, np.min(ydata), -np.inf],
         [1.5*fitparams[0], 1e3, 360, np.inf, np.max(ydata), np.inf]

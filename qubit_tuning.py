@@ -47,7 +47,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
             auto_cfg = config.update_qubit(cfg_path, 'f_ge', qspec.data['new_freq'], qi)
         
         # Amp Rabi 
-        amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi)
+        amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi, params={'start':0.003})
         if update:
             if amp_rabi.status:
                 config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
@@ -82,7 +82,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
             recenter(qi, cfg_dict, style='fine')
 
         # Amp rabi to improve pi pulse
-        amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi)
+        amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi, params={'start':0.003})
         if update:
             if amp_rabi.status:
                 config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
@@ -108,9 +108,12 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
 
         # Run T1 
         t1= get_coherence(meas.T1Experiment, qi, cfg_dict,par='T1')
+        if t1.status: 
+            auto_cfg = config.update_readout(cfg_path, 'final_delay', 6*t1.data['new_t1'], qi, sig=2,rng_vals=[1, max_t1])
+
 
         # Run T2 Echo 
-        t2= get_coherence(meas.RamseyEchoExperiment, qi, cfg_dict,par='T2e')
+        t2e= get_coherence(meas.RamseyEchoExperiment, qi, cfg_dict,par='T2e')
         #t2e= get_coherence(meas.RamseyEchoExperiment, qi, cfg_dict,par='T2e')
 
         # Run chi 
@@ -185,7 +188,7 @@ def chi_fig(ax, qi, progs):
     ax.set_ylabel('Amplitude')
     ax.set_xlabel('Frequency (MHz)')
 
-def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.1):
+def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.25):
 
     if freq == 'ef':
         f = 'f_ef'
@@ -218,9 +221,8 @@ def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.1)
         if level<0:
             print('Coarsest scan failed, adding more power and reps')
             auto_cfg = config.load(cfg_dict["cfg_file"])
-            # does this work?
-            auto_cfg.device.qubit.spec_gain[qi] = auto_cfg.device.qubit.spec_gain[qi]*2 
-            auto_cfg.device.readout.reps[qi] = auto_cfg.device.readout.reps[qi]*2
+            config.update_readout(cfg_dict["cfg_file"], 'reps', auto_cfg.device.readout.reps[qi]*2, qi)
+            config.update_qubit(cfg_dict["cfg_file"], 'spec_gain', auto_cfg.device.qubit.spec_gain[qi]*2, qi)
             level=0
         i += 1
 
@@ -301,7 +303,7 @@ def recenter(
     while i < ntries and err>tol :
         print(f"Try {i}")
         prog = meas.RamseyExperiment(cfg_dict, qi=qi, params=params)
-        if prog.status:
+        if prog.status or prog.data["fit_err_par"][1]<max_err:
             freq_error.append(prog.data["f_err"])
             err = np.abs(freq_error[-1])
             print(f"Scan successful. New f error is {freq_error[-1]:0.3f} MHz")
@@ -311,15 +313,20 @@ def recenter(
             span = np.min([span, auto_cfg.device.qubit.T2r[qi]*4])
             params['span'] = span
             config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
-        elif prog.data["fit_err"] > max_err:
+            if prog.data["fit_err_par"][3]<max_err:
+                config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)
+        elif prog.data["fit_err"] > max_err and prog.data['fit_err_par'][3]<0.5:
+            config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)
+        # elif prog.data["fit_err"] > max_err:
+        # if prog.data['fit_err_par'][1]<0.5:
             
-            if params['ramsey_freq'] == 'smart':
-                print("Fit Error too high, increasing ramsey frequency")
-                params['ramsey_freq'] = 0.2
-            else:
-                print("Fit Error too high, increasing ramsey frequency and span")
-                params['ramsey_freq'] = 2*params['ramsey_freq']
-                params['span']=auto_cfg.device.qubit.T2r[qi]*1.5
+        #     if params['ramsey_freq'] == 'smart':
+        #         print("Fit Error too high, increasing ramsey frequency")
+        #         params['ramsey_freq'] = 0.2
+        #     else:
+        #         print("Fit Error too high, increasing ramsey frequency and span")
+        #         params['ramsey_freq'] = 2*params['ramsey_freq']
+        #         params['span']=auto_cfg.device.qubit.T2r[qi]*1.5
         else:
             print("Fit failed, trying spectroscopy.")
             qspec=find_spec(qi,cfg_dict,  start='fine')
@@ -334,7 +341,7 @@ def recenter(
 
         i += 1
 
-    print(f"Change in frequency: {freqs[-1]-freqs[-1]:0.3f} MHz")
+    print(f"Total Change in frequency: {freqs[-1]-freqs[0]:0.3f} MHz")
     print(freq_error)
     auto_cfg = config.load(cfg_dict["cfg_file"])
     end_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]

@@ -81,7 +81,7 @@ class QickExperiment(Experiment):
         self.data = data
         return data
 
-    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=True, use_i=False, get_hist=True, **kwargs):
+    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=True, use_i=None, get_hist=True, **kwargs):
         if data is None:
             data = self.data
         # Remove the last point from fit in case weird edge measurements
@@ -101,7 +101,8 @@ class QickExperiment(Experiment):
             ) = fitterfunc(data["xpts"][1:-1], data[ydata][1:-1], fitparams=None)
 
         # Get best fit and save error info.
-        
+        if use_i is None: 
+            use_i = self.cfg.device.qubit.tuned_up[self.cfg.expt.qubit[0]]
         if use_i: 
             i_best = "avgi"
             fit_pars = data["fit_avgi"]
@@ -109,14 +110,13 @@ class QickExperiment(Experiment):
         else:
             fit_pars, fit_err, i_best = fitter.get_best_fit(data, fitfunc)
 
-
-
         r2 = fitter.get_r2(data["xpts"][1:-1], data[i_best][1:-1], fitfunc, fit_pars)
         data["r2"] = r2
         data["best_fit"] = fit_pars
         i_best = i_best.encode("ascii", "ignore")
         data["i_best"] = i_best
-        fit_err = np.mean(np.abs(fit_err / fit_pars))
+        data['fit_err_par'] = np.sqrt(np.diag(fit_err))/fit_pars
+        fit_err = np.mean(np.abs(np.sqrt(np.diag(fit_err)) / fit_pars))
         data["fit_err"] = fit_err
         print(f"R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}")
 
@@ -375,13 +375,13 @@ class QickExperimentLoop(QickExperiment):
             shots_i_new, shots_q = prog.collect_shots(offset=offset)
             shots_i.append(shots_i_new)
 
-
-
             data["xpts"].append(x_sweep[0]["pts"][i])
 
         bin_centers, hist = self.make_hist(shots_i)
         data["bin_centers"] = bin_centers
         data["hist"] = hist
+        for j in range(len(x_sweep)):
+            data[x_sweep[j]["var"] + "_pts"] = x_sweep[j]["pts"]
         for k, a in data.items():
             data[k] = np.array(a)
 

@@ -3,6 +3,7 @@ import config
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as cs
+import seaborn as sns
 
 
 def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
@@ -133,15 +134,13 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
     )
 
 
-def measure_temp(cfg_dict, qi, npts=14, reps=None, soft_avgs=None, chan=None):
+def measure_temp(cfg_dict, qi, expts=14, reps=None, soft_avgs=None, chan=None):
 
-    rabief = meas.AmplitudeRabiExperiment(cfg_dict, qi=qi, pulse_ge=True, checkEF=True)
-    rabief_nopulse = meas.AmplitudeRabiExperiment(
+    rabief = meas.RabiExperiment(cfg_dict, qi=qi,params={'pulse_ge':True,'checkEF':True})
+    rabief_nopulse = meas.RabiExperiment(
         cfg_dict,
         qi=qi,
-        params={"npts": npts},
-        pulse_ge=False,
-        checkEF=True,
+        params={"expts": expts, 'pulse_ge':False, 'checkEF':True},
         style="temp",
     )
 
@@ -171,12 +170,12 @@ def measure_temp(cfg_dict, qi, npts=14, reps=None, soft_avgs=None, chan=None):
 
     fig, ax = plt.subplots(1, 1)
     i_best = str(rabief.data["i_best"])[2:-1]
-    ax[0].plot(
+    ax.plot(
         rabief.data["xpts"],
         rabief.data[i_best] - np.min(rabief.data[i_best]),
         label="ge Pulse",
     )
-    ax[0].set_ylabel("Rabei ge Pulse")
+    ax.set_ylabel("Rabei ge Pulse")
     # plt.legend()
     axt = plt.twinx()
     axt.plot(
@@ -191,7 +190,7 @@ def measure_temp(cfg_dict, qi, npts=14, reps=None, soft_avgs=None, chan=None):
     axt.yaxis.label.set_color("tab:orange")
     axt.set_xlabel("Gain [DAC units]")
     axt.set_ylabel("Amplitude No pulse")
-    ax[0].set_title = (
+    ax.set_title = (
         f"Qubit {qi} Temperature: {qubit_temp:0.2f} mK, Population: {population:0.2g}"
     )
 
@@ -206,7 +205,6 @@ def measure_temp(cfg_dict, qi, npts=14, reps=None, soft_avgs=None, chan=None):
 
     return qubit_temp, population
 
-import seaborn as sns
 def make_hist(d, nbins=200):
     hist, bin_edges = np.histogram(d, bins=nbins, density=True)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
