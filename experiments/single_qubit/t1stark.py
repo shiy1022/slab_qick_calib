@@ -290,9 +290,9 @@ class T1StarkPowerExperiment(QickExperiment2DSimple):
         df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge[qubit]
 
         title = f"T1 Stark Power Q{qubit} Freq: {df}"
-        ylabel = "Gain [DAC units]"
+        ylabel = "Gain (DAC units)"
         xlabel = "Wait Time ($\mu$s)"
-        super().display(plot_both=False, title=title, xlabel=xlabel, ylabel=ylabel)
+        super().display(plot_both=plot_both, title=title, xlabel=xlabel, ylabel=ylabel)
 
         fig, ax = plt.subplots(3, 1, figsize=(6, 8))
         

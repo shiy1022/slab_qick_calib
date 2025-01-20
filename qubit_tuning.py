@@ -315,7 +315,7 @@ def recenter(
             config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
             if prog.data["fit_err_par"][3]<max_err:
                 config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)
-        elif prog.data["fit_err"] > max_err and prog.data['fit_err_par'][3]<0.5:
+        elif prog.data['r2']>min_r2 and prog.data['fit_err_par'][3]<0.5:
             config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)
         # elif prog.data["fit_err"] > max_err:
         # if prog.data['fit_err_par'][1]<0.5:

@@ -166,7 +166,7 @@ class QubitSpec(QickExperiment):
         if fit:
             fitterfunc = fitter.fitlor
             fitfunc = fitter.lorfunc
-            super().analyze(fitfunc, fitterfunc)
+            super().analyze(fitfunc, fitterfunc, use_i=False)
             data["new_freq"] = data["best_fit"][2]
         return self.data
 

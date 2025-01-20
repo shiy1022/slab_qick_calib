@@ -172,8 +172,8 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
         ax[0].plot(Ie_new, Qe_new, ".", label="e", color=red, alpha=a, markersize=m)
         if plot_f:
             ax[0].plot(If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m)
-        ax[0].plot(xg_new, yg_new, color="k", marker="o")
-        ax[0].plot(xe_new, ye_new, color="k", marker="o")
+        #ax[0].plot(xg_new, yg_new, color="k", marker="o")
+        #ax[0].plot(xe_new, ye_new, color="k", marker="o")
         ax[0].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
                    transform=ax[0].transAxes, fontsize=10, 
                    verticalalignment='top', horizontalalignment='right', 
