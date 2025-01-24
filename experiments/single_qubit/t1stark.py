@@ -654,7 +654,7 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
     def analyze(self, data=None, **kwargs):
         pass
 
-    def display(self, data=None, fit=True, plot_all=False, ax=None, show_hist=True):
+    def display(self, data=None, fit=True, plot_all=False, ax=None, show_hist=False):
         if data is None:
             data = self.data
 
@@ -663,7 +663,7 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
         xlabel = "Gain / Max Gain"
         title = f"$T_1$ Stark Q{q} Freq: {df}, Delay Time: {self.cfg.expt.wait_time} $\mu$s"
 
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+        fig, ax = plt.subplots(1, 1, figsize=(6, 3))
         #ax = ax.flatten()
         ax.plot(data["f_pts"], data["avgi"])
         #ax[1].plot(data["xpts"], data["avgi_e"])
@@ -675,6 +675,152 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
         #ax[3].plot(data["xpts"], data['t1'])
         #ax[3].set_ylabel("$T_1$ / $T_{1,ave}$")
         fig.tight_layout()
+        plt.show()
+
+        if show_hist:  # Plot histogram of shots if show_hist is True
+            fig2, ax = plt.subplots(1, 1, figsize=(3, 3))
+            ax.plot(data["bin_centers"], data["hist"]/np.sum(data['hist']), "o-")
+            ax.set_xlabel("I [ADC units]")
+            ax.set_ylabel("Probability")
+
+    def save_data(self, data=None):
+        super().save_data(data=data)
+        return self.fname
+
+class T1StarkPowerQuadMulti(QickExperimentLoop):
+    """
+    T1 Experiment
+    Experimental Config:
+    expt = dict(
+        start: wait time sweep start [us]
+        step: wait time sweep step
+        expts: number steps in sweep
+        reps: number averages per experiment
+        soft_avgs: number soft_avgs to repeat experiment sweep
+    )
+    """
+
+    def __init__(
+        self,
+        cfg_dict,
+        qi=0,
+        go=True,
+        params={},
+        prefix=None,
+        progress=None,
+        style="",
+        acStark=True,
+        min_r2=None,
+        max_err=None,
+    ):
+
+        if prefix is None:
+            prefix = f"t1_stark_multi_qubit{qi}"
+
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+
+        params_def = {
+            "reps": self.reps,
+            "soft_avgs": self.soft_avgs,
+            "expts": 200,
+            "start": 1,
+            "t1": self.cfg.device.qubit.T1[qi],
+            "acStark": acStark,
+            "active_reset":False, 
+            "qubit": [qi],
+            "max_gain":1,
+            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
+            "df_pos": 70,
+            "df_neg": -70,
+            "stop_f":20
+        }
+
+        
+        conf = self.cfg.stark
+        params_def["quad_fit_pos"] = [conf.q[qi], conf.l[qi], conf.o[qi]]
+        params_def["quad_fit_neg"] = [conf.qneg[qi], conf.lneg[qi], conf.oneg[qi]] 
+        params = {**params_def, **params}
+        if style == "fine":
+            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+        elif style == "fast":
+            params_def["expts"] = 30
+        
+        params_def["stark_freq_pos"] = (
+            self.cfg.device.qubit.f_ge[qi] + params["df_pos"]
+        )
+        params_def["stark_freq_neg"] = (
+            self.cfg.device.qubit.f_ge[qi] + params["df_neg"]
+        )
+        
+        
+        self.cfg.expt = {**params_def, **params}
+        self.cfg.expt.wait_times = [0.5*self.cfg.device.qubit.T1[qi], self.cfg.device.qubit.T1[qi], 1.25*self.cfg.device.qubit.T1[qi]]
+        self.cfg.expt.reps_list = self.cfg.expt.reps * [10, 10, 10] 
+        super().check_params(params_def)
+        if self.cfg.expt.active_reset:
+            super().configure_reset()
+        if go:
+            super().run(min_r2=min_r2, max_err=max_err)
+
+    def acquire(self, progress=False):
+        qi = self.cfg.expt.qubit[0]
+        self.param = {"label": "stark_pulse", "param": "gain", "param_type": "pulse"}
+        
+        f_pts_pos = np.linspace(0, self.cfg.expt.stop_f, int(self.cfg.expt.expts / 2))
+        gain_pos = find_inverse_quad_fit(f_pts_pos, *self.cfg.expt.quad_fit_pos)
+        f_pts_neg = np.linspace(
+            -self.cfg.expt.stop_f, 0, int(self.cfg.expt.expts / 2)
+        )
+        gain_neg = find_inverse_quad_fit(-f_pts_neg, *self.cfg.expt.quad_fit_neg)
+        gain_pts = np.concatenate((gain_neg[0:-1], gain_pos))
+        f_pts = np.concatenate((f_pts_neg[0:-1], f_pts_pos))
+        m = len(f_pts_pos)  # Replace with the desired value of n
+        n = len(f_pts_neg)-1   # Replace with the desired value of m
+        stark_freq = np.concatenate((np.full(n, self.cfg.expt.stark_freq_neg), np.full(m, self.cfg.expt.stark_freq_pos)))
+        x_sweep = [{"var": "stark_gain", "pts": gain_pts}, {"var": "stark_freq", "pts": stark_freq}]
+        self.cfg.expt.expts=1
+        labs = ['avgi', 'avgq']
+        save_data={}
+        for i, t in enumerate(self.cfg.expt.wait_times):
+            self.cfg.expt.wait_time = t
+            self.cfg.expt.reps = self.cfg.expt.reps_list[i]
+            super().acquire(meas.T1Program, x_sweep, progress=progress)
+            for lab in labs:
+                
+                save_data[lab+'_'+str(i)] = self.data[lab]
+
+
+        self.data['f_pts'] = f_pts
+        self.data['wait_times'] = self.cfg.expt.wait_times
+        self.data.update(save_data)
+        
+        return self.data
+
+    def analyze(self, data=None, **kwargs):
+        pass
+
+    def display(self, data=None, fit=True, plot_all=False, ax=None, show_hist=False):
+        if data is None:
+            data = self.data
+
+        q = self.cfg.expt.qubit[0]
+        df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge[q]
+        xlabel = "Gain / Max Gain"
+        title = f"$T_1$ Stark Q{q} Freq: {df}, Delay Time: {self.cfg.expt.wait_time} $\mu$s"
+
+        fig, ax = plt.subplots(1, 1, figsize=(6, 3))
+        #ax = ax.flatten()
+        ax.plot(data["f_pts"], data["avgi"])
+        #ax[1].plot(data["xpts"], data["avgi_e"])
+        #ax[2].plot(data["xpts"], data["avgi_g"])
+        #ax[3].set_xlabel(xlabel)
+        ax.set_ylabel("I (ADC Units)")
+
+        
+        #ax[3].plot(data["xpts"], data['t1'])
+        #ax[3].set_ylabel("$T_1$ / $T_{1,ave}$")
+        fig.tight_layout()
+        plt.show()
 
         if show_hist:  # Plot histogram of shots if show_hist is True
             fig2, ax = plt.subplots(1, 1, figsize=(3, 3))

@@ -47,9 +47,7 @@ def in_rng(val, rng_vals):
     else:
         return val
 
-
-
-def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
+def update(param_type, file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
     cfg = load(file_name)
     if not np.isnan(value):
         if not isinstance(value, int) and not isinstance(value, str) and not isinstance(value, bool) :
@@ -57,36 +55,26 @@ def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals
         if rng_vals is not None:
             value = in_rng(value, rng_vals)
         if isinstance(field, tuple):  # for setting nested fields
-            v = recursive_get(cfg["device"]["qubit"], field)
+            v = recursive_get(cfg["device"][param_type], field)
             old_value = v[qubit_i]
             v[qubit_i] = value
-            nested_set(cfg["device"]["qubit"], field, v)
+            nested_set(cfg["device"][param_type], field, v)
             if verbose:
-                print(f"*Set cfg qubit {qubit_i} {field} to {value} from {old_value}*")
+                print(f"*Set cfg {param_type} {qubit_i} {field} to {value} from {old_value}*")
         else:
-            old_value = cfg["device"]["qubit"][field][qubit_i]
-            cfg["device"]["qubit"][field][qubit_i] = value
+            old_value = cfg["device"][param_type][field][qubit_i]
+            cfg["device"][param_type][field][qubit_i] = value
             if verbose:
-                print(f"*Set cfg qubit {qubit_i} {field} to {value} from {old_value}*")
+                print(f"*Set cfg {param_type} {qubit_i} {field} to {value} from {old_value}*")
         save(cfg, file_name)
-
     return cfg
 
+def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
+    cfg = update("qubit", file_name, field, value, qubit_i, verbose, sig, rng_vals)
+    return cfg
 
-def update_readout(
-    file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None
-):
-    cfg = load(file_name)
-    if not np.isnan(value):
-        if rng_vals is not None:
-            value = in_rng(value, rng_vals)
-        if not isinstance(value, int) and not isinstance(value, str) and not isinstance(value, np.bool_):
-            value = float(round(value, sig))
-        old_value = cfg["device"]["readout"][field][qubit_i]
-        cfg["device"]["readout"][field][qubit_i] = value
-        save(cfg, file_name)
-        if verbose:
-            print(f"*Set cfg resonator {qubit_i} {field} to {value} from {old_value}*")
+def update_readout(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
+    cfg = update("readout", file_name, field, value, qubit_i, verbose, sig, rng_vals)
     return cfg
 
 def update_stark(
@@ -102,7 +90,7 @@ def update_stark(
         cfg["stark"][field][qubit_i] = value
         save(cfg, file_name)
         if verbose:
-            print(f"*Set cfg resonator {qubit_i} {field} to {value} from {old_value}*")
+            print(f"*Set cfg stark {qubit_i} {field} to {value} from {old_value}*")
     return cfg
 
 def update_lo(file_name, field, value,qi, verbose=True, sig=4, rng_vals=None):
@@ -131,21 +119,22 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
     
     device["qubit"]["f_ge"] = [4000] * num_qubits
     device["qubit"]["f_ef"] = [3800] * num_qubits
-    device["qubit"]["f_spec"] = [4000] * num_qubits
-    device["qubit"]["f_spec_ef"] = [3800] * num_qubits
     device["qubit"]["kappa"] = [0] * num_qubits
+    device["qubit"]["spec_gain"] = [1] * num_qubits
 
     device["qubit"]["pulses"]["pi_ge"]["gain"] = [0.15] * num_qubits
     device["qubit"]["pulses"]["pi_ge"]["sigma"] = [0.1] * num_qubits
     device["qubit"]["pulses"]["pi_ge"]["sigma_inc"] = [5] * num_qubits
     device["qubit"]["pulses"]["pi_ge"]["type"] = ["gauss"] * num_qubits
-    device["qubit"]["pulses"]["pi_ef"]["type"] = ["gauss"] * num_qubits
     device["qubit"]["pulses"]["pi_ef"]["gain"] = [0.15] * num_qubits
     device["qubit"]["pulses"]["pi_ef"]["sigma"] = [0.1] * num_qubits
     device["qubit"]["pulses"]["pi_ef"]["sigma_inc"] = [5] * num_qubits
+    device["qubit"]["pulses"]["pi_ef"]["type"] = ["gauss"] * num_qubits
 
     device["qubit"]["pop"] = [0] * num_qubits
     device["qubit"]["temp"] = [0] * num_qubits
+
+    device["qubit"]["tuned_up"]= [False] * num_qubits
 
     # Readout params
     device["readout"]["frequency"] = [7000] * num_qubits
@@ -156,22 +145,20 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
     device["readout"]["kappa"] = [0.5] * num_qubits
     device["readout"]["qe"] = [0] * num_qubits
     device["readout"]["qi"] = [0] * num_qubits
-    
-    device["readout"]["spec_gain"] = [1] * num_qubits
 
     device["readout"]["phase"] = [0] * num_qubits
     device["readout"]["readout_length"] = [5] * num_qubits
     device["readout"]["threshold"] = [10] * num_qubits
     device["readout"]["fidelity"] = [0] * num_qubits
 
-    device["readout"]["trig_offset"] = [0.3] * num_qubits
+    device["readout"]["trig_offset"] = [0.5] * num_qubits
     device["readout"]["final_delay"] = [t1 * 6] * num_qubits
     device["readout"]["active_reset"]=[False]*num_qubits
     
     device["readout"]["reps"] = [1] * num_qubits
     device["readout"]["soft_avgs"] = [1] * num_qubits
 
-    device["qubit"]["low_pow"]=[0.003]
+    device["qubit"]["low_gain"]=0.003
     device["qubit"]["max_gain"] = 1
     device["readout"]["max_gain"] = 1
     device["readout"]["reps_base"] = 150

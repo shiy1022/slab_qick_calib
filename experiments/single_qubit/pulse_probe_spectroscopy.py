@@ -240,9 +240,7 @@ class QubitSpecPower(QickExperiment2D):
         max_err=None,
     ):
 
-        
-        if checkEF: ef = 'ef_'
-        else: ef = ''
+        ef = 'ef_' if checkEF else ef = ''
 
         prefix += style + f"qubit_spectroscopy_power_{ef}qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)

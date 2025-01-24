@@ -371,7 +371,6 @@ def fit_single_shot(d, plot=True, rot=True):
 
 # ====================================================== #
 
-
 class HistogramProgram(QickProgram):
 
     def __init__(self, soccfg, final_delay, cfg):

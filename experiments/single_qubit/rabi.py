@@ -157,7 +157,7 @@ class RabiExperiment(QickExperiment):
         elif style == "fast":
             params_def["expts"] = 25
         elif style == "temp":
-            params["reps"] = 40 * params["reps"]
+            params["reps"] = 100 * params["reps"]
             params["soft_avgs"] = 40 * params["soft_avgs"]
             params["pulse_ge"] = False
         

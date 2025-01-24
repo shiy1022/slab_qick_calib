@@ -124,7 +124,7 @@ class ResSpec(QickExperiment):
         params = {**params_def, **params}
 
         if params["span"] == "kappa":
-            params["span"] = float(7 * self.cfg.device.readout.kappa[qi])
+            params["span"] = float(8 * self.cfg.device.readout.kappa[qi])
         params = {**params_def, **params}
         if "center" in params:
             params["start"] = params["center"] - params["span"] / 2
@@ -213,6 +213,7 @@ class ResSpec(QickExperiment):
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
         
+        data['freq_min']=xdata[np.argmin(ydata)]
         phs_data = np.unwrap(data["phases"][1:-1])
         slope, intercept = np.polyfit(data["xpts"][1:-1], phs_data, 1)
         phs_fix = phs_data - slope * data["xpts"][1:-1] - intercept

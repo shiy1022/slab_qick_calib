@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as cs
 import seaborn as sns
-
+colors = ["#0869c8","#b51d14"]
 
 def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
 
@@ -175,33 +175,34 @@ def measure_temp(cfg_dict, qi, expts=14, reps=None, soft_avgs=None, chan=None):
         rabief.data[i_best] - np.min(rabief.data[i_best]),
         label="ge Pulse",
     )
-    ax.set_ylabel("Rabei ge Pulse")
+    ax.set_ylabel("ge Pulse")
     # plt.legend()
     axt = plt.twinx()
     axt.plot(
         rabief_nopulse.data["xpts"],
         rabief_nopulse.data[i_best] - np.min(rabief_nopulse.data[i_best]),
-        label="No Pulse",
-        color="tab:orange",
+        label="No ge Pulse",
+        color=colors[1],
     )
-    axt.tick_params(axis="y", colors="tab:orange")
-    ax.tick_params(axis="y", colors="tab:blue")
-    ax.yaxis.label.set_color("tab:blue")
-    axt.yaxis.label.set_color("tab:orange")
-    axt.set_xlabel("Gain [DAC units]")
-    axt.set_ylabel("Amplitude No pulse")
-    ax.set_title = (
+    axt.tick_params(axis="y", colors=colors[1])
+    ax.tick_params(axis="y", colors=colors[0])
+    ax.yaxis.label.set_color(colors[0])
+    axt.yaxis.label.set_color(colors[1])
+    axt.set_xlabel("Gain (DAC units)")
+    axt.set_ylabel("No ge Pulse")
+    ax.set_title(
         f"Qubit {qi} Temperature: {qubit_temp:0.2f} mK, Population: {population:0.2g}"
     )
 
     imname = rabief.fname.split("\\")[-1]
-    fig.savefig(rabief.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "temp.png")
+    fig.savefig(rabief.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "_temp.png")
     print("Qubit temp [mK]:", qubit_temp)
 
     print("State preparation ratio:", population)
 
     print(rabief.data["best_fit"][0])
     print(rabief_nopulse.data["best_fit"][0])
+    plt.show()
 
     return qubit_temp, population
 

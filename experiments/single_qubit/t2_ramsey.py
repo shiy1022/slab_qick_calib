@@ -112,10 +112,7 @@ class RamseyExperiment(QickExperiment):
         max_err=None,
         display=True,
     ):
-        if 'checkEF' in params and params['checkEF']:
-            ef='ef_'
-        else:
-            ef=''
+        ef='ef_' if 'checkEF' in params and params['checkEF'] else ef=''
         prefix = f"ramsey_{ef}qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
