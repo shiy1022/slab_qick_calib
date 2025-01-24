@@ -1,13 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm_notebook as tqdm
-import time
 
 from qick import *
 from exp_handling.datamanagement import AttrDict
 from scipy.signal import find_peaks
-from qick_experiment import QickExperiment, QickExperiment2D
-from qick_program import QickProgram
+from gen.qick_experiment import QickExperiment, QickExperiment2D
+from gen.qick_program import QickProgram
 import fitting as fitter
 from qick.asm_v2 import QickSweep1D
 from scipy.ndimage import gaussian_filter1d
@@ -213,7 +211,7 @@ class ResSpec(QickExperiment):
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
         
-        data['freq_min']=xdata[np.argmin(ydata)]
+        data['freq_min']=xdata[np.argmin(ydata)]-data["freq_offset"]
         phs_data = np.unwrap(data["phases"][1:-1])
         slope, intercept = np.polyfit(data["xpts"][1:-1], phs_data, 1)
         phs_fix = phs_data - slope * data["xpts"][1:-1] - intercept
@@ -275,7 +273,7 @@ class ResSpec(QickExperiment):
         else:
             ax[0].set_title(title)
 
-        ax[0].set_ylabel("Amps [ADC units]")
+        ax[0].set_ylabel("Amps (ADC units)")
         ax[0].plot(data["freq"][1:-1], data["amps"][1:-1], ".-")
         if fit:
             if hanger:

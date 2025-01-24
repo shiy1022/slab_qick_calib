@@ -1,11 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm_notebook as tqdm
 
 from qick import *
 from exp_handling.datamanagement import AttrDict
-from qick_experiment import QickExperiment
-from qick_program import QickProgram
+from gen.qick_experiment import QickExperiment
+from gen.qick_program import QickProgram
 
 """
 Run this calibration when the wiring of the setup is changed.
@@ -125,9 +124,9 @@ class ToFCalibrationExperiment(QickExperiment):
         dac_ch = self.cfg.hw.soc.dacs.readout.ch[q_ind]
         plt.subplot(
             111,
-            title=f"Time of flight calibration: DAC Ch. {dac_ch} to ADC Ch. {adc_ch}",
-            xlabel="Clock ticks",
-            ylabel="Transmission [ADC units]",
+            title=f"Time of Flight calibration: DAC Ch. {dac_ch} to ADC Ch. {adc_ch}",
+            xlabel="Time ($\mu$s)",
+            ylabel="Transmission (ADC units)",
         )
 
         plt.plot(data["xpts"], data["i"], label="I")

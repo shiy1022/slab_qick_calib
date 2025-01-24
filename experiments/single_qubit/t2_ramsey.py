@@ -1,18 +1,12 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
-from qick.helpers import gauss
 
 from exp_handling.datamanagement import AttrDict
-from tqdm import tqdm_notebook as tqdm
 
-import matplotlib.pyplot as plt
-from datetime import datetime
-from qick_experiment import QickExperiment, QickExperiment2D
-from qick_program import QickProgram
+from gen.qick_experiment import QickExperiment
+from gen.qick_program import QickProgram
 import fitting as fitter
 from qick.asm_v2 import QickSweep1D
-
 
 class RamseyProgram(QickProgram):
     def __init__(self, soccfg, final_delay, cfg):
@@ -112,7 +106,7 @@ class RamseyExperiment(QickExperiment):
         max_err=None,
         display=True,
     ):
-        ef='ef_' if 'checkEF' in params and params['checkEF'] else ef=''
+        ef='ef_' if 'checkEF' in params and params['checkEF'] else''
         prefix = f"ramsey_{ef}qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)

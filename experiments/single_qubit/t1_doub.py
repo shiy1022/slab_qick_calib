@@ -1,14 +1,11 @@
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpl_patches
 import numpy as np
 from qick import *
-from qick.helpers import gauss
 
 from exp_handling.datamanagement import AttrDict
-from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import fitting as fitter
-from qick_experiment import QickExperiment
+from gen.qick_experiment import QickExperiment
 
 
 class T1DoubProgram(RAveragerProgram):

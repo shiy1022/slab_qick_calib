@@ -1,13 +1,10 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
-from datetime import datetime
 
 from exp_handling.datamanagement import AttrDict
-from tqdm import tqdm_notebook as tqdm
-from qick_experiment import QickExperiment
+from gen.qick_experiment import QickExperiment
 import fitting as fitter
-from qick_program import QickProgram
+from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
 

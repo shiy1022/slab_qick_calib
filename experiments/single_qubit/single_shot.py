@@ -5,9 +5,8 @@ import copy
 import seaborn as sns
 from exp_handling.datamanagement import AttrDict
 from tqdm import tqdm_notebook as tqdm
-from qick_experiment import QickExperiment
-from qick_program import QickProgram
-import warnings
+from gen.qick_experiment import QickExperiment
+from gen.qick_program import QickProgram
 from scipy.optimize import curve_fit
 from scipy.special import erf
 from copy import deepcopy
@@ -100,8 +99,8 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
 
     """X and Y ranges for histogram"""
 
-    ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims)
-    ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims)
+    ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims, density=True)
+    ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims, density=True)
     if plot_f:
         nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
 
@@ -145,8 +144,8 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
             if plot_f:
                 axs[0, 0].plot(xf, yf, color="k", marker="o")
 
-            axs[0,0].set_xlabel('I [ADC levels]')
-            axs[0, 0].set_ylabel("Q [ADC levels]")
+            axs[0,0].set_xlabel('I (ADC levels)')
+            axs[0, 0].set_ylabel("Q (ADC levels)")
             axs[0, 0].legend(loc="upper right")
             axs[0, 0].set_title("Unrotated")
             axs[0, 0].axis("equal")
@@ -158,8 +157,8 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
             bin_cent = (binse[1:] + binse[:-1]) / 2
             axs[1,1].semilogy(bin_cent, ne, color=red)
             
-            axs[1, 1].set_xlabel("I [ADC levels]")
-            axs[0, 0].set_xlabel("I [ADC levels]")
+            axs[1, 1].set_xlabel("I (ADC levels)")
+            axs[0, 0].set_xlabel("I (ADC levels)")
 
             plt.subplots_adjust(hspace=0.25, wspace=0.15)
             if qubit is not None: 
@@ -179,7 +178,7 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
                    verticalalignment='top', horizontalalignment='right', 
                    bbox=dict(facecolor='white', alpha=0.5))
 
-        ax[0].set_xlabel('I [ADC levels]')
+        ax[0].set_xlabel('I (ADC levels)')
         lgnd=ax[0].legend(loc='lower right')
         lgnd.legendHandles[0].set_markersize(6)
         lgnd.legendHandles[1].set_markersize(6)
@@ -187,8 +186,8 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
         ax[0].axis("equal")        
 
         # Plot histogram 
-        ax[1].set_ylabel("Counts")
-        ax[1].set_xlabel("I [ADC levels]")
+        ax[1].set_ylabel("Probability")
+        ax[1].set_xlabel("I (ADC levels)")
         ax[1].legend(loc="upper right")
         ax[1].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
         ax[1].axvline(thresholds[0], color="0.2", linestyle="--")

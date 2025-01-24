@@ -2,12 +2,10 @@ import numpy as np
 from qick import *
 
 from exp_handling.datamanagement import AttrDict
-from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import fitting as fitter
-from qick_experiment import QickExperiment2D
-from qick_experiment_2q import QickExperiment2Q
-from qick_program import QickProgram2Q
+from gen.qick_experiment_2q import QickExperiment2Q
+from gen.qick_program import QickProgram2Q
 from qick.asm_v2 import QickSweep1D
 
 

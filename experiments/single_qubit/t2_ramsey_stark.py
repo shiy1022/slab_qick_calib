@@ -2,9 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
 
-from exp_handling.datamanagement import AttrDict
-from tqdm import tqdm_notebook as tqdm
-from qick_experiment import QickExperiment2DSimple, QickExperiment
+from gen.qick_experiment import QickExperiment2DSimple, QickExperiment
 import experiments as meas
 from qick.asm_v2 import QickSweep1D
 from scipy.optimize import curve_fit

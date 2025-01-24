@@ -5,8 +5,8 @@ from qick.helpers import gauss
 
 from exp_handling.datamanagement import AttrDict
 from tqdm import tqdm_notebook as tqdm
-from qick_experiment import QickExperiment, QickExperiment2D
-from qick_program import QickProgram
+from gen.qick_experiment import QickExperiment, QickExperiment2D
+from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
 import fitting as fitter
@@ -240,7 +240,7 @@ class QubitSpecPower(QickExperiment2D):
         max_err=None,
     ):
 
-        ef = 'ef_' if checkEF else ef = ''
+        ef = 'ef_' if checkEF else ''
 
         prefix += style + f"qubit_spectroscopy_power_{ef}qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
