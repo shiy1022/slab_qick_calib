@@ -720,7 +720,7 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
-            "reps": self.reps,
+            "reps": 5*self.reps,
             "soft_avgs": self.soft_avgs,
             "expts": 200,
             "start": 1,
@@ -755,7 +755,7 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
         
         self.cfg.expt = {**params_def, **params}
         self.cfg.expt.wait_times = [0.5*self.cfg.device.qubit.T1[qi], self.cfg.device.qubit.T1[qi], 1.25*self.cfg.device.qubit.T1[qi]]
-        self.cfg.expt.reps_list = self.cfg.expt.reps * [10, 10, 10] 
+        
         super().check_params(params_def)
         if self.cfg.expt.active_reset:
             super().configure_reset()
@@ -783,10 +783,9 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
         save_data={}
         for i, t in enumerate(self.cfg.expt.wait_times):
             self.cfg.expt.wait_time = t
-            self.cfg.expt.reps = self.cfg.expt.reps_list[i]
+            
             super().acquire(meas.T1Program, x_sweep, progress=progress)
             for lab in labs:
-                
                 save_data[lab+'_'+str(i)] = self.data[lab]
 
 

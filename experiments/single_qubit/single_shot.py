@@ -20,6 +20,7 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
     """
     span: histogram limit is the mean +/- span
     """
+    # FIXME: f state analysis is broken
     Ig = data["Ig"]
     Qg = data["Qg"]
     Ie = data["Ie"]

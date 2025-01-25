@@ -2,6 +2,7 @@ import yaml
 from exp_handling.datamanagement import AttrDict
 from functools import reduce
 import numpy as np
+from datetime import datetime
 
 
 def nested_set(dic, keys, value):
@@ -23,6 +24,23 @@ def save(cfg, file_name):
     cfg = yaml.safe_dump(cfg.to_dict(), default_flow_style=None)
 
     # write it:
+    with open(file_name, "w") as modified_file:
+        modified_file.write(cfg)
+
+    # now, open the modified file again
+    with open(file_name, "r") as file:
+        cfg = AttrDict(yaml.safe_load(file))  # turn it into an attribute dictionary
+
+    return cfg
+
+def save_copy(file_name):
+    # dump it:
+    cfg = load(file_name)
+    cfg = yaml.safe_dump(cfg.to_dict(), default_flow_style=None)
+
+    # write it:
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{file_name[0:-4]}_{current_time}.yml"
     with open(file_name, "w") as modified_file:
         modified_file.write(cfg)
 
@@ -107,7 +125,6 @@ def update_lo(file_name, field, value,qi, verbose=True, sig=4, rng_vals=None):
             print(f"*Set cfg lo {field} to {value} from {old_value}*")
     return cfg
 
-
 def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
 
     device = {"qubit": {"pulses": {"pi_ge": {}, "pi_ef": {}}}, "readout": {}}
@@ -150,10 +167,14 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
     device["readout"]["readout_length"] = [5] * num_qubits
     device["readout"]["threshold"] = [10] * num_qubits
     device["readout"]["fidelity"] = [0] * num_qubits
+    device["readout"]["tm"] = [0] * num_qubits
+    device["readout"]["sigma"] = [0] * num_qubits
 
     device["readout"]["trig_offset"] = [0.5] * num_qubits
     device["readout"]["final_delay"] = [t1 * 6] * num_qubits
     device["readout"]["active_reset"]=[False]*num_qubits
+    device["readout"]["reset_e"] = [0]*num_qubits
+    device["readout"]["reset_g"] = [0]*num_qubits
     
     device["readout"]["reps"] = [1] * num_qubits
     device["readout"]["soft_avgs"] = [1] * num_qubits

@@ -1,16 +1,12 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
-from qick.helpers import gauss
 
 from exp_handling.datamanagement import AttrDict
-from tqdm import tqdm_notebook as tqdm
 from gen.qick_experiment import QickExperiment, QickExperiment2D
 from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
 import fitting as fitter
-import warnings
 
 
 class QubitSpecProgram(QickProgram):
@@ -70,13 +66,13 @@ class QubitSpec(QickExperiment):
     PulseProbe Spectroscopy Experiment
     Experimental Config:
     expt = dict(
-        start: start ef probe frequency [MHz]
-        step: step ef probe frequency
+        start: start probe frequency [MHz]
+        span: span probe frequency
         expts: number experiments stepping from start
         reps: number averages per experiment
         soft_avgs: number repetitions of experiment sweep
-        length: ef const pulse length [us]
-        gain: ef const pulse gain [dac units]
+        length: qubit pulse length [us]
+        gain: qubit pulse gain [dac units]
         checkEF: flag to check EF transition
     )
     """
@@ -94,6 +90,7 @@ class QubitSpec(QickExperiment):
         max_err=None,
     ):
 
+        # Currently no control of readout time; may want to change for simultaneious readout
         ef = "ef" if "checkEF" in params and params["checkEF"] else ""
         prefix = f"qubit_spectroscopy_{ef}_{style}_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
@@ -171,7 +168,7 @@ class QubitSpec(QickExperiment):
         return self.data
 
     def display(
-        self, data=None, fit=True, signs=[1, 1, 1], ax=None, plot_all=True, **kwargs
+        self, fit=True, ax=None, plot_all=True, **kwargs
     ):
         
         fitfunc = fitter.lorfunc
