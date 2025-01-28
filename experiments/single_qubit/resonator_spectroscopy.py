@@ -204,6 +204,7 @@ class ResSpec(QickExperiment):
                 data["freq_init"]=copy.deepcopy(data["init"])
                 data["fit"][0]=data["fit"][0]-data["freq_offset"]
                 data["init"][0]=data["init"][0]-data["freq_offset"]
+                data['freq_min']=xdata[np.argmin(ydata)]-data["freq_offset"]
             else:
                 print(fitparams)
                 data["lorentz_fit"] = fitter.fitlor(xdata, ydata, fitparams=fitparams)
@@ -211,7 +212,7 @@ class ResSpec(QickExperiment):
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
         
-        data['freq_min']=xdata[np.argmin(ydata)]-data["freq_offset"]
+        
         phs_data = np.unwrap(data["phases"][1:-1])
         slope, intercept = np.polyfit(data["xpts"][1:-1], phs_data, 1)
         phs_fix = phs_data - slope * data["xpts"][1:-1] - intercept
@@ -226,7 +227,7 @@ class ResSpec(QickExperiment):
             df = xdata[1] - xdata[0]
             min_dist_inds = int(min_dist / df)
             max_width_inds = int(max_width / df)
-            filt_sigma = int(freq_sigma / df)
+            filt_sigma = int(np.ceil(freq_sigma / df))
             ydata_smooth = gaussian_filter1d(ydata, sigma=filt_sigma)
             ydata = ydata / ydata_smooth
             if debug:

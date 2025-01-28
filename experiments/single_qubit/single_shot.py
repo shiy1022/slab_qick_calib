@@ -15,7 +15,7 @@ blue = "#4053d3"
 red = "#b51d14"
 int_rgain = True
 
-
+# Make it possible to turn fitting off 
 def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
     """
     span: histogram limit is the mean +/- span
@@ -954,7 +954,7 @@ class SingleShotOptExperiment(QickExperiment):
 
         return imax
 
-    def display(self, data=None, **kwargs):
+    def display(self, data=None,plot_pars=False, **kwargs):
         if data is None:
             data = self.data
 
@@ -1059,9 +1059,9 @@ class SingleShotOptExperiment(QickExperiment):
                     )
 
                     if i == npts[0] - 1:
-                        ax[i, j].set_xlabel(np.round(self.data[sweep_var[1]][j], 1))
+                        ax[i, j].set_xlabel(np.round(self.data[sweep_var[1]][j], 2))
                     if j == 0:
-                        ax[i, j].set_ylabel(np.round(self.data[sweep_var[0]][i], 1))
+                        ax[i, j].set_ylabel(np.round(self.data[sweep_var[0]][i], 2))
             plt.figtext(0.5, 0.0, labs[inds[1]], horizontalalignment="center")
             plt.figtext(
                 0.0, 0.5, labs[inds[0]], verticalalignment="center", rotation="vertical"
@@ -1167,6 +1167,30 @@ class SingleShotOptExperiment(QickExperiment):
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
         plt.show()
+
+        if plot_pars:
+
+            tmv = self.data['tm'][0]
+            tmv[tmv<0.001]=np.nan
+            sns.set_palette('coolwarm', len(tmv))
+            fig, ax = plt.subplots(2,1, figsize=(8,6))
+            #tm = np.transpose(tmv)
+            for i, tm_arr in enumerate(tmv):
+                gain=self.data['gainpts'][i]
+                ax[0].plot(self.data['lenpts'],self.data['lenpts']/tm_arr,'o-', label=f"{gain:.2f}")
+            ax[0].set_xlabel('Readout Length')
+            ax[0].axhline(y=self.cfg.device.qubit.T1[self.cfg.expt.qubit[0]], color='k', linestyle='--', label='T1')
+            ax[0].set_ylabel('$T_m/(T_m/T_1)$')
+            ax[0].legend()
+            sigma = self.data['sigma'][0]
+
+            for i, s in enumerate(sigma):
+                gain=self.data['gainpts'][i]
+                ax[1].loglog(self.data['lenpts'],s,'o-', label=f"{gain:.2f}")
+            ax[1].legend()
+            ax[1].set_xlabel('Readout Length')
+            ax[1].set_ylabel('$\sigma$')
+            fig.tight_layout()
 
         self.do_more= self.check_edges()
         if self.data['gain']==1: # change to max_gain 

@@ -86,6 +86,7 @@ class T1Experiment(QickExperiment):
         prefix=None,
         progress=True,
         style="",
+        disp_kwargs=None,
         min_r2=None,
         max_err=None,
         display=True,
@@ -119,8 +120,11 @@ class T1Experiment(QickExperiment):
         super().check_params(params_def)
         if self.cfg.expt.active_reset:
             super().configure_reset()
+
+        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
+            disp_kwargs = {'plot_all': True}
         if go:
-            super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err)
+            super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err, disp_kwargs=disp_kwargs)
 
     def acquire(self, progress=False, debug=False):
         self.param = {"label": "wait", "param": "t", "param_type": "time"}

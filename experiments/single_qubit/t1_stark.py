@@ -131,7 +131,7 @@ class T1StarkExperiment(QickExperiment):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
-            "reps": 2 * self.reps,
+            "reps": 3 * self.reps,
             "soft_avgs": self.soft_avgs,
             "expts": 60,
             "start": 0.05,
@@ -577,7 +577,8 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
         go=True,
         params={},
         prefix=None,
-        progress=None,
+        progress=True,
+        display=True,
         style="",
         acStark=True,
         min_r2=None,
@@ -627,7 +628,7 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
         if self.cfg.expt.active_reset:
             super().configure_reset()
         if go:
-            super().run(min_r2=min_r2, max_err=max_err)
+            super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err)
 
     def acquire(self, progress=False):
         qi = self.cfg.expt.qubit[0]

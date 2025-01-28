@@ -137,15 +137,13 @@ class RabiExperiment(QickExperiment):
             params_def[key] = cfg_qub[key][qi]
         params = {**params_def, **params}
         
-        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
-            disp_kwargs = {'plot_all': True}
-                
+  
         if params["sweep"]=="amp":
-            params_def['max_gain'] = params['gain'] * 4
-            params_def['start']=0.003
+            params_def['max_gain'] = params['gain'] * 5
+            params_def['start']=0.003 # This is currently the minimum gain value that is linear 
             params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
         elif params["sweep"]=="length":
-            params_def["sigma"] = 4 * params["sigma"]
+            params_def["sigma"] = 5 * params["sigma"]
             params_def["start"] = 2/430 # Change this to get info from soc 
         
         if style == "fine":
@@ -162,6 +160,8 @@ class RabiExperiment(QickExperiment):
         if self.cfg.expt.active_reset:
             super().configure_reset()
         
+        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
+            disp_kwargs = {'plot_all': True}
         if go:
             super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err, disp_kwargs=disp_kwargs)
 

@@ -102,6 +102,7 @@ class RamseyExperiment(QickExperiment):
         progress=True,
         acStark=False,
         style="",
+        disp_kwargs=None,
         min_r2=None,
         max_err=None,
         display=True,
@@ -148,8 +149,10 @@ class RamseyExperiment(QickExperiment):
         if self.cfg.expt.active_reset:
             super().configure_reset()
 
+        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
+            disp_kwargs = {'plot_all': True}
         if go:
-            super().run(display=display,progress=progress,min_r2=min_r2, max_err=max_err)
+            super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err, disp_kwargs=disp_kwargs)
 
     def acquire(self, progress=False):
 
