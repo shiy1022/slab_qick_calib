@@ -144,12 +144,13 @@ class QickProgram(AveragerProgramV2):
         return i_shots, q_shots
     
     def reset(self, i):
+        # Perform active reset i times 
+        cfg = AttrDict(self.cfg)
         for n in range(i):
-            cfg = AttrDict(self.cfg)
             self.wait_auto(cfg.expt.read_wait)
             self.delay_auto(cfg.expt.read_wait + cfg.expt.extra_delay)
             
-            # read the input, test a threshold, and jump
+            # read the input, test a threshold, and jump if it is met [so, if i<threshold, doesn't do pi pulse]
             self.read_and_jump(ro_ch=self.adc_ch, component='I', threshold=cfg.expt.threshold, test='<', label=f'NOPULSE{n}')
             
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
@@ -160,7 +161,8 @@ class QickProgram(AveragerProgramV2):
                 self.trigger(ros=[self.adc_ch], pins=[0], t=self.trig_offset)
                 self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
                 if self.lo_ch is not None:
-                    self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
+                    self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
+                self.delay_auto(0.01)
 
 
 class QickProgram2Q(AveragerProgramV2):
@@ -312,4 +314,5 @@ class QickProgram2Q(AveragerProgramV2):
                     pins=[0],
                     t=self.trig_offset[q],
                     )
+
 

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as cs
 import seaborn as sns
+import datetime
 colors = ["#0869c8","#b51d14"]
 
 def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
@@ -151,7 +152,7 @@ def measure_temp(cfg_dict, qi, expts=20, soft_avgs=1, chan=None):
     else:
         population = rabief_nopulse.data[chan][0] / rabief.data[chan][0]
 
-    qubit_temp = (-1e3* cs.h * fge / (cs.k * np.log(population)))
+    qubit_temp = -1e3* cs.h * fge / (cs.k * np.log(population))
     
     fig, ax = plt.subplots(1, 1)
     i_best = str(rabief.data["i_best"])[2:-1]
@@ -199,51 +200,67 @@ def make_hist(d, nbins=200):
 def plot_reset(d):     
     blue = "#4053d3"
     red = "#b51d14"
-    fig, ax = plt.subplots(3,2, figsize=(8,8))
+
+    num_plots = len(d)
+    fig, ax = plt.subplots( int(np.ceil(num_plots/4)), 4, figsize=(14, 1 * num_plots), sharey=True)
     ax = ax.flatten()
+
     b  = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d[0].data['Igr']))
     for i, shot in enumerate(d):
         v, hist = make_hist(shot.data['Ig'], nbins=50)
         ax[i].semilogy(v, hist, color=blue)
-        ax[i].set_title(shot.cfg.expt.threshold_v)
+        ax[i].set_title(f"{shot.cfg.expt.threshold_v:0.2f}")
+        ax[i].axvline(x=shot.cfg.expt.threshold_v, color="k", linestyle="--")
         for j in range(len(shot.data['Igr'])):
             v, hist = make_hist(shot.data['Igr'][j],  nbins=50)
             ax[i].semilogy(v, hist,color=b[j])
     
     fig.tight_layout()
-    fig, ax = plt.subplots(3,2, figsize=(8,8))
+    fig, ax = plt.subplots(int(np.ceil(num_plots/4)),4, figsize=(14, 1 * num_plots), sharey=True)
     ax = ax.flatten()
     for i, shot in enumerate(d):
         v, hist = make_hist(shot.data['Ig'], nbins=50)
-        ax[i].semilogy(v, hist, color=red)
-        v, hist = make_hist(shot.data['Ie'], nbins=50)
         ax[i].semilogy(v, hist, color=blue)
-        ax[i].set_title(shot.cfg.expt.threshold_v)
+        v, hist = make_hist(shot.data['Ie'], nbins=50)
+        ax[i].semilogy(v, hist, color=red)
+        ax[i].set_title(f"{shot.cfg.expt.threshold_v:0.2f}")
+        ax[i].axvline(x=shot.cfg.expt.threshold_v, color="k", linestyle="--")
         for j in range(len(shot.data['Ier'])):
             v, hist = make_hist(shot.data['Ier'][j], nbins=50)
             ax[i].semilogy(v, hist,color=b[j])
 
     fig.tight_layout()
 
-    fig, ax = plt.subplots(2,1, figsize=(8,8))
+    nplots = 6
+    fig, ax = plt.subplots(2,nplots, figsize=(nplots*4,8))
     b  = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d))
     
     for i, shot in enumerate(d):
-        v, hist = make_hist(shot.data['Ig'], nbins=50)
-        ax[0].semilogy(v, hist, color=blue, linewidth=1)
-        ax[1].semilogy(v, hist, color=blue, linewidth=1)
+        vg, histg = make_hist(shot.data['Ig'], nbins=50)
+        ve, histe = make_hist(shot.data['Ie'], nbins=50)
+        for j in range(nplots):
+            
+            ax[0,j].semilogy(vg, histg, color=blue, linewidth=1)
+            ax[1,j].semilogy(vg, histg, color=blue, linewidth=1)
+            
+            ax[1,j].semilogy(ve, histe, color=red, linewidth=1)
 
-        v, hist = make_hist(shot.data['Ie'], nbins=50)
-        ax[1].semilogy(v, hist, color=red, linewidth=1)
+            v, hist = make_hist(shot.data['Igr'][j,:], nbins=50)
+            ax[0,j].semilogy(v, hist,label=f"{shot.cfg.expt.threshold_v:0.1f}", color=b[i])
 
-        v, hist = make_hist(shot.data['Igr'][-1,:], nbins=50)
-        ax[0].semilogy(v, hist,label=f"{shot.cfg.expt.threshold_v:0.1f}", color=b[i])
+            v, hist = make_hist(shot.data['Ier'][j,:], nbins=50)
+            ax[1,j].semilogy(v, hist,label=shot.cfg.expt.threshold_v, color=b[i])
+            
+    ax[0,0].legend(ncol=int(np.ceil(len(d)/6)), fontsize=8)
 
-        v, hist = make_hist(shot.data['Ier'][-1,:], nbins=50)
-        ax[1].semilogy(v, hist,label=shot.cfg.expt.threshold_v, color=b[i])
-    ax[0].legend()
+    ax[0,0].set_title('Ground state')
+    ax[1,0].set_title('Excited state')
+    fig.tight_layout()
+    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    ax[0].set_title('Ground state')
-    ax[1].set_title('Excited state')
+    # fig.savefig(
+    #             shot.fname[0 : -len(imname)] + "images\\" +  + ".png"
+    #         )
+    fig.savefig(f"reset_hist_{current_time}.png")
 
     

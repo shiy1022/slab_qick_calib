@@ -34,7 +34,8 @@ class QickExperiment(Experiment):
 
     def acquire(self, prog_name, progress=True, get_hist=True):
         if 'active_reset' in self.cfg.expt and self.cfg.expt.active_reset:
-            final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]]
+            #final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]]
+            final_delay =10
         else:
             final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
         prog = prog_name(
@@ -287,16 +288,18 @@ class QickExperiment(Experiment):
 
     def configure_reset(self):
         qi = self.cfg.expt.qubit[0]
+        # we may want to put these params in the config. 
         params_def = dict(
             threshold_v =self.cfg.device.readout.threshold[qi], 
             read_wait=0.1,
             extra_delay=0.2,
         )
         self.cfg.expt = {**params_def, **self.cfg.expt}
-    
+        # this number should be changed to be grabbed from soc 
         self.cfg.expt['threshold']=int(self.cfg.expt['threshold_v']*self.cfg.device.readout.readout_length[qi]/0.0032552083333333335)
 
     def get_freq(self, fit=True): 
+        # Provide correct frequency if mixer's are in use, for two different LO types. 
         freq_offset = 0
         q = self.cfg.expt.qubit[0]
         if "mixer_freq" in self.cfg.hw.soc.dacs.readout:

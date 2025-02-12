@@ -6,7 +6,7 @@ import numpy as np
 import scipy.constants as cs
 import warnings
 from datetime import datetime
-import tuneup 
+from calib import tuneup 
 max_t1=500
 max_err = 1
 min_r2 = 0.35

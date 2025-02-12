@@ -411,7 +411,7 @@ class HistogramProgram(QickProgram):
         self.trigger(ros=[self.adc_ch], pins=[0],t=self.trig_offset)
 
         if cfg.expt.active_reset:
-            self.reset(5)
+            self.reset(7)
 
 
     def reset(self, i):
@@ -506,11 +506,11 @@ class HistogramExperiment(QickExperiment):
         data["Qg"] = iq_list[0][0][:, 1]
         if self.cfg.expt.active_reset:
             data["Igr"]=iq_list[0][1:,:, 0]
-        irawg, qraw = histpro.collect_shots()
+
+        irawg, qrawg = histpro.collect_shots()
         
-        #rawd = [iraw[-1], qraw[-1]]
+        rawd = [irawg[-1], qrawg[-1]]
         #print("buffered readout:", rawd)
-        #print("feedback readout:", self.soc.read_mem(2,'dmem'))
 
         # Excited state shots
         if self.cfg.expt.check_e:
