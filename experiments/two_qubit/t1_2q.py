@@ -64,11 +64,7 @@ class T1_2Q_Program(QickProgram2Q):
             self.pulse(ch=self.res_ch[q], name=f"readout_pulse_{q}", t=0)
             if self.lo_ch[q] is not None:
                 self.pulse(ch=self.lo_ch[q], name=f"mix_pulse_{q}", t=0.0)
-            self.trigger(
-            ros=[self.adc_ch[q]],
-            pins=[0],
-            t=self.trig_offset[q],
-            )
+            self.trigger(ros=[self.adc_ch[q]], pins=[0],t=self.trig_offset[q])
         if cfg.expt.active_reset:
             self.reset(3)
 

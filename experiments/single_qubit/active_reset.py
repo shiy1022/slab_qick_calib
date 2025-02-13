@@ -372,7 +372,7 @@ def fit_single_shot(d, plot=True, rot=True):
 # ====================================================== #
 
 class MemoryProgram(QickProgram):
-
+# This checks that the two memories are getting the same values 
     def __init__(self, soccfg, final_delay, cfg):
         super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
 
