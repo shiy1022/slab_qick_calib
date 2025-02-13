@@ -137,9 +137,9 @@ class QickProgram(AveragerProgramV2):
         for i, (ch, rocfg) in enumerate(self.ro_chs.items()):
             nsamp = rocfg["length"]
             iq_raw = self.get_raw()
-            i_shots = iq_raw[i][:, :, 0, 0] / nsamp - offset
+            i_shots = iq_raw[i][:, :, :, 0] / nsamp - offset
             i_shots = i_shots.flatten()
-            q_shots = iq_raw[i][:, :, 0, 1] / nsamp - offset
+            q_shots = iq_raw[i][:, :, :, 1] / nsamp - offset
             q_shots = q_shots.flatten()
         return i_shots, q_shots
     
