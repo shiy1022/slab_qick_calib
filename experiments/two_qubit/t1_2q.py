@@ -40,27 +40,31 @@ class T1_2Q_Program(QickProgram2Q):
         cfg = AttrDict(self.cfg)
         for q in range(len(cfg.expt.qubit)):
             self.send_readoutconfig(ch=self.adc_ch[q], name=f"readout_{q}", t=0)
-
-        q=0
+        if cfg.expt.span[0] > cfg.expt.span[1]:
+            q_order = [0,1]
+        else:
+            q_order = [1,0]
         # check if delay vs delay_auto handle pulse time differently -- I think they should be different
+        q = q_order[0]
         self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
 
         if cfg.expt.acStark:
-            self.delay(t=cfg.device.qubit.pi_ge.sigma[cfg.expt.qubit[q]]*cfg.device.qubit.pi_ge.sigma_inc[cfg.expt.qubit[q]], tag=f"wait_stark_{q}")
+            q = q_order[0]
+            self.delay(t=cfg.device.qubit.pulses.pi_ge.sigma[cfg.expt.qubit[q]]*cfg.device.qubit.pulses.pi_ge.sigma_inc[cfg.expt.qubit[q]], tag=f"wait_stark_{q}")
             self.pulse(ch=self.qubit_ch, name=f"stark_pulse_{q}", t=0) # length is T1 0 
             self.delay(t=cfg.expt[f"wait_time_{q}"], tag=f"wait_{q}")
-            q=1
+            q=q_order[1]
             self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
-            self.delay(t=cfg.device.qubit.pi_ge.sigma[cfg.expt.qubit[q]]*cfg.device.qubit.pi_ge.sigma_inc[cfg.expt.qubit[q]], tag=f"wait_stark_{q}")
+            self.delay(t=cfg.device.qubit.pulses.pi_ge.sigma[cfg.expt.qubit[q]]*cfg.device.qubit.pulses.pi_ge.sigma_inc[cfg.expt.qubit[q]], tag=f"wait_stark_{q}")
             self.pulse(ch=self.qubit_ch, name=f"stark_pulse_{q}", t=0) # length is T1 0 
             self.delay(t=cfg.expt[f"wait_time_{q}"], tag=f"wait_{q}")
         else:
             self.delay(t=cfg.expt[f"wait_time_{q}"] + 0.01, tag=f"wait_{q}")
-            q=1
+            q=q_order[1]
             self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
             self.delay_auto(t=cfg.expt[f"wait_time_{q}"] + 0.01, tag=f"wait_{q}")
 
-        for q in range(len(cfg.expt.qubit)):
+        for q in q_order:
             self.pulse(ch=self.res_ch[q], name=f"readout_pulse_{q}", t=0)
             if self.lo_ch[q] is not None:
                 self.pulse(ch=self.lo_ch[q], name=f"mix_pulse_{q}", t=0.0)
@@ -68,8 +72,8 @@ class T1_2Q_Program(QickProgram2Q):
         if cfg.expt.active_reset:
             self.reset(3)
 
-    def collect_shots(self, offset=0):
-        return super().collect_shots(offset=0)
+    def collect_shots(self, offset=[0,0]):
+        return super().collect_shots(offset=offset)
     
     def reset(self, i):
         super().reset(i)
@@ -89,7 +93,7 @@ class T1_2Q(QickExperiment2Q):
     def __init__(
         self,
         cfg_dict,
-        qi=0,
+        qi=[0,1],
         go=True,
         params={},
         prefix=None,
@@ -135,16 +139,29 @@ class T1_2Q(QickExperiment2Q):
         self.param = []
         for i in range(len(self.cfg.expt.qubit)):            
             self.param.append({"label": f"wait_{i}", "param": "t", "param_type": "time"})
-
-        span_diff = self.cfg.expt.span[0] - self.cfg.expt.span[1]-self.cfg.device.qubit.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
-        self.cfg.expt.wait_time_0 = QickSweep1D(
-            "wait_loop", self.cfg.expt.start, self.cfg.expt.start + span_diff
-        )
-        self.cfg.expt.wait_time_1 = QickSweep1D(
-            "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span[1]
-        )
+        span_diff = self.cfg.expt.span[0] - self.cfg.expt.span[1]
+        # self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+        if span_diff > 0:
+            pulse_wait_time = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+            self.cfg.expt.wait_time_0 = QickSweep1D(
+                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + np.absolute(span_diff)
+            -pulse_wait_time)
+            self.cfg.expt.wait_time_1 = QickSweep1D(
+                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span[1]
+            )
+        else:
+            pulse_wait_time = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
+            self.cfg.expt.wait_time_1 = QickSweep1D(
+                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + np.absolute(span_diff)
+            -pulse_wait_time)
+            self.cfg.expt.wait_time_0 = QickSweep1D(
+                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span[0]
+            )
         data=super().acquire(T1_2Q_Program, progress=progress)
-        data["xpts"][0]=data['xpts'][0]+data['xpts'][1]+self.cfg.device.qubit.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+        if span_diff > 0:
+            data["xpts"][0]=data['xpts'][0]+data['xpts'][1]+self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+        else:
+            data["xpts"][1]=data['xpts'][0]+data['xpts'][1]+self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
 
         return self.data
 
