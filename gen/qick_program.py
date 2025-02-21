@@ -278,7 +278,7 @@ class QickProgram2Q(AveragerProgramV2):
         self.make_pulse(i, pulse, f"{name}_{i}")
         return pulse
 
-    def collect_shots(self, offset=0):
+    def collect_shots(self, offset=[0,0]):
         i_shots_list, q_shots_list = [], []
         for i, (ch, rocfg) in enumerate(self.ro_chs.items()):
             nsamp = rocfg["length"]

@@ -115,7 +115,7 @@ class RamseyExperiment(QickExperiment):
         params_def = {
             "expts": 100,
             "reps": 2 * self.reps,
-            "soft_avgs": 2 * self.soft_avgs,
+            "soft_avgs": self.soft_avgs,
             "start": 0.1,
             "span": 3 * self.cfg.device.qubit.T2r[qi],
             "ramsey_freq": 'smart',

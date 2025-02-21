@@ -297,6 +297,7 @@ class RabiChevronExperiment(QickExperiment2DSimple):
         params_def = {
             'span_f':20,
             'expts_f': 30,
+            'sweep':'amp'
         }
         params = {**params_def, **params}
         if 'checkEF' in params and params["checkEF"]:
@@ -345,10 +346,6 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             except:
                 pass
 
-            
-        
-
-
     def display(self, data=None, fit=True, plot_both=False, **kwargs):
         if data is None:
             data = self.data
@@ -356,7 +353,7 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             title = 'EF'
         else: 
             title = ''
-        if self.cfg.expt.type == "amp":
+        if self.cfg.expt.sweep == "amp":
             title = 'Amplitude'
             param = 'sigma'
             xlabel = "Gain / Max Gain"
@@ -364,10 +361,10 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             title = 'Length'
             param = 'gain'
             xlabel = "Pulse Length ($\mu$s)"
-        title += f" Rabi Q{self.cfg.expt.qubit[0]} (Pulse {param} {self.cfg.expt[param]}"
+        title += f" Rabi Q{self.cfg.expt.qubit[0]} (Pulse {param} {self.cfg.expt[param]})"
 
         xlabel = xlabel
-        ylabel = "Frequency [MHz]"
+        ylabel = "Frequency (MHz)"
 
         super().display(
             title=title,
@@ -389,8 +386,6 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             ax[1].set_xlabel('$\Delta$ Frequency (MHz)')
             ax[0].set_ylabel('Frequency (MHz)')
             ax[1].set_ylabel('Amplitude')
-
-
 
     def save_data(self, data=None):
         super().save_data(data=data)

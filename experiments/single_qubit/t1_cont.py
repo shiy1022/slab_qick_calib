@@ -32,7 +32,7 @@ class T1ContProgram(QickProgram):
         self.delay_auto(t=0.01, tag=f"readout0_delay_1")
         for i in range(cfg.expt.n_g):
             self.measure(cfg)
-        self.delay_auto(t=0.1, tag=f"readout_delay_1_{i}")
+        self.delay_auto(t=cfg.expt['readout']+0.01, tag=f"readout_delay_1_{i}")
 
         # Then, m excited state measurement
         for i in range(cfg.expt.n_e):
@@ -214,15 +214,25 @@ class T1ContExperiment(QickExperiment):
         return data
 
     def display(
-        self, data=None, fit=True, plot_all=False, ax=None, show_hist=True, rescale=False,**kwargs
+        self, data=None, fit=True, plot_all=False, ax=None, show_hist=True, rescale=False,savefig=True,**kwargs
     ):
         qubit = self.cfg.expt.qubit[0]
-
+        nexp = self.cfg.expt.n_g+self.cfg.expt.n_e+self.cfg.expt.n_t1
+        n_t1 = self.cfg.expt.n_t1
+        pi_time = 0.4 # Fix me
+        if self.cfg.expt.active_reset:
+            n_reset = 3
+            pulse_length = self.cfg.expt.readout*(self.cfg.expt.n_g+n_reset*(self.cfg.expt.n_e+n_t1))+self.cfg.expt.wait_time*n_t1+nexp*pi_time
+        else:
+            pulse_length = self.cfg.expt.readout*nexp+self.cfg.expt.wait_time*n_t1+self.cfg.expt.final_delay*(self.cfg.expt.n_e+n_t1)+nexp*pi_time
+        pulse_length = pulse_length/1e6
+        navg = 100
+        nred = int(np.floor(navg/10))
 
         if show_hist:  # Plot histogram of shots if show_hist is True
             fig2, ax = plt.subplots(1, 1, figsize=(3, 3))
             ax.hist(data['avgi_e'].flatten(), bins=50, alpha=0.6, color='r', label='Excited State', density=True)
-            ax.legend()
+            #ax.legend()
             ax.hist(data['avgi_g'].flatten(), bins=50, alpha=0.6, color='b', label='ground State', density=True)
 
             # try:
@@ -237,23 +247,63 @@ class T1ContExperiment(QickExperiment):
         for i in range(len(data['avgi_e'])):
             ax[0].plot(data['avgi_e'][i],'b.',markersize=m)
             ax[1].plot(data['avgq_e'][i],'b.',markersize=m)
-        for i in range(len(data['avgi_t1'])):
-            ax[0].plot(data['avgi_t1'][i],'r.',markersize=m)
-            ax[1].plot(data['avgq_t1'][i],'r.',markersize=m)
+
         for i in range(len(data['avgi_g'])):
             ax[0].plot(data['avgi_g'][i],'k.',markersize=m)
             ax[1].plot(data['avgq_g'][i],'k.',markersize=m)
+        for i in range(len(data['avgi_t1'])):
+            ax[0].plot(data['avgi_t1'][i],'r.',markersize=m)
+            ax[1].plot(data['avgq_t1'][i],'r.',markersize=m)
 
         t1_data = data['avgi_t1'].transpose().flatten()
         g_data = data['avgi_g'].transpose().flatten() 
         e_data = data['avgi_e'].transpose().flatten()  
-        fig, ax = plt.subplots(3, 1, figsize=(15, 8))
-        smoothed_t1_data = uniform_filter1d(t1_data, size=100)
-        ax[0].plot(smoothed_t1_data[::10], 'k.-', linewidth=0.1, markersize=m, label='Smoothed T1 Data')
-        smoothed_t1_data = uniform_filter1d(g_data, size=100)
-        ax[1].plot(smoothed_t1_data[::10], 'k.-',linewidth=0.1,markersize=m, label='Smoothed g Data')
-        smoothed_t1_data = uniform_filter1d(e_data, size=100)
-        ax[2].plot(smoothed_t1_data[::10], 'k.-',linewidth=0.1,markersize=m, label='Smoothed e Data')
+        
+        fig, ax = plt.subplots(4, 1, figsize=(15, 12), sharex=True)
+        smoothed_t1_data = uniform_filter1d(t1_data, size=navg*self.cfg.expt.n_t1)
+        smoothed_t1_data=smoothed_t1_data[::nred*self.cfg.expt.n_t1]
+        npts = len(smoothed_t1_data)
+        times = np.arange(npts)*pulse_length*nred
+        ax[0].plot(times,smoothed_t1_data, 'k.-', linewidth=0.1, markersize=m, label='Smoothed T1 Data')
+        smoothed_g_data = uniform_filter1d(g_data, size=navg*self.cfg.expt.n_g)
+        smoothed_g_data=smoothed_g_data[::nred*self.cfg.expt.n_g]
+        ax[1].plot(times,smoothed_g_data, 'k.-',linewidth=0.1,markersize=m, label='Smoothed g Data')
+        smoothed_e_data = uniform_filter1d(e_data, size=navg*self.cfg.expt.n_e)
+        smoothed_e_data=smoothed_e_data[::nred*self.cfg.expt.n_e]
+        ax[2].plot(times,smoothed_e_data, 'k.-',linewidth=0.1,markersize=m, label='Smoothed e Data')
+        dv = smoothed_e_data - smoothed_g_data
+        pt1 = (smoothed_t1_data-smoothed_g_data)/dv
+        ax[3].plot(times,pt1, 'k.-',linewidth=0.1,markersize=m, label='Smoothed e Data')
+        ax[3].axhline(np.exp(-1), color='r', linestyle='--', label='$e^{-1}$')
+
+        
+        ax[0].set_ylabel('I (ADC), $T =T_1$')
+        ax[1].set_ylabel('I (ADC), $g$ state')
+        ax[2].set_ylabel('I (ADC), $e$ state')
+        ax[3].set_ylabel('$(v_{t1}-v_g)/(v_e-v_g)$')
+
+        fig, ax = plt.subplots(1, 1, figsize=(15, 4))
+        t1m = - 1 / np.log(pt1)
+        ax.plot(times, t1m, 'k.-', linewidth=0.1, markersize=m, label='T1 Data')
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('$T_1/$tau')
+
+        fig2, ax = plt.subplots(1, 1, figsize=(14, 4))
+        ax.plot(times,smoothed_t1_data, 'k.-', linewidth=0.1, markersize=m, label='Smoothed T1 Data')
+        ax2 = ax.twinx()
+        ax2.plot(times,smoothed_e_data, 'b.-',linewidth=0.1,markersize=m, label='Smoothed e Data')
+        ax3 = ax.twinx()
+        ax3.plot(times,smoothed_g_data, 'r.-',linewidth=0.1,markersize=m, label='Smoothed e Data')
+
+        if savefig:
+            fig.tight_layout()
+            imname = self.fname.split("\\")[-1]
+            fig.savefig(
+                self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
+            )
+            plt.show()
+
+        #ax[3].legend()
         
         #ax.legend()
 

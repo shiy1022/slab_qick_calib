@@ -113,7 +113,7 @@ class RamseyEchoExperiment(QickExperiment):
 
         params_def = {
             "reps": 2 * self.reps,
-            "soft_avgs": 2 * self.soft_avgs,
+            "soft_avgs":  self.soft_avgs,
             "expts": 100,
             "span": 3 * self.cfg.device.qubit.T2e[qi],
             "start": 0.1,

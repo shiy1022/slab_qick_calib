@@ -194,8 +194,9 @@ class QickExperiment2Q(Experiment):
             fig2, ax = plt.subplots(1, nq, figsize=(3*nq, 3))
             for i in range(nq):
                 ax[i].plot(data["bin_centers"][i], data["hist"][i]/np.sum(data['hist'][i]), "o-")
-                ax[i].set_xlabel("I [ADC units]")
+                ax[i].set_xlabel("I (ADC units)")
             ax[0].set_ylabel("Probability")
+            fig2.tight_layout()
 
         if save_fig:  # Save figure if save_fig is True
             imname = self.fname.split("\\")[-1]
@@ -207,9 +208,12 @@ class QickExperiment2Q(Experiment):
 
     def make_hist(self, prog):
         offset = []
+        shots_i, shots_q = [],[]
         for q in self.cfg.expt.qubit_chan:
             offset.append(self.soccfg._cfg['readouts'][q]["iq_offset"])
-        shots_i, shots_q = prog.collect_shots(offset=offset)
+        shots = prog.collect_shots(offset=offset)
+        shots_i=shots[0]
+        shots_q=shots[1]
         # sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
         hist, bin_centers = [], []
         for q in range(len(self.cfg.expt.qubit_chan)):

@@ -36,16 +36,20 @@ class T1Cont2QProgram(QickProgram2Q):
         for i in range(cfg.expt.n_g):
             self.measure(cfg)
         self.delay_auto(t=cfg.expt['readout']+0.01, tag=f"readout_delay_1_{i}")
+        self.delay_auto(t=cfg.expt["final_delay"] + 0.01, tag=f"final_delay_g_{i}")
 
         # Excited state measurements
-        if cfg.expt.pulse_length_0 > cfg.expt.pulse_length_1:
+        if cfg.expt.pulse_length[0] > cfg.expt.pulse_length[1]:
             q_order = [0,1]
         else:
             q_order = [1,0]
         for i in range(cfg.expt.n_e):
-            for q in q_order:
-                self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
-            self.delay_auto(t=0.01, tag=f"wait0_{i}")
+            q = q_order[0]
+            self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
+            self.delay(t=np.absolute(cfg.expt.pulse_length[0] - cfg.expt.pulse_length[1]), tag=f"wait0_{i}")
+            q = q_order[1]
+            self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
+            self.delay_auto(0.01, tag = f'readout_ge_delay_0_{i}')
             self.measure(cfg)
             if cfg.expt.active_reset:
                 self.reset(3,0,i)
@@ -54,10 +58,18 @@ class T1Cont2QProgram(QickProgram2Q):
                 self.delay_auto(t=cfg.expt["final_delay"] + 0.01, tag=f"final_delay_1_{i}")
 
         # T1 measurements
+        if cfg.expt.span[0] > cfg.expt.span[1]:
+            q_order = [0,1]
+        else:
+            q_order = [1,0]
+
         for i in range(cfg.expt.n_t1):
-            for q in range(len(cfg.expt.qubit)):
-                self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
-            self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag=f"wait_{i}")
+            q = q_order[0]
+            self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
+            q = q_order[1]
+            self.delay_auto(t=cfg.expt[f"wait_time_{q}"] + 0.01, tag=f"wait_{i}")
+            self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
+            self.delay(t = cfg.expt.span[q], tag=f"wait_t1{q}_{i}")
             self.measure(cfg)
             if cfg.expt.active_reset:
                 self.reset(3,1,i)
@@ -99,7 +111,7 @@ class T1Cont2QExperiment(QickExperiment2Q):
             'reps': 1,
             "soft_avgs": self.soft_avgs,
             "wait_time": max([self.cfg.device.qubit.T1[q] for q in qi]),
-            'span': [3.7*self.cfg.device.qubit.T1[q] for q in qi],
+            'span': [self.cfg.device.qubit.T1[q] for q in qi],
             'active_reset': np.all([self.cfg.device.readout.active_reset[q] for q in qi]),
             'final_delay': max([self.cfg.device.qubit.T1[q] for q in qi])*6,
             'readout': max([self.cfg.device.readout.readout_length[q] for q in qi]),
@@ -108,6 +120,9 @@ class T1Cont2QExperiment(QickExperiment2Q):
             'n_t1': 7,
             "qubit": qi,
             "qubit_chan": [self.cfg.hw.soc.adcs.readout.ch[q] for q in qi],
+            'pulse_length': [self.cfg.device.qubit.pulses.pi_ge.sigma[q]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[q] for q in qi],
+            'wait_time_0': 0,
+            'wait_time_1': 0,
         }
 
         self.cfg.expt = {**params_def, **params}
@@ -133,18 +148,18 @@ class T1Cont2QExperiment(QickExperiment2Q):
         current_time = current_time.encode("ascii", "replace")
 
         #pass over the pulse length for each qubit
-        pulse_length0 = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
-        pulse_length1 = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
-        self.cfg.expt.pulse_length_0 = pulse_length0
-        self.cfg.expt.pulse_length_1 = pulse_length1
+        # pulse_length0 = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
+        # pulse_length1 = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+        # self.cfg.expt.pulse_length_0 = pulse_length0
+        # self.cfg.expt.pulse_length_1 = pulse_length1
 
         #pass over the wait time for each qubit for t1 measurements
         span_diff = self.cfg.expt.span[0] - self.cfg.expt.span[1]
         if span_diff > 0:
             self.cfg.expt.wait_time_0 = 0
-            self.cfg.expt.wait_time_1 = np.absolute(span_diff) - pulse_length1
+            self.cfg.expt.wait_time_1 = np.absolute(span_diff) - self.cfg.expt.pulse_length[1]
         else:
-            self.cfg.expt.wait_time_0 = np.absolute(span_diff) - pulse_length0
+            self.cfg.expt.wait_time_0 = np.absolute(span_diff) - self.cfg.expt.pulse_length[0]
             self.cfg.expt.wait_time_1 = 0
         
         iq_list = prog.acquire(
@@ -216,7 +231,8 @@ class T1Cont2QExperiment(QickExperiment2Q):
         pulse_length = pulse_length/1e6
         navg = 100
         nred = int(np.floor(navg/10))
-        m = 0.2  # marker size
+        m = 0.5  # marker size
+        alpha = min(1, 250/(self.cfg.expt.shots)**(2/3))
 
         # Create histograms for both qubits
         if show_hist:
@@ -243,21 +259,23 @@ class T1Cont2QExperiment(QickExperiment2Q):
             for i in range(len(data[f'avgi_e_{q}'])):
             
             # Plot I quadrature
-                axes_raw[q,0].plot(data[f'avgi_e_{q}'][i], 'b.', markersize=m)
-                axes_raw[q,1].plot(data[f'avgq_e_{q}'][i], 'b.', markersize=m)
+                axes_raw[q,0].plot(data[f'avgi_e_{q}'][i], 'b.', markersize=m, alpha = alpha)
+                axes_raw[q,1].plot(data[f'avgq_e_{q}'][i], 'b.', markersize=m, alpha = alpha)
             
             # Plot Q quadrature
             for i in range(len(data[f'avgq_g_{q}'])):
-                axes_raw[q,0].plot(data[f'avgi_g_{q}'][i], 'k.', markersize=m)
-                axes_raw[q,1].plot(data[f'avgq_g_{q}'][i], 'k.', markersize=m)
+                axes_raw[q,0].plot(data[f'avgi_g_{q}'][i], 'k.', markersize=m, alpha = alpha)
+                axes_raw[q,1].plot(data[f'avgq_g_{q}'][i], 'k.', markersize=m, alpha = alpha)
             for i in range(len(data[f'avgi_t1_{q}'])):
-                axes_raw[q,0].plot(data[f'avgi_t1_{q}'][i], 'r.', markersize=m)
-                axes_raw[q,1].plot(data[f'avgq_t1_{q}'][i], 'r.', markersize=m)
+                axes_raw[q,0].plot(data[f'avgi_t1_{q}'][i], 'r.', markersize=m, alpha = alpha)
+                axes_raw[q,1].plot(data[f'avgq_t1_{q}'][i], 'r.', markersize=m, alpha = alpha)
 
             axes_raw[q,0].set_ylabel(f'I (ADC) Q{self.cfg.expt.qubit[q]}')
             axes_raw[q,1].set_ylabel(f'Q (ADC) Q{self.cfg.expt.qubit[q]}')
 
         # Processed data plots for each qubit
+        t1_data_both = []
+
         for q in range(len(self.cfg.expt.qubit)):
             t1_data = data[f'avgi_t1_{q}'].transpose().flatten()
             g_data = data[f'avgi_g_{q}'].transpose().flatten()
@@ -317,18 +335,45 @@ class T1Cont2QExperiment(QickExperiment2Q):
             ax_e = ax_comb.twinx()
             ax_e.plot(times, smoothed_e_data, 'b.-', linewidth=0.1, markersize=m, 
                      label='e Data')
+            ax_e.legend()
             ax_g = ax_comb.twinx()
-            ax_g.plot(times, smoothed_g_data, 'r.-', linewidth=0.1, markersize=m, 
-                     label='g Data')
-            ax_comb.set_title(f'Q{self.cfg.expt.qubit[q]} Combined Data')
+            ax_g.plot(times, smoothed_g_data, 'r.-', linewidth=0.1, 
+            markersize=m,label='g Data')
+            ax_g.legend()
+            ax_comb.set_title(f'Smoothed Offsetted T1 Data Q{self.cfg.expt.qubit[q]}')
+            ax_comb.legend()
+            ax_comb.set_xlabel('Time (s)')
 
+            fig_comb_no_offset, ax_comb_no_offset = plt.subplots(1, 1, figsize=(14, 4))
+            ax_comb_no_offset.plot(times, smoothed_t1_data, 'k.-', linewidth=0.1, markersize=m, 
+                        label='T1 Data', )
+            ax_comb_no_offset.plot(times, smoothed_e_data, 'b.-', linewidth=0.1, markersize=m, 
+                        label='e Data', )
+            ax_comb_no_offset.plot(times, smoothed_g_data, 'r.-', linewidth=0.1, markersize=m, 
+                        label='g Data', )
+            ax_comb_no_offset.legend()
+            ax_comb_no_offset.set_title(f'Smoothed No Offset T1 Data Q{self.cfg.expt.qubit[q]}')
+            ax_comb_no_offset.set_xlabel('Time (s)')
+
+            fig_comb_raw, ax_comb_raw = plt.subplots(1, 1, figsize=(14, 4))
+            ax_comb_raw.plot(np.arange(len(g_data)), g_data,'r.-', linewidth=0.005, markersize=m, label='g Data', alpha = 0.1)
+            ax_comb_raw.plot(np.arange(len(e_data)), e_data,'b.-', linewidth=0.05, markersize=m, label='e Data', alpha = 0.1)
+            ax_comb_raw.plot(np.arange(len(t1_data)), t1_data,'k.-', linewidth=0.05, markersize=m, label='T1 Data', alpha = 0.1)
+            ax_comb_raw.legend()
+            ax_comb_raw.set_title(f'Raw T1 Data Q{self.cfg.expt.qubit[q]}')
+            ax_comb_raw.set_xlabel('npts')
+            date_time = datetime.now().strftime("%Y%m%d%H%M")
+            t1_data_both.append(t1_data)
             if savefig:
-                for fig in [fig_proc, fig_t1, fig_comb]:
+                i = 0
+                for fig in [fig_proc, fig_t1, fig_comb, fig_comb_no_offset, fig_comb_raw]:
                     fig.tight_layout()
                     imname = self.fname.split("\\")[-1]
                     fig.savefig(
-                        self.fname[0 : -len(imname)] + f"images\\{imname[0:-3]}_Q{self.cfg.expt.qubit[q]}.png"
+                        self.fname[0 : -len(imname)] + f"images\\{imname[0:-3]}_Q{self.cfg.expt.qubit[q]}_{date_time}_{i}.png"
                     )
+                    i += 1
+        
 
         plt.show()
 
