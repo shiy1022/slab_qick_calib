@@ -181,8 +181,8 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
 
         ax[0].set_xlabel('I (ADC levels)')
         lgnd=ax[0].legend(loc='lower right')
-        lgnd.legendHandles[0].set_markersize(6)
-        lgnd.legendHandles[1].set_markersize(6)
+        # lgnd.legendHandles[0].set_markersize(6)
+        # lgnd.legendHandles[1].set_markersize(6)
         ax[0].set_title("Angle: {:.2f}$^\circ$".format(theta * 180 / np.pi))
         ax[0].axis("equal")        
 
