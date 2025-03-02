@@ -128,7 +128,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
     #    ax[0].plot(xpts_chi, fitter.hangerS21func_sloped(xpts_chi, *chif.data["fit"]),'k')
 
     imname = rspec.fname.split("\\")[-1]
-    fig.savefig(rspec.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "chi.png")
+    fig.savefig(rspec.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "_chi.png")
     return (
         [chi, rspec],
         chi_val,

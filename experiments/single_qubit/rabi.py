@@ -22,6 +22,7 @@ class RabiProgram(QickProgram):
         q = cfg.expt.qubit[0]
 
         super()._initialize(cfg, readout="standard")
+        self.add_loop("sweep_loop", cfg.expt.expts)
 
         pulse = {
             "sigma": cfg.expt.sigma,
@@ -33,7 +34,7 @@ class RabiProgram(QickProgram):
         }
         super().make_pulse(pulse, "qubit_pulse")
 
-        self.add_loop("sweep_loop", cfg.expt.expts)
+        
         #if cfg.expt.checkEF and cfg.expt.pulse_ge:
         super().make_pi_pulse(q,cfg.device.qubit.f_ge, "pi_ge")
 
@@ -53,17 +54,7 @@ class RabiProgram(QickProgram):
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait ef 2")
         
-
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-        if self.lo_ch is not None:
-            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
-        self.trigger(
-            ros=[self.adc_ch],
-            pins=[0],
-            t=self.trig_offset,
-        )
-        if cfg.expt.active_reset:
-            self.reset(3)
+        super().measure(cfg)
 
     def reset(self, i):
         super().reset(i)
@@ -105,11 +96,12 @@ class RabiExperiment(QickExperiment):
         
         if 'checkEF' in params and params['checkEF']:
             if 'pulse_ge' in params and not params['pulse_ge']:
-                ef = "ef_no_ge"
-            else: ef = "ef"
+                ef = "ef_no_ge_"
+            else: ef = "ef_"
         else: ef= ""
+        name = 'length' if 'sweep' in params and params['sweep'] == 'length' else 'amp'
 
-        prefix = f"amp_rabi_{ef}_qubit{qi}"
+        prefix = f"{name}_rabi_{ef}qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
         params_def = {
@@ -124,6 +116,12 @@ class RabiExperiment(QickExperiment):
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }        
 
+        # Apply style modifications
+        if style == "fine":
+            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+        elif style == "fast":
+            params_def["expts"] = 25    
+
         params = {**params_def, **params}
         
         # Pulse params
@@ -137,20 +135,15 @@ class RabiExperiment(QickExperiment):
             params_def[key] = cfg_qub[key][qi]
         params = {**params_def, **params}
         
-  
         if params["sweep"]=="amp":
             params_def['max_gain'] = params['gain'] * 5
             params_def['start']=0.003 # This is currently the minimum gain value that is linear 
             params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
         elif params["sweep"]=="length":
-            params_def["sigma"] = 5 * params["sigma"]
-            params_def["start"] = 2/430 # Change this to get info from soc 
+            params_def["max_length"] = 5 * params["sigma"]
+            params_def["start"] = 2*cfg_dict['soc'].cycles2us(1)
         
-        if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
-        elif style == "fast":
-            params_def["expts"] = 25
-        elif style == "temp":
+        if style == "temp":
             params["reps"] = 100 * params["reps"]
             params["soft_avgs"] = 40 * params["soft_avgs"]
             params["pulse_ge"] = False
@@ -176,8 +169,14 @@ class RabiExperiment(QickExperiment):
             self.cfg.expt['length'] = self.cfg.expt.sigma * self.cfg.expt.sigma_inc
         elif self.cfg.expt.sweep == "length":
             param_pulse = 'total_length'
-            self.cfg.expt['length'] = QickSweep1D(
-        "sweep_loop", self.cfg.expt.start, self.cfg.expt['sigma']
+            if self.cfg.expt.type == 'gauss':
+                par = 'sigma'
+                self.cfg.expt['length'] = QickSweep1D(
+        "sweep_loop", self.cfg.expt.start, 4*self.cfg.expt['max_length'])
+            else:
+                par = 'length'
+            self.cfg.expt[par] = QickSweep1D(
+        "sweep_loop", self.cfg.expt.start, self.cfg.expt['max_length']
     )
             
         self.param = {"label": "qubit_pulse", "param": param_pulse, "param_type": "pulse"}

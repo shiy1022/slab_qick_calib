@@ -67,7 +67,7 @@ class ToFCalibrationExperiment(QickExperiment):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
         params_def = {
             "soft_avgs": 1000,
-            "readout_length": 3,  # [us]
+            "readout_length": 1,  # [us]
             "trig_offset": self.cfg.device.readout.trig_offset[qi],  # [us]
             "gain": self.cfg.device.readout.max_gain,
             "frequency": self.cfg.device.readout.frequency[qi],  # [MHz]

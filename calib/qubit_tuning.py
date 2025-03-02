@@ -1,12 +1,11 @@
 import experiments as meas
 import config
 import matplotlib.pyplot as plt
-import fitting as fitter
 import numpy as np
-import scipy.constants as cs
-import warnings
 from datetime import datetime
+import os
 from calib import tuneup 
+import time 
 max_t1=500
 max_err = 1
 min_r2 = 0.35
@@ -48,11 +47,8 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
         
         # Amp Rabi 
         amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi, params={'start':0.003})
-        if update:
-            if amp_rabi.status:
-                config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
-                
-
+        if update and amp_rabi.status:
+            config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)               
         
         # Run T1 to get sense of coherence times
         if first_time:
@@ -96,9 +92,9 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
 
         shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
         if update:
-            config.update_readout(cfg_path, 'phase', round(float(shot.data['angle']),3), qi);
-            config.update_readout(cfg_path, 'threshold', round(float(shot.data['thresholds'][0]),4), qi);
-            config.update_readout(cfg_path, 'fidelity', round(float(shot.data['fids'][0]),4), qi);
+            config.update_readout(cfg_path, 'phase', round(shot.data['angle'],3), qi);
+            config.update_readout(cfg_path, 'threshold', shot.data['thresholds'][0], qi);
+            config.update_readout(cfg_path, 'fidelity', shot.data['fids'][0], qi);
             config.update_readout(cfg_path, 'sigma', shot.data['sigma'], qi);
             config.update_readout(cfg_path, 'tm', shot.data['tm'],qi);
 
@@ -123,6 +119,146 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
         #progs = {'amp_rabi':amp_rabi, 't1':t1, 't2r':t2r, 'shot':shot, 'rspec':rspec, 'qspec':qspec, 'chid':chid}
         make_summary_figure(cfg_dict, progs, qi)
 
+def measure_params(qi, cfg_dict, update=True, readout=True,  max_t1=500):
+        cfg_path = cfg_dict['cfg_file']
+        auto_cfg = config.load(cfg_path)
+        err_dict ={}
+        
+        # Resonator spectroscopy 
+        rspec = meas.ResSpec(cfg_dict, qi=qi, params={'span':'kappa'}, display=False, progress=False)
+        if readout and rspec.status: 
+            auto_cfg = config.update_readout(cfg_path, 'frequency', rspec.data['freq_min'], qi, verbose=False)
+        if update and rspec.status:
+            #auto_cfg = config.update_readout(cfg_path, 'qi', rspec.data['fit'][1], qi)
+            #auto_cfg = config.update_readout(cfg_path, 'qe', rspec.data['fit'][2], qi)
+            auto_cfg = config.update_readout(cfg_path, 'kappa', rspec.data['kappa'], qi, rng_vals=[0.03, 10], verbose=False)
+        if not rspec.status:
+            rspec.data['kappa']=np.nan
+            rspec.data['fit']=[np.nan, np.nan, np.nan]
+            print('Resonator spectroscopy failed')
+                
+        # Fine qubit spectroscopy; should prob get rid of this. 
+        #qspec=meas.QubitSpec(cfg_dict, qi=qi, style='fine', params={'span':3,'expts':85,'length':'t1'}, display=False, progress=False)     
+        
+        # Single shot 
+        shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':10000}, display=False, progress=False)
+        if update:
+            config.update_readout(cfg_path, 'phase', round(shot.data['angle'],3), qi, verbose=False);
+            config.update_readout(cfg_path, 'threshold', shot.data['thresholds'][0], qi, verbose=False);
+            config.update_readout(cfg_path, 'fidelity', shot.data['fids'][0], qi, verbose=False);
+            #config.update_readout(cfg_path, 'sigma', shot.data['sigma'], qi);
+            #config.update_readout(cfg_path, 'tm', shot.data['tm'],qi);
+
+        # Amp Rabi
+        amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi, params={'start':0.003}, display=False, progress=False, style='fast')
+        if update and amp_rabi.status:
+            config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi, verbose=False)
+        if not amp_rabi.status:
+            amp_rabi.data['pi_length']=np.nan
+        err_dict['rabi_err']=np.sqrt(amp_rabi.data['fit_err_avgi'][1][1])
+
+        # T2 Ramsey
+        t2r= meas.RamseyExperiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+        if t2r.status and update:
+            config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
+            auto_cfg = config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, rng_vals=[1.5, max_t1], sig=2, verbose=False)
+        if not t2r.status:
+            t2r.display()
+            print(t2r.data['r2'])
+            print(t2r.data['fit_err_par'])
+
+            find_spec(qi, cfg_dict, start="medium")
+        # if np.abs(qspec.data['new_freq']-auto_cfg.device.qubit.f_ge[qi])>0.25 and qspec.status:
+        #     print('Qubit frequency is off spectroscopy by more than 250 kHz, recentering')
+        #     auto_cfg = config.update_qubit(cfg_path, 'f_ge', qspec.data['new_freq'], qi, verbose=False)
+            t2r= meas.RamseyExperiment(cfg_dict, qi=qi, display=False, progress=False)
+            if t2r.status and update:
+                config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
+                auto_cfg = config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, rng_vals=[1.5, max_t1], sig=2, verbose=False)
+                print('Recentered qubit frequency')
+        if not t2r.status:
+            t2r.display()
+            t2r.data['best_fit']=[np.nan, np.nan, np.nan, np.nan]
+            t2r.data['new_freq']=np.nan
+            print('T2 Ramsey failed')
+        err_dict['t2r_err']=np.sqrt(t2r.data['fit_err_avgi'][3][3])
+        err_dict['fge_err']=np.sqrt(t2r.data['fit_err_avgi'][1][1])
+
+        # T1 
+        t1= meas.T1Experiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+        if update and t1.status: 
+            auto_cfg = config.update_readout(cfg_path, 'final_delay', 6*t1.data['new_t1'], qi, sig=2,rng_vals=[1, max_t1], verbose=False)
+            auto_cfg = config.update_qubit(cfg_path, 'T1', t1.data['new_t1_i'], qi,sig=2, rng_vals=[1.5, max_t1*2], verbose=False)
+        if not t1.status:
+            t1.data['new_t1_i']=np.nan
+            t1.display()
+            print('T1 failed')
+        err_dict['t1_err']=np.sqrt(t1.data['fit_err_avgi'][2][2])
+
+        # T2 Echo 
+        t2e= meas.RamseyEchoExperiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+        if update and t2e.status: 
+            auto_cfg = config.update_qubit(cfg_path, 'T2e', t2e.data['best_fit'][3], qi, rng_vals=[1.5, max_t1], sig=2, verbose=False)
+        if not t2e.status:
+            t2e.data['best_fit']=[np.nan, np.nan, np.nan, np.nan]
+            t2e.display()
+            print('T2 Echo failed')
+        err_dict['t2e_err']=np.sqrt(t2e.data['fit_err_avgi'][3][3])
+
+        qubit_dict = {'t1':t1.data['new_t1_i'], 't2r':t2r.data['best_fit'][3], 't2e':t2e.data['best_fit'][3], 'f_ge':t2r.data['new_freq'], 'fidelity':shot.data['fids'][0],'phase':shot.data['angle'], 'kappa':rspec.data['kappa'], 'frequency':rspec.data['freq_min'],'pi_length':amp_rabi.data['pi_length']}
+        qubit_dict.update(err_dict)
+        r2_dict = {'t1_r2':t1.data['r2'], 't2r_r2':t2r.data['r2'], 't2e_r2':t2e.data['r2'], 'rspec_r2':rspec.data['r2'], 'amp_rabi_r2':amp_rabi.data['r2']}
+        qubit_dict.update(r2_dict)
+        # Round all values in qubit_dict to 7 significant figures
+        for key in qubit_dict:
+            if isinstance(qubit_dict[key], (int, float)) and not np.isnan(qubit_dict[key]):
+                qubit_dict[key] = round(qubit_dict[key],7)
+        return qubit_dict
+
+def time_tracking(qubit_list, cfg_dict,total_time=12):
+    base_path = '\\'.join(cfg_dict['expt_path'].split('\\')[:-2])+'\\Tracking\\'
+
+    tracking_path = os.path.join(base_path, f'Tracking_{datetime.now().strftime("%Y_%m_%d_%H_%M")}\\')
+    os.mkdir(tracking_path)
+    os.mkdir(tracking_path + 'images')
+    os.mkdir(tracking_path + 'images\\summary')
+    cfg_dict['expt_path']=tracking_path
+    start_time = time.time()
+    elapsed = 0
+    i=0
+    while elapsed < total_time:
+        for j, qi in enumerate(qubit_list):
+            tm = time.time()
+            elapsed = (tm-start_time)/3600
+            print(f"Starting run {i}, for qubit {qi}. Time elapsed {elapsed:.2f} hrs")
+            d=measure_params(qi,cfg_dict)
+            d['time']=tm 
+            d['elapsed']=elapsed
+            # Store data for this iteration
+            if i == 0:
+                # Initialize storage dictionary for each qubit on first iteration
+                tracking_data = [{key: [] for key in d.keys()} for _ in range(len(qubit_list))]
+            
+            # Append values for each parameter
+            for key, val in d.items():
+                tracking_data[j][key].append(val)
+        i+=1
+        # Save tracking data to CSV files
+        for j, qi in enumerate(qubit_list):
+            csv_path = os.path.join(tracking_path, f'qubit_{qi}_tracking.csv')
+            # Convert tracking data dict to numpy arrays for saving
+            data_arrays = {}
+            for key in tracking_data[j].keys():
+                data_arrays[key] = np.array(tracking_data[j][key])
+            
+            # Create header and data rows
+            header = ','.join(data_arrays.keys())
+            rows = np.vstack(list(data_arrays.values())).T
+            
+            # Save to CSV
+            np.savetxt(csv_path, rows, delimiter=',', header=header, comments='')
+
+    return tracking_data
 
 def make_summary_figure(cfg_dict, progs, qi):    
 
@@ -171,7 +307,6 @@ def make_summary_figure(cfg_dict, progs, qi):
     fname = cfg_dict['expt_path'] + f'images\\summary\\qubit{qi}_tuneup_{datestr}.png'
     print(fname)
     fig.savefig(fname)
-
 
 def chi_fig(ax, qi, progs):
     ax.set_title(f'Chi Measurement Q{qi}')
@@ -231,7 +366,6 @@ def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.25
     else:
         return True, i
     
-
 def get_coherence(
     scan_name,
     qi=0,
@@ -289,12 +423,17 @@ def recenter(
     auto_cfg = config.load(cfg_dict["cfg_file"])
     start_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
     freqs = [start_freq]
-    if style=='coarse':
+    #if style=='coarse':
+    ramsey_freq = np.pi / 2 / auto_cfg.device.qubit.T2r[qi]
+    if ramsey_freq<0.2:
         freq = 0.2 
     else:
-        freq = 0.2
+        freq = ramsey_freq
+    # else:
+    #     freq = 0.2
     params = {'ramsey_freq':freq}
     freq_error = []
+    freq_adjust = 0.7 
 
     i = 0
     err = 1 
@@ -303,21 +442,29 @@ def recenter(
     while i < ntries and err>tol :
         print(f"Try {i}")
         prog = meas.RamseyExperiment(cfg_dict, qi=qi, params=params)
-        if prog.status or prog.data["fit_err_par"][1]<max_err:
+        # If the scan succeeds or if the frequency error is small, update params, calculate new span.  
+        if prog.status or prog.data["fit_err_par"][1]<max_err: 
             freq_error.append(prog.data["f_err"])
             err = np.abs(freq_error[-1])
-            print(f"Scan successful. New f error is {freq_error[-1]:0.3f} MHz")
+            print(f"Scan successful. New frequency error is {freq_error[-1]:0.3f} MHz")
             freqs.append(prog.data["new_freq"])
-            params['ramsey_freq'] = err * 0.7 
-            span = np.pi / np.abs(err * 0.7)
-            span = np.min([span, auto_cfg.device.qubit.T2r[qi]*4])
-            params['span'] = span
+
+            # Set new frequency and span, make sure span is not too large. 
+            params['ramsey_freq'] = err * freq_adjust 
+            span = np.pi / np.abs(err * freq_adjust)
+            params['span'] = np.min([span, auto_cfg.device.qubit.T2r[qi]*4])
+             
             config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
-            if prog.data["fit_err_par"][3]<max_err:
-                config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)
-        elif prog.data['r2']>min_r2 and prog.data['fit_err_par'][3]<0.5:
+            if prog.data["fit_err_par"][3]<max_err: # Update T2r if scan was successful. 
+                config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)        
+        elif prog.data['r2']>min_r2 and prog.data["fit_err_par"][1] > max_err:
+            print('Frequency error too high, increasing frequency')
+            params['ramsey_freq'] = 2*params['ramsey_freq']
+        elif prog.data['r2']>min_r2 and prog.data['fit_err_par'][3]<0.5: # Update T2r if error is low. 
             config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)
-        # elif prog.data["fit_err"] > max_err:
+        
+            #params['span']=auto_cfg.device.qubit.T2r[qi]*3
+        #elif prog.data["fit_err"] > max_err:
         # if prog.data['fit_err_par'][1]<0.5:
             
         #     if params['ramsey_freq'] == 'smart':
@@ -325,11 +472,18 @@ def recenter(
         #         params['ramsey_freq'] = 0.2
         #     else:
         #         print("Fit Error too high, increasing ramsey frequency and span")
-        #         params['ramsey_freq'] = 2*params['ramsey_freq']
-        #         params['span']=auto_cfg.device.qubit.T2r[qi]*1.5
-        else:
+        #        
+        else: # Assume that the qubit is so detuned that Rabi is not working or readout not tuned up. 
             print("Fit failed, trying spectroscopy.")
             qspec=find_spec(qi,cfg_dict,  start='fine')
+            if qspec.status:
+                status = set_up_qubit(qi, cfg_dict)
+                if status:
+                    print('Qubit set up')
+                else:
+                    print('Failed to set up qubit')
+                    i=ntries
+            # Next, really need to do Rabi, then single shot. 
             if style!='giveup':
                 recenter(qi, cfg_dict, style='giveup')
             else:
@@ -351,7 +505,29 @@ def recenter(
         return False
     else:
         return True
-    
+
+def set_up_qubit(qi, cfg_dict):
+    cfg_path = cfg_dict['cfg_file']
+    # Amp Rabi 
+    config.update_readout(cfg_path, 'tuned_up', False, qi);
+    amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi, params={'start':0.003})
+    if amp_rabi.status:
+        config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
+
+    shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})            
+    config.update_readout(cfg_path, 'phase', shot.data['angle'], qi);
+    config.update_readout(cfg_path, 'threshold', shot.data['thresholds'][0], qi);
+    config.update_readout(cfg_path, 'fidelity', shot.data['fids'][0], qi);
+    if shot.data['fids'][0]>0.1:
+        config.update_readout(cfg_path, 'tuned_up', True, qi);
+    else:
+        print('Readout not tuned up')
+    if shot.data['fids'][0]>0.1 and amp_rabi.status:
+        return True
+    else:
+        return False
+
+
 def meas_opt(cfg_dict, qubit_list, params=None, update=True, start_coarse=True):
     if params is None:
         params = {}

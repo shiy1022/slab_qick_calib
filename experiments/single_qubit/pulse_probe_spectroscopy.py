@@ -84,7 +84,8 @@ class QubitSpec(QickExperiment):
         go=True,
         params={},
         prefix="",
-        progress=None,
+        progress=True,
+        display=True,
         style="medium",
         min_r2=None,
         max_err=None,
@@ -146,7 +147,7 @@ class QubitSpec(QickExperiment):
         super().check_params(params_def)
     
         if go:
-            super().run(min_r2=min_r2, max_err=max_err)
+            super().run(min_r2=min_r2, max_err=max_err, display=display, progress=progress)
 
     def acquire(self, progress=False):
         q = self.cfg.expt.qubit[0]

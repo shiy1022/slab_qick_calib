@@ -1,9 +1,12 @@
 import config 
 import numpy as np 
 # Fix me, check clock frequency using soc. 
-def check_freqs(i, cfg_file):
-    auto_cfg = config.load(cfg_file)
-    mirror_freq = 9584.640/2
+def check_freqs(i, cfg_dict):
+    auto_cfg = config.load(cfg_dict['cfg_file'])
+    dac = auto_cfg.hw.dacs.qubit.ch[i]
+    # Get the correct sampling frequency from soc for the DAC channel
+    fs = cfg_dict['soc']._get_ch_cfg(dac)['fs']
+    mirror_freq = fs/2
     print('We mirror around ' + str(mirror_freq))
     freq = auto_cfg.device.qubit.f_ge[i]
     fef = auto_cfg.device.qubit.f_ef[i]
@@ -26,9 +29,13 @@ def check_freqs(i, cfg_file):
     if alt_fef > freq and alt_fef > alt_freq: 
         print('Alt ef is greater than freq and alt freq, so ef is correct choice')
 
-def check_resonances(cfg_file):
-    auto_cfg = config.load(cfg_file)
-    mirror_freq = 9584.640/2
+def check_resonances(cfg_dict):
+    auto_cfg = config.load(cfg_dict['cfg_file'])
+    # Get readout DAC channel 
+    ro_dac = auto_cfg.hw.dacs.readout.ch[0]
+    # Get the correct sampling frequency from soc
+    fs = cfg_dict['soc']._get_ch_cfg(ro_dac)['fs']
+    mirror_freq = fs/2
     print('We mirror around ' + str(mirror_freq))
     freq = np.array(auto_cfg.device.readout.frequency)
     
@@ -37,3 +44,24 @@ def check_resonances(cfg_file):
     alt_freq = mirror_freq - freq_offset
     print('List of mirrored resonator frequencies is:')
     print(alt_freq)
+
+def check_adc(cfg_dict):
+    auto_cfg = config.load(cfg_dict['cfg_file'])
+    nyquist_freq = cfg_dict['soc']._get_ch_cfg(ro_ch=0)['f_dds']/2
+    freq = np.array(auto_cfg.device.readout.frequency)
+    window_size = nyquist_freq/16 # This is true for dynamic readout 
+    # Check if any frequency aliases fall within window around nyquist frequency
+    for i, f in enumerate(freq):
+        n = 0
+        while abs(f - n*nyquist_freq) > nyquist_freq:
+            n += 1
+        
+        alias_dist = abs(f - n*nyquist_freq)
+        if alias_dist < window_size:
+            print(f"Warning: Qubit {i} Frequency {f} MHz aliases to within {alias_dist:.1f} MHz of Nyquist frequency")
+            print(f"Distance to Nyquist zone {n} boundary: {alias_dist:.1f} MHz")
+
+
+    
+
+

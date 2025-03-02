@@ -59,17 +59,7 @@ class RamseyEchoProgram(QickProgram):
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
         self.delay_auto(t=0.01, tag="wait3")
 
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-        if self.lo_ch is not None:
-            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
-        self.trigger(
-            ros=[self.adc_ch],
-            pins=[0],
-            t=self.trig_offset,
-            ddr4=True,
-        )
-        if cfg.expt.active_reset:
-            self.reset(3)
+        super().measure(cfg)
         
 
 
@@ -135,9 +125,10 @@ class RamseyEchoExperiment(QickExperiment):
 
         self.cfg.expt = params
         
+        
+        super().check_params(params_def)
         if self.cfg.expt.active_reset:
             super().configure_reset()
-        super().check_params(params_def)
 
         if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
             disp_kwargs = {'plot_all': True}

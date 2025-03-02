@@ -8,6 +8,7 @@ from gen.qick_program import QickProgram
 import fitting as fitter
 from qick.asm_v2 import QickSweep1D
 
+
 class RamseyProgram(QickProgram):
     def __init__(self, soccfg, final_delay, cfg):
         super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
@@ -17,9 +18,8 @@ class RamseyProgram(QickProgram):
 
         super()._initialize(cfg, readout="standard")
 
-        
         pulse = {
-            "sigma": cfg.expt.sigma/2,
+            "sigma": cfg.expt.sigma / 2,
             "sigma_inc": cfg.expt.sigma_inc,
             "freq": cfg.expt.freq,
             "gain": cfg.expt.gain,
@@ -43,7 +43,7 @@ class RamseyProgram(QickProgram):
             }
             super().make_pulse(pulse, "stark_pulse")
 
-        #if cfg.expt.checkEF:
+        # if cfg.expt.checkEF:
         super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):
@@ -63,7 +63,7 @@ class RamseyProgram(QickProgram):
             self.delay_auto(t=0.025, tag="waiting")
         else:
             self.delay_auto(t=cfg.expt.wait_time, tag="waiting")
-        
+
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
         self.delay_auto(t=0.01, tag="wait")
 
@@ -71,21 +71,11 @@ class RamseyProgram(QickProgram):
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait ef 2")
 
-        
-        if self.lo_ch is not None:
-            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0.01)
-        self.trigger(
-            ros=[self.adc_ch],
-            pins=[0],
-            t=self.trig_offset,
-        )
-        if cfg.expt.active_reset:
-            self.reset(3)
-    
+        super().measure(cfg)
+
     def collect_shots(self, offset=0):
         return super().collect_shots(offset=0)
-    
+
     def reset(self, i):
         super().reset(i)
 
@@ -107,7 +97,7 @@ class RamseyExperiment(QickExperiment):
         max_err=None,
         display=True,
     ):
-        ef='ef_' if 'checkEF' in params and params['checkEF'] else''
+        ef = "ef_" if "checkEF" in params and params["checkEF"] else ""
         prefix = f"ramsey_{ef}qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
@@ -118,16 +108,16 @@ class RamseyExperiment(QickExperiment):
             "soft_avgs": self.soft_avgs,
             "start": 0.1,
             "span": 3 * self.cfg.device.qubit.T2r[qi],
-            "ramsey_freq": 'smart',
+            "ramsey_freq": "smart",
             "acStark": acStark,
             "checkEF": False,
             "checkZZ": False,
-            'active_reset': self.cfg.device.readout.active_reset[qi],
+            "active_reset": self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}
-        if params['checkEF']:
+        if params["checkEF"]:
             cfg_qub = self.cfg.device.qubit.pulses.pi_ef
             params_def["freq"] = self.cfg.device.qubit.f_ef[qi]
         else:
@@ -137,22 +127,30 @@ class RamseyExperiment(QickExperiment):
             params_def[key] = cfg_qub[key][qi]
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
-        
+            if style == "fast":
+                params["ramsey_freq"] = 2 * params["ramsey_freq"]
+
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
         elif style == "fast":
             params_def["expts"] = 30
         params = {**params_def, **params}
         self.cfg.expt = params
-        
+
         super().check_params(params_def)
         if self.cfg.expt.active_reset:
             super().configure_reset()
 
         if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
-            disp_kwargs = {'plot_all': True}
+            disp_kwargs = {"plot_all": True}
         if go:
-            super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err, disp_kwargs=disp_kwargs)
+            super().run(
+                display=display,
+                progress=progress,
+                min_r2=min_r2,
+                max_err=max_err,
+                disp_kwargs=disp_kwargs,
+            )
 
     def acquire(self, progress=False):
 
@@ -253,9 +251,9 @@ class RamseyExperiment(QickExperiment):
 
         caption_params = [
             {"index": 3, "format": "$T_2$ Ramsey : {val:.4} $\pm$ {err:.2g} $\mu$s"},
-            {"index": 1, "format": "Freq. : {val:.3} $\pm$ {err:.1} MHz"},        
+            {"index": 1, "format": "Freq. : {val:.3} $\pm$ {err:.1} MHz"},
         ]
-        
+
         super().display(
             data=data,
             ax=ax,

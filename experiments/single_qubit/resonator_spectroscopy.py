@@ -46,12 +46,11 @@ class ResSpecProgram(QickProgram):
         
         if cfg.expt.pulse_e:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
-            
             if cfg.expt.pulse_f:
                 self.pulse(ch=self.qubit_ch, name="pi_ef", t=0)
             self.delay_auto(t=0.02, tag="waiting")
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-            
+        
+        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)    
         if self.lo_ch is not None:
             self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
         self.trigger(

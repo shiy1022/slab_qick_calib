@@ -189,7 +189,7 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
         # Plot histogram 
         ax[1].set_ylabel("Probability")
         ax[1].set_xlabel("I (ADC levels)")
-        ax[1].legend(loc="upper right")
+        #ax[1].legend(loc="upper right")
         ax[1].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
         ax[1].axvline(thresholds[0], color="0.2", linestyle="--")
         ax[1].plot(data["vhg"], data["histg"], '.-',color=blue, markersize=0.5, linewidth=0.3)
@@ -392,11 +392,13 @@ class HistogramProgram(QickProgram):
         super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
         super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
+        self.delay(0.5) # give the tProc some time for initial setup        
 
     def _body(self, cfg):
 
         cfg = AttrDict(self.cfg)
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        
 
         if cfg.expt.pulse_e:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
@@ -408,7 +410,7 @@ class HistogramProgram(QickProgram):
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
         if self.lo_ch is not None:
             self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
-        self.trigger(ros=[self.adc_ch], pins=[0],t=self.trig_offset)
+        self.trigger(ros=[self.adc_ch], ddr4=True,pins=[0],t=self.trig_offset)
 
         if cfg.expt.active_reset:
             self.reset(7)
@@ -454,7 +456,7 @@ class HistogramExperiment(QickExperiment):
     ):
 
         if prefix is None:
-            prefix = f"single_shot_qubit_{qi}"
+            prefix = f"single_shot_qubit{qi}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
@@ -496,17 +498,34 @@ class HistogramExperiment(QickExperiment):
         cfg.expt.pulse_f = False
 
         histpro = HistogramProgram(soccfg=self.soccfg, final_delay=final_delay, cfg=cfg)
+        #histpro.config_all(self.im[self.cfg.aliases.soc])
+
+
+        n_transfers = 1500000 # each transfer (aka burst) is 256 decimated samplesn_transfers = 100000 # each transfer (aka burst) is 256 decimated samples
+        nt = n_transfers
+        # Arm the buffers
+        #self.soc.arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
+        #cfg.hw.soc.adcs.readout.ch[q]
+        self.im[self.cfg.aliases.soc].arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
+
         iq_list = histpro.acquire(
             self.im[self.cfg.aliases.soc],
             threshold=None,
             load_pulses=True,
             progress=progress,
         )
+        
+
         data["Ig"] = iq_list[0][0][:, 0]
         data["Qg"] = iq_list[0][0][:, 1]
         if self.cfg.expt.active_reset:
             data["Igr"]=iq_list[0][1:,:, 0]
-
+        
+        iq_ddr4 = self.im[self.cfg.aliases.soc].get_ddr4(nt)
+        #iq_ddr4 = self.soc.get_ddr4(100)
+        t = histpro.get_time_axis_ddr4(self.cfg.expt.qubit_chan, iq_ddr4)
+        data['t_g'] = t
+        data['iq_ddr4_g'] = iq_ddr4
         irawg, qrawg = histpro.collect_shots()
         
         rawd = [irawg[-1], qrawg[-1]]
@@ -520,12 +539,18 @@ class HistogramExperiment(QickExperiment):
             histpro = HistogramProgram(
                 soccfg=self.soccfg, final_delay=final_delay, cfg=cfg
             )
+            self.im[self.cfg.aliases.soc].arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
             iq_list = histpro.acquire(
                 self.im[self.cfg.aliases.soc],
                 threshold=None,
                 load_pulses=True,
                 progress=progress,
             )
+            
+            iq_ddr4 = self.im[self.cfg.aliases.soc].get_ddr4(nt)
+            t = histpro.get_time_axis_ddr4(self.cfg.expt.qubit_chan, iq_ddr4)
+            data['t_e'] = t
+            data['iq_ddr4_e'] = iq_ddr4
 
             data["Ie"] = iq_list[0][0][:, 0]
             data["Qe"] = iq_list[0][0][:, 1]
