@@ -47,9 +47,11 @@ def check_resonances(cfg_dict):
 
 def check_adc(cfg_dict):
     auto_cfg = config.load(cfg_dict['cfg_file'])
-    nyquist_freq = cfg_dict['soc']._get_ch_cfg(ro_ch=0)['f_dds']/2
+    fs= cfg_dict['soc']._get_ch_cfg(ro_ch=0)['fs']
+    nyquist_freq = fs/2
     freq = np.array(auto_cfg.device.readout.frequency)
-    window_size = nyquist_freq/16 # This is true for dynamic readout 
+    window_size = fs/16 # This is true for dynamic readout 
+    #print(window_size)
     # Check if any frequency aliases fall within window around nyquist frequency
     for i, f in enumerate(freq):
         n = 0
@@ -57,6 +59,7 @@ def check_adc(cfg_dict):
             n += 1
         
         alias_dist = abs(f - n*nyquist_freq)
+        #print(alias_dist)
         if alias_dist < window_size:
             print(f"Warning: Qubit {i} Frequency {f} MHz aliases to within {alias_dist:.1f} MHz of Nyquist frequency")
             print(f"Distance to Nyquist zone {n} boundary: {alias_dist:.1f} MHz")

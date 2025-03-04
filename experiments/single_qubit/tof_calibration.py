@@ -35,7 +35,6 @@ class LoopbackProgram(QickProgram):
             ros=[self.adc_ch],
             pins=[0],
             t=0,
-            ddr4=True,
         )
 
 # ====================================================== #

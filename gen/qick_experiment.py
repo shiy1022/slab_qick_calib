@@ -114,6 +114,7 @@ class QickExperiment(Experiment):
             final_delay=final_delay,
             cfg=self.cfg,
         )
+        #print(prog)
 
         # Record start time
         now = datetime.now()
@@ -206,8 +207,6 @@ class QickExperiment(Experiment):
             self.scale_ge()
             ydata_lab.append("scale_data")
 
-        
-
         # Perform fits on each data set (amplitude, I, Q)
         for i, ydata in enumerate(ydata_lab):   
             # Use standard curve_fit via fitterfunc
@@ -238,7 +237,7 @@ class QickExperiment(Experiment):
 
         # Calculate relative parameter errors
         data["fit_err_par"] = np.sqrt(np.diag(fit_err)) / fit_pars
-        fit_err = np.mean(np.abs(np.sqrt(np.diag(fit_err)) / fit_pars))
+        fit_err = np.mean(np.abs(data["fit_err_par"]))
         data["fit_err"] = fit_err
 
         # Print fit quality metrics
@@ -247,82 +246,7 @@ class QickExperiment(Experiment):
 
         return data
 
-    def _fit_with_lmfit(self, fitfunc, xdata, ydata, p0=None, **kwargs):
-        """
-        Perform curve fitting using lmfit.
-
-        This method creates an lmfit Model from the provided function and
-        fits it to the data using the provided initial parameters.
-
-        Args:
-            fitfunc: Function to fit data to (e.g., exponential decay)
-            xdata: X-axis data points
-            ydata: Y-axis data points
-            p0: Initial parameter values (optional)
-            **kwargs: Additional arguments passed to lmfit.Model.fit()
-
-        Returns:
-            lmfit.ModelResult object containing fit results
-        """
-        if not LMFIT_AVAILABLE:
-            raise ImportError("lmfit package is required for this method")
-
-        # Create lmfit Model from the function
-        model = lmfit.Model(fitfunc)
-
-        # Get parameter names from function signature
-        import inspect
-
-        param_names = inspect.signature(fitfunc).parameters.keys()
-        param_names = list(param_names)[1:]  # Skip first parameter (x)
-
-        # Create initial parameters
-        params = model.make_params()
-
-        # Set initial values if provided
-        if p0 is not None:
-            for i, name in enumerate(param_names):
-                if i < len(p0):
-                    params[name].set(value=p0[i])
-
-        # Perform the fit
-        result = model.fit(ydata, params, x=xdata, **kwargs)
-
-        return result
-
-    def _create_lmfit_fitter(self, fitfunc):
-        """
-        Create a wrapper function that uses lmfit for fitting.
-
-        This method creates a function that can be used as a drop-in replacement
-        for fitterfunc, but uses lmfit internally for the fitting.
-
-        Args:
-            fitfunc: Function to fit data to (e.g., exponential decay)
-
-        Returns:
-            Function that performs fitting using lmfit
-        """
-
-        def lmfit_fitter(xdata, ydata, fitparams=None):
-            # Use lmfit to fit the data
-            result = self._fit_with_lmfit(fitfunc, xdata, ydata, p0=fitparams)
-
-            # Extract parameters and errors from lmfit result
-            fit_pars = np.array(list(result.params.valuesdict().values()))
-
-            # Create covariance matrix
-            fit_err = np.zeros((len(fit_pars), len(fit_pars)))
-            if result.covar is not None:
-                for i, name_i in enumerate(result.params):
-                    for j, name_j in enumerate(result.params):
-                        if i < len(result.covar) and j < len(result.covar):
-                            fit_err[i, j] = result.covar[i, j]
-
-            # Return in the same format as expected from fitterfunc
-            return fit_pars, fit_err, fit_pars  # Using fit_pars as initial guess
-
-        return lmfit_fitter
+    
 
     def display(
         self,
@@ -434,7 +358,7 @@ class QickExperiment(Experiment):
 
             # Show initial guess if in debug mode
             if debug:
-                pinit = data["init_guess_" + ydata]
+                pinit = data["fit_init_" + ydata]
                 print(pinit)
                 ax[i].plot(
                     data["xpts"], fitfunc(data["xpts"], *pinit), label="Initial Guess"

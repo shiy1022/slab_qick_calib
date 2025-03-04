@@ -100,7 +100,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
 
         # Once readout tuned and qubit centered, get all the coherences. 
         # Run Ramsey for coherence 
-        t2r= get_coherence(meas.RamseyExperiment, qi, cfg_dict,par='T2r')
+        t2r= get_coherence(meas.T2Experiment, qi, cfg_dict,par='T2r')
 
         # Run T1 
         t1= get_coherence(meas.T1Experiment, qi, cfg_dict,par='T1')
@@ -109,7 +109,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
 
 
         # Run T2 Echo 
-        t2e= get_coherence(meas.RamseyEchoExperiment, qi, cfg_dict,par='T2e')
+        t2e= get_coherence(meas.T2Experiment, qi, cfg_dict,par='T2e')
         #t2e= get_coherence(meas.RamseyEchoExperiment, qi, cfg_dict,par='T2e')
 
         # Run chi 
@@ -155,15 +155,16 @@ def measure_params(qi, cfg_dict, update=True, readout=True,  max_t1=500):
             config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi, verbose=False)
         if not amp_rabi.status:
             amp_rabi.data['pi_length']=np.nan
+            print('Amp Rabi failed')
         err_dict['rabi_err']=np.sqrt(amp_rabi.data['fit_err_avgi'][1][1])
 
         # T2 Ramsey
-        t2r= meas.RamseyExperiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+        t2r= meas.T2Experiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
         if t2r.status and update:
             config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
             auto_cfg = config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, rng_vals=[1.5, max_t1], sig=2, verbose=False)
         if not t2r.status:
-            t2r.display()
+            t2r.display(debug=True)
             print(t2r.data['r2'])
             print(t2r.data['fit_err_par'])
 
@@ -171,13 +172,13 @@ def measure_params(qi, cfg_dict, update=True, readout=True,  max_t1=500):
         # if np.abs(qspec.data['new_freq']-auto_cfg.device.qubit.f_ge[qi])>0.25 and qspec.status:
         #     print('Qubit frequency is off spectroscopy by more than 250 kHz, recentering')
         #     auto_cfg = config.update_qubit(cfg_path, 'f_ge', qspec.data['new_freq'], qi, verbose=False)
-            t2r= meas.RamseyExperiment(cfg_dict, qi=qi, display=False, progress=False)
+            t2r= meas.T2Experiment(cfg_dict, qi=qi, display=False, progress=False)
             if t2r.status and update:
                 config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
                 auto_cfg = config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, rng_vals=[1.5, max_t1], sig=2, verbose=False)
                 print('Recentered qubit frequency')
         if not t2r.status:
-            t2r.display()
+            t2r.display(debug=True)
             t2r.data['best_fit']=[np.nan, np.nan, np.nan, np.nan]
             t2r.data['new_freq']=np.nan
             print('T2 Ramsey failed')
@@ -196,7 +197,7 @@ def measure_params(qi, cfg_dict, update=True, readout=True,  max_t1=500):
         err_dict['t1_err']=np.sqrt(t1.data['fit_err_avgi'][2][2])
 
         # T2 Echo 
-        t2e= meas.RamseyEchoExperiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+        t2e= meas.T2Experiment(cfg_dict, qi=qi, display=False, progress=False, params={'experiment_type':'echo'}, style='fast')
         if update and t2e.status: 
             auto_cfg = config.update_qubit(cfg_path, 'T2e', t2e.data['best_fit'][3], qi, rng_vals=[1.5, max_t1], sig=2, verbose=False)
         if not t2e.status:
@@ -441,7 +442,7 @@ def recenter(
     ntries = 3
     while i < ntries and err>tol :
         print(f"Try {i}")
-        prog = meas.RamseyExperiment(cfg_dict, qi=qi, params=params)
+        prog = meas.T2Experiment(cfg_dict, qi=qi, params=params)
         # If the scan succeeds or if the frequency error is small, update params, calculate new span.  
         if prog.status or prog.data["fit_err_par"][1]<max_err: 
             freq_error.append(prog.data["f_err"])
@@ -499,7 +500,10 @@ def recenter(
     print(freq_error)
     auto_cfg = config.load(cfg_dict["cfg_file"])
     end_freq = auto_cfg["device"]["qubit"]["f_ge"][qi]
-    print(f"Qubit {qi} recentered from {start_freq} to {end_freq}")
+    if err<tol:
+        print(f"Qubit {qi} recentered from {start_freq} to {end_freq}")
+    else:
+        print(f"Qubit {qi} failed to recenter from {start_freq} to {end_freq}")
 
     if i == ntries:
         return False

@@ -204,7 +204,7 @@ class T2Experiment(QickExperiment):
                 disp_kwargs=disp_kwargs,
             )
 
-    def acquire(self, progress=False, debug=False):
+    def acquire(self, progress=False):
         self.param = {"label": "wait", "param": "t", "param_type": "time"}
         self.cfg.expt.wait_time = QickSweep1D(
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
@@ -216,19 +216,22 @@ class T2Experiment(QickExperiment):
 
         return self.data
 
-    def analyze(self, data=None, fit=True, fit_twofreq=False, debug=False, **kwargs):
+    def analyze(self, data=None, fit=True, fit_twofreq=False, **kwargs):
         if data is None:
             data = self.data
 
         if fit:
             fitfunc = fitter.decayslopesin
             fitterfunc = fitter.fitdecayslopesin
+            # yscale, freq, phase_deg, decay, y0, slope
 
             if fit_twofreq and self.cfg.expt.experiment_type == "ramsey":
                 fitterfunc = fitter.fittwofreq_decaysin
                 fitfunc = fitter.twofreq_decaysin
 
             super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, **kwargs)
+            inds = np.arange(5)
+            data["fit_err"] = np.mean(np.abs(data["fit_err_par"][inds]))
 
             ydata_lab = ["amps", "avgi", "avgq"]
             for i, ydata in enumerate(ydata_lab):
@@ -330,6 +333,7 @@ class T2Experiment(QickExperiment):
             title=title,
             xlabel=xlabel,
             fit=fit,
+            debug=debug,
             show_hist=show_hist,
             fitfunc=fitfunc,
             caption_params=caption_params,

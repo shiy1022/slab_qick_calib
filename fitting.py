@@ -105,7 +105,8 @@ def fitexp(xdata, ydata, fitparams=None):
         pOpt, pCov = sp.optimize.curve_fit(expfunc, xdata, ydata, p0=fitparams)
         # return pOpt, pCov
     except RuntimeError: 
-        print('Warning: fit failed!')
+        print('Warning: fit exponential failed!')
+        print(fitparams)
         pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov, fitparams
@@ -162,7 +163,7 @@ def fitsin(xdata, ydata, fitparams=None, debug=False):
         pOpt, pCov = sp.optimize.curve_fit(sinfunc, xdata, ydata, p0=fitparams, bounds=bounds)
         # return pOpt, pCov
     except RuntimeError: 
-        print('Warning: fit failed!')
+        print('Warning: fit sin failed!')
         pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov, fitparams 
@@ -221,7 +222,7 @@ def decayslopesin(x, *p):
     return yscale * (np.sin(2*np.pi*freq*x + phase_deg*np.pi/180)+slope) * np.exp(-(x-x0)/decay) + y0
 
 def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
-    # yscale, freq, phase_deg, decay, y0
+    # yscale, freq, phase_deg, decay, y0, slope
     
     if fitparams is None: fitparams = [None]*6
     max_freq, max_phase = fourier_init(xdata, ydata, debug)
@@ -229,8 +230,8 @@ def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
     if fitparams[0] is None: fitparams[0]=max(ydata)-min(ydata)
     if fitparams[1] is None: fitparams[1]=max_freq
     # if fitparams[2] is None: fitparams[2]=0
-    if fitparams[2] is None: fitparams[2]=max_phase*180/np.pi
-    if fitparams[3] is None: fitparams[3]=max(xdata) - min(xdata)
+    if fitparams[2] is None: fitparams[2]=max_phase*180/np.pi+90
+    if fitparams[3] is None: fitparams[3]=(max(xdata) - min(xdata))/4
     if fitparams[4] is None: fitparams[4]=np.mean(ydata)
     if fitparams[5] is None: fitparams[5]=0
     bounds = (
@@ -252,7 +253,7 @@ def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
             fitparams[2]=-fitparams[2]
             pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
         except:
-            print('Warning: fit failed!')
+            print('Warning: fit decaying sine failed!')
             pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov, fitparams
@@ -389,7 +390,7 @@ def fithanger(xdata, ydata, fitparams=None):
         pOpt[0]=pOpt[0]
         # return pOpt, pCov
     except RuntimeError: 
-        print('Warning: fit failed!')
+        print('Warning: fit hanger failed!')
         traceback.print_exc()
     #    pOpt = [np.nan]*len(pOpt)
         # return 0, 0

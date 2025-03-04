@@ -33,7 +33,6 @@ class RamseyStarkExperiment(QickExperiment):
         params={},
         prefix=None,
         progress=None,
-        acStark=True,
         style="",
         min_r2=None,
         max_err=None,
@@ -67,7 +66,7 @@ class RamseyStarkExperiment(QickExperiment):
             cfg_qub = self.cfg.device.qubit.pulses.pi_ge
             params_def["freq"] = self.cfg.device.qubit.f_ge[qi]
         for key in cfg_qub:
-            params_def[key] = self.cfg.device.qubit.pulses.pi_ef[key][qi]
+            params_def[key] = cfg_qub[key][qi]
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
         
@@ -106,7 +105,7 @@ class RamseyStarkExperiment(QickExperiment):
         return self.data
 
     def display(
-        self, data=None, fit=True, debug=False, plot_all=False, ax=None, show_hist=False, **kwargs
+        self, data=None, fit=True, debug=False, plot_all=False, ax=None, show_hist=True, **kwargs
     ):
         qubit = self.cfg.expt.qubit[0]
         df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge[qubit]
@@ -171,7 +170,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         progress=False,
         style="",
         min_r2=None,
-        acStark=True,
         max_err=None,
     ):
 
@@ -189,7 +187,7 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
             "start_gain": 0.15,
             "qubit": [qi],
         }
-        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params, acStark=acStark)
+        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params

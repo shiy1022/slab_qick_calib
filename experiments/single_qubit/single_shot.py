@@ -472,6 +472,7 @@ class HistogramExperiment(QickExperiment):
             check_f=check_f,
             qubit=[qi],
             qubit_chan=self.cfg.hw.soc.adcs.readout.ch[qi],
+            ddr4 = False,
         )
         
         self.cfg.expt = {**params_def, **params}
@@ -500,13 +501,13 @@ class HistogramExperiment(QickExperiment):
         histpro = HistogramProgram(soccfg=self.soccfg, final_delay=final_delay, cfg=cfg)
         #histpro.config_all(self.im[self.cfg.aliases.soc])
 
-
-        n_transfers = 1500000 # each transfer (aka burst) is 256 decimated samplesn_transfers = 100000 # each transfer (aka burst) is 256 decimated samples
-        nt = n_transfers
-        # Arm the buffers
-        #self.soc.arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
-        #cfg.hw.soc.adcs.readout.ch[q]
-        self.im[self.cfg.aliases.soc].arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
+        if self.cfg.expt.ddr4:
+            n_transfers = 1500000 # each transfer (aka burst) is 256 decimated samplesn_transfers = 100000 # each transfer (aka burst) is 256 decimated samples
+            nt = n_transfers
+            # Arm the buffers
+            #self.soc.arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
+            #cfg.hw.soc.adcs.readout.ch[q]
+            self.im[self.cfg.aliases.soc].arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
 
         iq_list = histpro.acquire(
             self.im[self.cfg.aliases.soc],
@@ -521,11 +522,12 @@ class HistogramExperiment(QickExperiment):
         if self.cfg.expt.active_reset:
             data["Igr"]=iq_list[0][1:,:, 0]
         
-        iq_ddr4 = self.im[self.cfg.aliases.soc].get_ddr4(nt)
-        #iq_ddr4 = self.soc.get_ddr4(100)
-        t = histpro.get_time_axis_ddr4(self.cfg.expt.qubit_chan, iq_ddr4)
-        data['t_g'] = t
-        data['iq_ddr4_g'] = iq_ddr4
+        if self.cfg.expt.ddr4:
+            iq_ddr4 = self.im[self.cfg.aliases.soc].get_ddr4(nt)
+            #iq_ddr4 = self.soc.get_ddr4(100)
+            t = histpro.get_time_axis_ddr4(self.cfg.expt.qubit_chan, iq_ddr4)
+            data['t_g'] = t
+            data['iq_ddr4_g'] = iq_ddr4
         irawg, qrawg = histpro.collect_shots()
         
         rawd = [irawg[-1], qrawg[-1]]
@@ -539,18 +541,19 @@ class HistogramExperiment(QickExperiment):
             histpro = HistogramProgram(
                 soccfg=self.soccfg, final_delay=final_delay, cfg=cfg
             )
-            self.im[self.cfg.aliases.soc].arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
+            if self.cfg.expt.ddr4:
+                self.im[self.cfg.aliases.soc].arm_ddr4(ch=self.cfg.expt.qubit_chan, nt=n_transfers)
             iq_list = histpro.acquire(
                 self.im[self.cfg.aliases.soc],
                 threshold=None,
                 load_pulses=True,
                 progress=progress,
             )
-            
-            iq_ddr4 = self.im[self.cfg.aliases.soc].get_ddr4(nt)
-            t = histpro.get_time_axis_ddr4(self.cfg.expt.qubit_chan, iq_ddr4)
-            data['t_e'] = t
-            data['iq_ddr4_e'] = iq_ddr4
+            if self.cfg.expt.ddr4:
+                iq_ddr4 = self.im[self.cfg.aliases.soc].get_ddr4(nt)
+                t = histpro.get_time_axis_ddr4(self.cfg.expt.qubit_chan, iq_ddr4)
+                data['t_e'] = t
+                data['iq_ddr4_e'] = iq_ddr4
 
             data["Ie"] = iq_list[0][0][:, 0]
             data["Qe"] = iq_list[0][0][:, 1]
@@ -957,7 +960,7 @@ class SingleShotOptExperiment(QickExperiment):
             self.data[key] = np.array(self.data[key])
         return self.data
 
-    def analyze(self, data=None, **kwargs):
+    def analyze(self, data=None, low_gain=True, **kwargs):
         if data == None:
             data = self.data
         fid = data["fid"]
@@ -968,11 +971,31 @@ class SingleShotOptExperiment(QickExperiment):
         lenpts = data["lenpts"]
 
         imax = np.unravel_index(np.argmax(fid), shape=fid.shape)
-
-        print(f"Max fidelity {100*fid[imax]:.3f} %")
+        perc_fid = 0.95 
+        max_fid = np.max(fid)
+        print(f"Max fidelity {100*max_fid:.3f} %")
+        
         print(
-            f"Set params: \n angle (deg) {-angle[imax]:.3f} \n threshold {threshold[imax]:.3f} \n freq [MHz] {fpts[imax[0]]:.3f} \n Gain [DAC units] {gainpts[imax[1]]:.3f} \n readout length [us] {lenpts[imax[2]]:.3f}"
-        )
+                f"Optimal params: \n Freq (MHz) {fpts[imax[0]]:.3f} \n Gain (DAC units) {gainpts[imax[1]]:.3f} \n Readout length (us) {lenpts[imax[2]]:.3f}"
+            )
+       
+        if low_gain:
+            min_accept = max_fid * perc_fid
+            
+            # Find values above threshold
+            above_threshold = fid >= min_accept
+        
+            # For each row, get first index that's above threshold
+            gain_indices = np.where(above_threshold[0])[0]
+            time_indices = np.where(above_threshold[0])[1]
+            
+            # Get the first occurrence
+            imax = (0,gain_indices[0], time_indices[0])
+            print(f'Set fidelity: {100*fid[imax]:.3f} %')
+            print(
+                f"Set params: \n Freq (MHz) {fpts[imax[0]]:.3f} \n Gain (DAC units) {gainpts[imax[1]]:.3f} \n Readout length (us) {lenpts[imax[2]]:.3f}"
+            )
+            
         self.data["freq"] = fpts[imax[0]]
         self.data["gain"] = gainpts[imax[1]]
         self.data["length"] = lenpts[imax[2]]
