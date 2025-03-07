@@ -216,7 +216,7 @@ class T2Experiment(QickExperiment):
 
         return self.data
 
-    def analyze(self, data=None, fit=True, fit_twofreq=False, **kwargs):
+    def analyze(self, data=None, fit=True, fit_twofreq=False, verbose=True, **kwargs):
         if data is None:
             data = self.data
 
@@ -269,7 +269,7 @@ class T2Experiment(QickExperiment):
             else:
                 f_pi_test = self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]
 
-            if self.cfg.expt.experiment_type == "ramsey":
+            if self.cfg.expt.experiment_type == "ramsey" and verbose:
                 print(
                     f"Possible errors are {t2r_adjust[0]:.3f} and {t2r_adjust[1]:.3f} for Ramsey frequency {self.cfg.expt.ramsey_freq:.3f} MHz"
                 )

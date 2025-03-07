@@ -105,7 +105,7 @@ def fitexp(xdata, ydata, fitparams=None):
         pOpt, pCov = sp.optimize.curve_fit(expfunc, xdata, ydata, p0=fitparams)
         # return pOpt, pCov
     except RuntimeError: 
-        print('Warning: fit exponential failed!')
+        print('Warning: Fit exponential failed!')
         print(fitparams)
         pOpt = [np.nan]*len(pOpt)
         # return 0, 0
@@ -223,7 +223,7 @@ def decayslopesin(x, *p):
 
 def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
     # yscale, freq, phase_deg, decay, y0, slope
-    
+    debug=True
     if fitparams is None: fitparams = [None]*6
     max_freq, max_phase = fourier_init(xdata, ydata, debug)
 
@@ -249,8 +249,9 @@ def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
         pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
         # return pOpt, pCov
     except RuntimeError: 
+        print('Warning: fit decaying sine failed! Refitting with phase -90')
         try: 
-            fitparams[2]=-fitparams[2]
+            fitparams[2]=fitparams[2]-90
             pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
         except:
             print('Warning: fit decaying sine failed!')

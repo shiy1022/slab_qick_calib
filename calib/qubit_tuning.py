@@ -202,7 +202,7 @@ def measure_params(qi, cfg_dict, update=True, readout=True,  max_t1=500):
             auto_cfg = config.update_qubit(cfg_path, 'T2e', t2e.data['best_fit'][3], qi, rng_vals=[1.5, max_t1], sig=2, verbose=False)
         if not t2e.status:
             t2e.data['best_fit']=[np.nan, np.nan, np.nan, np.nan]
-            t2e.display()
+            t2e.display(debug=True)
             print('T2 Echo failed')
         err_dict['t2e_err']=np.sqrt(t2e.data['fit_err_avgi'][3][3])
 
@@ -222,7 +222,6 @@ def time_tracking(qubit_list, cfg_dict,total_time=12):
     tracking_path = os.path.join(base_path, f'Tracking_{datetime.now().strftime("%Y_%m_%d_%H_%M")}\\')
     os.mkdir(tracking_path)
     os.mkdir(tracking_path + 'images')
-    os.mkdir(tracking_path + 'images\\summary')
     cfg_dict['expt_path']=tracking_path
     start_time = time.time()
     elapsed = 0
@@ -259,7 +258,7 @@ def time_tracking(qubit_list, cfg_dict,total_time=12):
             # Save to CSV
             np.savetxt(csv_path, rows, delimiter=',', header=header, comments='')
 
-    return tracking_data
+    return tracking_data, tracking_path
 
 def make_summary_figure(cfg_dict, progs, qi):    
 
@@ -381,6 +380,9 @@ def get_coherence(
     # For t1, t2r, t2e
     if params is None: 
         params = {}
+    if par == 'T2e':
+        params['experiment_type'] = 'echo'
+        
     err = 2 * tol
     print(params)
     auto_cfg = config.load(cfg_dict["cfg_file"])

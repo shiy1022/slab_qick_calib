@@ -156,7 +156,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         stark_freq (float): Stark frequency.
         checkZZ (bool): Flag to check ZZ interaction.
         checkEF (bool): Flag to check EF interaction.
-        acStark (bool): Flag to enable AC Stark effect.
         qubit_chan (int): Qubit channel for readout.
     """
 
@@ -286,7 +285,6 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         stark_freq (float): Stark frequency.
         checkZZ (bool): Flag to check ZZ interaction.
         checkEF (bool): Flag to check EF interaction.
-        acStark (bool): Flag to enable AC Stark effect.
         qubit_chan (int): Qubit channel for readout.
     """
 
@@ -300,7 +298,6 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         progress=False,
         style="",
         min_r2=None,
-        acStark=True,
         max_err=None,
     ):
 
@@ -318,7 +315,7 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
             "start_df": 5,
             "qubit": [qi],
         }
-        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params, acStark=acStark)
+        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params)
         params = {**params_def, **params}
         params['start_freq'] = self.cfg.device.qubit.f_ge[qi] + params['start_df']
         params['end_freq'] = self.cfg.device.qubit.f_ge[qi] + params['end_df']
