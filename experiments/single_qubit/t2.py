@@ -216,7 +216,7 @@ class T2Experiment(QickExperiment):
 
         return self.data
 
-    def analyze(self, data=None, fit=True, fit_twofreq=False, verbose=True, **kwargs):
+    def analyze(self, data=None, fit=True, fit_twofreq=False, verbose=False, **kwargs):
         if data is None:
             data = self.data
 

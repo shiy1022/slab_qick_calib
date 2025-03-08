@@ -217,13 +217,15 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
 
 def decayslopesin(x, *p):
     yscale, freq, phase_deg, decay, y0, slope = p
-    x0 = -(phase_deg+180)/360/freq
-    # x0 = 0
+    x0 = -(90)/360/freq
+    
+    # This should be centered on the x-y axis of bloch sphere, 
     return yscale * (np.sin(2*np.pi*freq*x + phase_deg*np.pi/180)+slope) * np.exp(-(x-x0)/decay) + y0
+
 
 def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
     # yscale, freq, phase_deg, decay, y0, slope
-    debug=True
+    
     if fitparams is None: fitparams = [None]*6
     max_freq, max_phase = fourier_init(xdata, ydata, debug)
 
@@ -250,6 +252,8 @@ def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit decaying sine failed! Refitting with phase -90')
+        print(fitparams)
+        print(max_phase)
         try: 
             fitparams[2]=fitparams[2]-90
             pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
@@ -273,13 +277,20 @@ def fourier_init(xdata, ydata, debug):
         max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-2])[0][0]
     max_freq = np.abs(fft_freqs[max_ind])
     max_phase = fft_phases[max_ind]
+    
     if debug:
         import matplotlib.pyplot as plt
-        plt.figure()
-        fourier[np.argmax(np.abs(fourier))] = np.nan
-        plt.plot(fft_freqs, fourier,'.')
-        plt.xlim(left=0)
-        #plt.plot(fourier, fft_phases,'.')
+        fig, ax = plt.subplots(2,1, sharex=True, figsize=(10,8))
+        max_ind2 = np.argmax(np.abs(fourier)) # the 0 freq value
+        fourier[max_ind2] = np.nan
+        fft_phases[max_ind2] = np.nan
+        ax[0].plot(fft_freqs, np.abs(fourier),'.')
+        ax[1].set_xlabel('Frequency (MHz)')
+        ax[0].set_ylabel('Amplitude')
+
+        ax[0].set_xlim(left=0)
+        ax[1].plot(fft_freqs,fft_phases, '.')
+        ax[1].set_ylabel('Phase (rad)')
 
         print('Max phase is ' + str(max_phase))
         print('Max freq is ' + str(max_freq))
