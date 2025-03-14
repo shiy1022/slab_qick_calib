@@ -157,7 +157,7 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
             axs[1,1].semilogy(bin_cent, ng, color=blue)
             bin_cent = (binse[1:] + binse[:-1]) / 2
             axs[1,1].semilogy(bin_cent, ne, color=red)
-            
+            axs[1,1].set_title('Log Histogram')
             axs[1, 1].set_xlabel("I (ADC levels)")
             axs[0, 0].set_xlabel("I (ADC levels)")
 

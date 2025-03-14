@@ -218,10 +218,10 @@ def measure_params(qi, cfg_dict, update=True, readout=True,  max_t1=500):
 
 def time_tracking(qubit_list, cfg_dict,total_time=12):
     base_path = '\\'.join(cfg_dict['expt_path'].split('\\')[:-2])+'\\Tracking\\'
-
-    tracking_path = os.path.join(base_path, f'Tracking_{datetime.now().strftime("%Y_%m_%d_%H_%M")}\\')
+    tracking_id = f'{total_time:.1f}hrs_{datetime.now().strftime("%Y_%m_%d_%H_%M")}'
+    tracking_path = os.path.join(base_path, tracking_id)
     os.mkdir(tracking_path)
-    os.mkdir(tracking_path + 'images')
+    os.mkdir(os.path.join(tracking_path,'images'))
     cfg_dict['expt_path']=tracking_path
     start_time = time.time()
     elapsed = 0
@@ -245,7 +245,7 @@ def time_tracking(qubit_list, cfg_dict,total_time=12):
         i+=1
         # Save tracking data to CSV files
         for j, qi in enumerate(qubit_list):
-            csv_path = os.path.join(tracking_path, f'qubit_{qi}_tracking.csv')
+            csv_path = os.path.join(base_path,'csv', f'{tracking_id}_qubit_{qi}_tracking.csv')
             # Convert tracking data dict to numpy arrays for saving
             data_arrays = {}
             for key in tracking_data[j].keys():
@@ -384,7 +384,7 @@ def get_coherence(
         params['experiment_type'] = 'echo'
         
     err = 2 * tol
-    print(params)
+    #print(params)
     auto_cfg = config.load(cfg_dict["cfg_file"])
     old_par = auto_cfg["device"]["qubit"][par][qi]
     i = 0
@@ -453,8 +453,10 @@ def recenter(
             freqs.append(prog.data["new_freq"])
 
             # Set new frequency and span, make sure span is not too large. 
-            params['ramsey_freq'] = err * freq_adjust 
-            span = np.pi / np.abs(err * freq_adjust)
+            new_ramsey = err * freq_adjust 
+            smart_ramsey = 1/8/auto_cfg.device.qubit.T2r[qi]
+            params['ramsey_freq'] = np.max([new_ramsey, smart_ramsey])
+            span = np.pi / params['ramsey_freq']
             params['span'] = np.min([span, auto_cfg.device.qubit.T2r[qi]*4])
              
             config.update_qubit(cfg_dict["cfg_file"], "f_ge", prog.data["new_freq"], qi)
@@ -462,6 +464,7 @@ def recenter(
                 config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)        
         elif prog.data['r2']>min_r2 and prog.data["fit_err_par"][1] > max_err:
             print('Frequency error too high, increasing frequency')
+            err = 2*tol
             params['ramsey_freq'] = 2*params['ramsey_freq']
         elif prog.data['r2']>min_r2 and prog.data['fit_err_par'][3]<0.5: # Update T2r if error is low. 
             config.update_qubit(cfg_dict["cfg_file"], "T2r", prog.data["best_fit"][3], qi)
@@ -478,8 +481,8 @@ def recenter(
         #        
         else: # Assume that the qubit is so detuned that Rabi is not working or readout not tuned up. 
             print("Fit failed, trying spectroscopy.")
-            qspec=find_spec(qi,cfg_dict,  start='fine')
-            if qspec.status:
+            status, i=find_spec(qi,cfg_dict,  start='fine')
+            if status:
                 status = set_up_qubit(qi, cfg_dict)
                 if status:
                     print('Qubit set up')
@@ -515,8 +518,8 @@ def recenter(
 def set_up_qubit(qi, cfg_dict):
     cfg_path = cfg_dict['cfg_file']
     # Amp Rabi 
-    config.update_readout(cfg_path, 'tuned_up', False, qi);
-    amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi, params={'start':0.003})
+    config.update_qubit(cfg_path, 'tuned_up', False, qi)
+    amp_rabi = meas.RabiExperiment(cfg_dict,qi=qi)
     if amp_rabi.status:
         config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), amp_rabi.data['pi_length'], qi)
 
@@ -525,7 +528,7 @@ def set_up_qubit(qi, cfg_dict):
     config.update_readout(cfg_path, 'threshold', shot.data['thresholds'][0], qi);
     config.update_readout(cfg_path, 'fidelity', shot.data['fids'][0], qi);
     if shot.data['fids'][0]>0.1:
-        config.update_readout(cfg_path, 'tuned_up', True, qi);
+        config.update_qubit(cfg_path, 'tuned_up', True, qi);
     else:
         print('Readout not tuned up')
     if shot.data['fids'][0]>0.1 and amp_rabi.status:
@@ -534,7 +537,8 @@ def set_up_qubit(qi, cfg_dict):
         return False
 
 
-def meas_opt(cfg_dict, qubit_list, params=None, update=True, start_coarse=True):
+def meas_opt(cfg_dict, qubit_list, params=None, update=True, start_coarse=True, do_res=False):
+    
     if params is None:
         params = {}
     cfg_path = cfg_dict['cfg_file']
@@ -545,13 +549,31 @@ def meas_opt(cfg_dict, qubit_list, params=None, update=True, start_coarse=True):
                 shotopt=meas.SingleShotOptExperiment(cfg_dict, qi=qi,params=params)
                 do_more=shotopt.do_more
                 if update:
-                    config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi);
-                    config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi);
+                    config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi)
+                    config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi)
+                if do_res:
+                    run_res(cfg_dict, qi)
         do_more=True
         while do_more:
             shotopt=meas.SingleShotOptExperiment(cfg_dict, qi=qi,params=params, style='fine')
             do_more=shotopt.do_more
             if update:
-                config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi);
-                config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi);
-            
+                config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi)   
+                config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi)
+            if do_res:
+                run_res(cfg_dict, qi)
+
+
+def run_res(cfg_dict, qi):
+
+    rspec = meas.ResSpec(cfg_dict, qi=qi, params={'span':'kappa'})
+    if rspec.status:
+        config.update_readout(cfg_dict['cfg_file'], 'frequency', rspec.data['freq_min'], qi)
+        config.update_readout(cfg_dict['cfg_file'], 'qi', rspec.data['fit'][1], qi)
+        config.update_readout(cfg_dict['cfg_file'], 'qe', rspec.data['fit'][2], qi)
+        config.update_readout(cfg_dict['cfg_file'], 'kappa', rspec.data['kappa'], qi)
+    else:
+        print('Failed to run resonance scan')
+
+
+

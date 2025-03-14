@@ -106,7 +106,7 @@ def fitexp(xdata, ydata, fitparams=None):
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: Fit exponential failed!')
-        print(fitparams)
+        #print(fitparams)
         pOpt = [np.nan]*len(pOpt)
         # return 0, 0
     return pOpt, pCov, fitparams
@@ -217,10 +217,9 @@ def fitdecaysin(xdata, ydata, fitparams=None, debug=False):
 
 def decayslopesin(x, *p):
     yscale, freq, phase_deg, decay, y0, slope = p
-    x0 = -(90)/360/freq
     
     # This should be centered on the x-y axis of bloch sphere, 
-    return yscale * (np.sin(2*np.pi*freq*x + phase_deg*np.pi/180)+slope) * np.exp(-(x-x0)/decay) + y0
+    return yscale * (np.sin(2*np.pi*freq*x + phase_deg*np.pi/180)+slope) * np.exp(-x/decay) + y0
 
 
 def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
@@ -248,19 +247,19 @@ def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
 
     pCov = np.full(shape=(len(fitparams), len(fitparams)), fill_value=np.inf)
     try:
-        pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
+        pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds)
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit decaying sine failed! Refitting with phase -90')
-        print(fitparams)
-        print(max_phase)
         try: 
             fitparams[2]=fitparams[2]-90
-            pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams, bounds=bounds)
+            pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds)
         except:
-            print('Warning: fit decaying sine failed!')
-            pOpt = [np.nan]*len(pOpt)
-        # return 0, 0
+            try: 
+                fitparams[2]=fitparams[2]+180
+                pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds)
+            except:
+                pOpt = [np.nan]*len(pOpt)
     return pOpt, pCov, fitparams
     
 
@@ -271,25 +270,26 @@ def fourier_init(xdata, ydata, debug):
     fft_freqs = np.fft.fftfreq(len(ydata), d=xdata[1]-xdata[0])
     fft_phases = np.angle(fourier)
 
-    sorted_fourier = np.sort(np.abs(fourier))
-    max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-1])[0][0]
-    if max_ind == 0:
-        max_ind = np.argwhere(np.abs(fourier) == sorted_fourier[-2])[0][0]
-    max_freq = np.abs(fft_freqs[max_ind])
-    max_phase = fft_phases[max_ind]
+    half_N = len(ydata) // 2
+    mag = np.abs(fourier[1:half_N]) 
+    phase = fft_phases[1:half_N]
+    freqs = fft_freqs[1:half_N]
+
+    max_ind = np.argmax(mag)
+    max_freq = freqs[max_ind]
+    max_phase = phase[max_ind]
+
     
     if debug:
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(2,1, sharex=True, figsize=(10,8))
-        max_ind2 = np.argmax(np.abs(fourier)) # the 0 freq value
-        fourier[max_ind2] = np.nan
-        fft_phases[max_ind2] = np.nan
-        ax[0].plot(fft_freqs, np.abs(fourier),'.')
+        
+        ax[0].plot(freqs, mag,'.')
         ax[1].set_xlabel('Frequency (MHz)')
         ax[0].set_ylabel('Amplitude')
 
-        ax[0].set_xlim(left=0)
-        ax[1].plot(fft_freqs,fft_phases, '.')
+        #ax[0].set_xlim(left=0)
+        ax[1].plot(freqs, phase, '.')
         ax[1].set_ylabel('Phase (rad)')
 
         print('Max phase is ' + str(max_phase))

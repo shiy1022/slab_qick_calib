@@ -148,7 +148,7 @@ class T2Experiment(QickExperiment):
             "soft_avgs": self.soft_avgs,
             "expts": 100,
             "span": 3 * self.cfg.device.qubit[par][qi],
-            "start": 0.1,
+            "start": 0.01,
             "ramsey_freq": "smart",
             "active_reset": self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
@@ -165,7 +165,7 @@ class T2Experiment(QickExperiment):
             params_def["expts"] = 50
         params = {**params_def, **params}
         if params["ramsey_freq"] == "smart":
-            params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit[par][qi]
+            params["ramsey_freq"] = 1.8 / self.cfg.device.qubit[par][qi]
             if style == "fast":
                 params["ramsey_freq"] = 1.2 * params["ramsey_freq"]
         if params["experiment_type"] == "echo":
