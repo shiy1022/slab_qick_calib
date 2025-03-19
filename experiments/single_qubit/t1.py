@@ -7,7 +7,7 @@ import fitting as fitter
 from gen.qick_experiment import QickExperiment, QickExperiment2D
 from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
-
+import config
 """
 T1 Experiment Module
 
@@ -352,6 +352,14 @@ class T1Experiment(QickExperiment):
         super().save_data(data=data)
         return self.fname
 
+    def update(self, cfg_file, rng_vals=[1,500],first_time=False, verbose=True):
+        qi = self.cfg.expt.qubit[0]
+        if self.status: 
+            config.update_qubit(cfg_file, 'T1', self.data['new_t1_i'], qi, sig=2, rng_vals=rng_vals, verbose=verbose)
+            config.update_readout(cfg_file, 'final_delay', 6*self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0]*10, rng_vals[1]*3], verbose=verbose)
+            if first_time:
+                config.update_qubit(cfg_file, 'T2r', self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
+                config.update_qubit(cfg_file, 'T2e', 2*self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
 
 class T1_2D(QickExperiment2D):
     """

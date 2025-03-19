@@ -189,7 +189,6 @@ class QickExperiment(Experiment):
             fit: Whether to perform fitting
             use_i: Whether to use I quadrature for fitting (auto-determined if None)
             get_hist: Whether to generate histogram and scale data
-            use_lmfit: Whether to use lmfit instead of scipy.optimize.curve_fit
             **kwargs: Additional arguments passed to the fitter
 
         Returns:
@@ -214,7 +213,7 @@ class QickExperiment(Experiment):
                 data["fit_" + ydata],
                 data["fit_err_" + ydata],
                 data["fit_init_" + ydata],
-            ) = fitterfunc(data["xpts"][1:-1], data[ydata][1:-1], fitparams=None)
+            ) = fitterfunc(data["xpts"][1:-1], data[ydata][1:-1], **kwargs)
 
         # Determine which fit is best (I, Q, or amplitude)
         if use_i is None:
@@ -243,6 +242,8 @@ class QickExperiment(Experiment):
         # Print fit quality metrics
         if verbose:
             print(f"R2:{r2:.3f}\tFit par error:{fit_err:.3f}\t Best fit:{i_best}")
+
+        self.get_status()
 
         return data
 
@@ -424,7 +425,6 @@ class QickExperiment(Experiment):
         min_r2=0.1,
         max_err=1,
         disp_kwargs=None,
-        use_lmfit=False,
         **kwargs,
     ):
         """
@@ -445,7 +445,6 @@ class QickExperiment(Experiment):
             min_r2: Minimum R² value for acceptable fit
             max_err: Maximum error for acceptable fit
             disp_kwargs: Display options dictionary
-            use_lmfit: Whether to use lmfit instead of scipy.optimize.curve_fit for fitting
             **kwargs: Additional arguments passed to the analyze method
         """
         # Set default values for fit quality thresholds
@@ -460,26 +459,13 @@ class QickExperiment(Experiment):
         # Execute experiment workflow
         data = self.acquire(progress)
         if analyze:
-            data = self.analyze(data, use_lmfit=use_lmfit, **kwargs)
+            data = self.analyze(data, **kwargs)
         if save:
             self.save_data(data)
         if display:
             self.display(data, **disp_kwargs)
 
-        # Determine if experiment was successful based on fit quality
-        if (
-            "fit_err" in self.data
-            and "r2" in self.data
-            and self.data["fit_err"] < max_err
-            and self.data["r2"] > min_r2
-        ):
-            self.status = True
-        elif "fit_err" not in self.data or "r2" not in self.data:
-            # No fit performed, can't determine status
-            pass
-        else:
-            #print("Fit failed")
-            self.status = False
+        
 
     def save_data(self, data=None, verbose=False):
         """
@@ -496,6 +482,22 @@ class QickExperiment(Experiment):
             print(f"Saving {self.fname}")
         super().save_data(data=data)
         return self.fname
+
+    def get_status(self, max_err=1, min_r2=0.1):
+        # Determine if experiment was successful based on fit quality
+        if (
+            "fit_err" in self.data
+            and "r2" in self.data
+            and self.data["fit_err"] < max_err
+            and self.data["r2"] > min_r2
+        ):
+            self.status = True
+        elif "fit_err" not in self.data or "r2" not in self.data:
+            # No fit performed, can't determine status
+            pass
+        else:
+            #print("Fit failed")
+            self.status = False
 
     def get_params(self, prog):
         """
@@ -813,7 +815,6 @@ class QickExperimentLoop(QickExperiment):
         save=True,
         min_r2=0.9,
         max_err=0.1,
-        use_lmfit=False,
         **kwargs,
     ):
         """
@@ -829,7 +830,6 @@ class QickExperimentLoop(QickExperiment):
             save: Whether to save data to disk
             min_r2: Minimum R² value for acceptable fit
             max_err: Maximum error for acceptable fit
-            use_lmfit: Whether to use lmfit instead of scipy.optimize.curve_fit for fitting
             **kwargs: Additional arguments passed to the analyze method
 
         Returns:
@@ -842,7 +842,6 @@ class QickExperimentLoop(QickExperiment):
             save=save,
             min_r2=min_r2,
             max_err=max_err,
-            use_lmfit=use_lmfit,
             **kwargs,
         )
 
@@ -1152,7 +1151,6 @@ class QickExperiment2D(QickExperimentLoop):
         save=True,
         min_r2=0.9,
         max_err=0.1,
-        use_lmfit=False,
         **kwargs,
     ):
         """
@@ -1168,7 +1166,6 @@ class QickExperiment2D(QickExperimentLoop):
             save: Whether to save data to disk
             min_r2: Minimum R² value for acceptable fit
             max_err: Maximum error for acceptable fit
-            use_lmfit: Whether to use lmfit instead of scipy.optimize.curve_fit for fitting
             **kwargs: Additional arguments passed to the analyze method
         """
         super().run(
@@ -1178,7 +1175,6 @@ class QickExperiment2D(QickExperimentLoop):
             save=save,
             min_r2=min_r2,
             max_err=max_err,
-            use_lmfit=use_lmfit,
             **kwargs,
         )
 

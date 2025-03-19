@@ -10,7 +10,7 @@ from gen.qick_program import QickProgram
 from scipy.optimize import curve_fit
 from scipy.special import erf
 from copy import deepcopy
-
+import config
 blue = "#4053d3"
 red = "#b51d14"
 int_rgain = True
@@ -652,6 +652,21 @@ class HistogramExperiment(QickExperiment):
 
     def save_data(self, data=None):
         super().save_data(data=data)
+
+    def update(self, cfg_file, freq=True, fast=False, verbose=True):
+        qi = self.cfg.expt.qubit[0]
+        
+        config.update_readout(cfg_file, 'phase', self.data['angle'], qi, verbose=verbose)        
+        config.update_readout(cfg_file, 'threshold', self.data['thresholds'][0], qi, verbose=verbose)
+        config.update_readout(cfg_file, 'fidelity', self.data['fids'][0], qi, verbose=verbose)
+        if not fast:
+            config.update_readout(cfg_file, 'sigma', self.data['sigma'], qi, verbose=verbose)
+            config.update_readout(cfg_file, 'tm', self.data['tm'], qi, verbose=verbose)
+            if self.data['fids'][0]>0.07:
+                config.update_qubit(cfg_file, 'tuned_up', True, qi, verbose=verbose)
+            else:
+                config.update_qubit(cfg_file, 'tuned_up', False, qi, verbose=verbose)
+                print('Readout not tuned up')
 
     def check_reset(self): 
         nbins=75

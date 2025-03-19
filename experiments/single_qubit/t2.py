@@ -165,7 +165,7 @@ class T2Experiment(QickExperiment):
             params_def["expts"] = 50
         params = {**params_def, **params}
         if params["ramsey_freq"] == "smart":
-            params["ramsey_freq"] = 1.8 / self.cfg.device.qubit[par][qi]
+            params["ramsey_freq"] = 1.5 / self.cfg.device.qubit[par][qi]
             if style == "fast":
                 params["ramsey_freq"] = 1.2 * params["ramsey_freq"]
         if params["experiment_type"] == "echo":
@@ -216,20 +216,32 @@ class T2Experiment(QickExperiment):
 
         return self.data
 
-    def analyze(self, data=None, fit=True, fit_twofreq=False, verbose=False, **kwargs):
+    def analyze(self, data=None, fit=True, fit_twofreq=False, refit=False,verbose=False, **kwargs):
         if data is None:
             data = self.data
 
         if fit:
-            fitfunc = fitter.decayslopesin
-            fitterfunc = fitter.fitdecayslopesin
+            if fit_twofreq:
+                self.fitterfunc = fitter.fittwofreq_decaysin
+                self.fitfunc = fitter.twofreq_decaysin
+            if refit:
+                self.fitfunc = fitter.decaysin
+                self.fitterfunc = fitter.fitdecaysin
+            else:
+                self.fitfunc = fitter.decayslopesin
+                self.fitterfunc = fitter.fitdecayslopesin
             # yscale, freq, phase_deg, decay, y0, slope
 
-            if fit_twofreq and self.cfg.expt.experiment_type == "ramsey":
-                fitterfunc = fitter.fittwofreq_decaysin
-                fitfunc = fitter.twofreq_decaysin
+            super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data, **kwargs)
 
-            super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, **kwargs)
+            # It tries to fit to a sloped decaying sine, but if that fails remove the slope. 
+            if not self.status and not refit:
+                #print('Refitting without slope')
+                self.fitfunc = fitter.decaysin
+                self.fitterfunc = fitter.fitdecaysin
+                super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data, **kwargs)
+                 
+
             inds = np.arange(5)
             data["fit_err"] = np.mean(np.abs(data["fit_err_par"][inds]))
 
@@ -288,6 +300,7 @@ class T2Experiment(QickExperiment):
         plot_all=False,
         ax=None,
         savefig=True,
+        refit=False,
         show_hist=False,
         **kwargs,
     ):
@@ -303,12 +316,6 @@ class T2Experiment(QickExperiment):
 
         ef = "EF " if self.cfg.expt.checkEF else ""
         title = f"{ef} Ramsey {name}Q{q} (Freq: {self.cfg.expt.ramsey_freq:.4} MHz)"
-
-        # Set up fit function
-        if fit_twofreq and self.cfg.expt.experiment_type == "ramsey":
-            fitfunc = fitter.twofreq_decaysin
-        else:
-            fitfunc = fitter.decayslopesin
 
         # Set up caption parameters
 
@@ -335,7 +342,7 @@ class T2Experiment(QickExperiment):
             fit=fit,
             debug=debug,
             show_hist=show_hist,
-            fitfunc=fitfunc,
+            fitfunc=self.fitfunc,
             caption_params=caption_params,
             savefig=savefig,
         )

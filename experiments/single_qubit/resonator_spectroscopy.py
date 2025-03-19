@@ -10,6 +10,7 @@ import fitting as fitter
 from qick.asm_v2 import QickSweep1D
 from scipy.ndimage import gaussian_filter1d
 import copy
+import config
 
 """
 Measures the resonant frequency of the readout resonator when the qubit is in its ground state: sweep readout pulse frequency and look for the frequency with the maximum measured amplitude.
@@ -210,6 +211,7 @@ class ResSpec(QickExperiment):
                 print("From Fit:")
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
+            self.get_status()
         
         
         phs_data = np.unwrap(data["phases"][1:-1])
@@ -321,11 +323,20 @@ class ResSpec(QickExperiment):
             fig.savefig(
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
             )
-
         
-
     def save_data(self, data=None):
         super().save_data(data=data)
+
+    def update(self, cfg_file, freq=True, fast=False, verbose=True):
+        qi = self.cfg.expt.qubit[0]
+        if self.status: 
+            if freq: 
+                config.update_readout(cfg_file, 'frequency', self.data['freq_min'], qi, verbose=verbose)
+            if self.data['kappa']>0:
+                config.update_readout(cfg_file, 'kappa', self.data['kappa'], qi, rng_vals=[0.03, 10], verbose=verbose)
+            if not fast:
+                config.update_readout(cfg_file, 'qi', self.data['fit'][1], qi, verbose=verbose)
+                config.update_readout(cfg_file, 'qe', self.data['fit'][2], qi, verbose=verbose)
 
 
 class ResSpecPower(QickExperiment2D):
