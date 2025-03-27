@@ -336,7 +336,7 @@ def fit_single_shot(d, plot=True, rot=True):
     pg = [0.99, vg, sigma, 0.01, ve]
     #print(pg)
     try: 
-        paramsg2, params_err = curve_fit(two_gaussians, vhg, histg, p0=pg)
+        paramsg2, params_err = curve_fit(two_gaussians, vhg, histg, p0=pg) #@IgnoreException
     except:
         paramsg2 = np.nan
     #print(paramsg2)
@@ -390,8 +390,8 @@ class HistogramProgram(QickProgram):
         super()._initialize(cfg, readout="")
 
         super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
-
-        super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
+        if cfg.expt.pulse_f:
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
         self.delay(0.5) # give the tProc some time for initial setup        
 
     def _body(self, cfg):
@@ -630,18 +630,20 @@ class HistogramExperiment(QickExperiment):
         fids = params["fids"]
         thresholds = params["thresholds"]
         angle = params["angle"]
-        print(f"ge Fidelity (%): {100*fids[0]:.3f}")
         if "expt" not in self.cfg:
             self.cfg.expt.check_e = plot_e
             self.cfg.expt.check_f = plot_f
-        if self.cfg.expt.check_f:
-            print(f"gf Fidelity (%): {100*fids[1]:.3f}")
-            print(f"ef Fidelity (%): {100*fids[2]:.3f}")
-        print(f"Rotation angle (deg): {angle:.3f}")
-        print(f"Threshold ge: {thresholds[0]:.3f}")
-        if self.cfg.expt.check_f:
-            print(f"Threshold gf: {thresholds[1]:.3f}")
-            print(f"Threshold ef: {thresholds[2]:.3f}")
+        if verbose:        
+            print(f"ge Fidelity (%): {100*fids[0]:.3f}")
+
+            if self.cfg.expt.check_f:
+                print(f"gf Fidelity (%): {100*fids[1]:.3f}")
+                print(f"ef Fidelity (%): {100*fids[2]:.3f}")
+            print(f"Rotation angle (deg): {angle:.3f}")
+            print(f"Threshold ge: {thresholds[0]:.3f}")
+            if self.cfg.expt.check_f:
+                print(f"Threshold gf: {thresholds[1]:.3f}")
+                print(f"Threshold ef: {thresholds[2]:.3f}")
         imname = self.fname.split("\\")[-1]
 
         if savefig:
@@ -752,7 +754,7 @@ class SingleShotOptExperiment(QickExperiment):
         self.cfg_dict = cfg_dict
 
         params_def = {
-            "span_f": 0.3,
+            "span_f": self.cfg.device.readout.kappa[qi]*0.8,
             "expts_f": 5,
             "expts_gain": 5,
             "expts_len": 5,
@@ -774,6 +776,7 @@ class SingleShotOptExperiment(QickExperiment):
 
         if params["expts_gain"] == 1:
             params_def["start_gain"] = self.cfg.device.readout.gain[qi]
+            params_def["span_gain"] = 0
         else:
             if style == "fine":
                 params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.8
@@ -804,21 +807,21 @@ class SingleShotOptExperiment(QickExperiment):
         if params["expts_f"] == 1:
             params_def["step_f"] = 0
         else:
-            params_def["step_f"] = params_def["span_f"] / (params["expts_f"] - 1)
+            params_def["step_f"] = params["span_f"] / (params["expts_f"] - 1)
 
         if params["expts_gain"] == 1:
             params_def["step_gain"] = 0
             params_def["span_gain"] = 0
         else:
-            params_def["step_gain"] = params_def["span_gain"] / (params["expts_gain"] - 1)
+            params_def["step_gain"] = params["span_gain"] / (params["expts_gain"] - 1)
 
         if params["expts_len"] == 1:
             params_def["step_len"] = 0
         else:
-            params_def["step_len"] = params_def["span_len"] / (params["expts_len"] - 1)
+            params_def["step_len"] = params["span_len"] / (params["expts_len"] - 1)
 
-        if params_def["span_gain"] + params_def["start_gain"] > self.cfg.device.qubit.max_gain:
-            params_def["span_gain"] = self.cfg.device.qubit.max_gain - params_def["start_gain"]
+        if params["span_gain"] + params["start_gain"] > self.cfg.device.qubit.max_gain:
+            params_def["span_gain"] = self.cfg.device.qubit.max_gain - params["start_gain"]
         self.cfg.expt = {**params_def, **params}
 
         # Check for unexpected parameters
@@ -939,8 +942,8 @@ class SingleShotOptExperiment(QickExperiment):
                     angle[f_ind, g_ind, l_ind] = results["angle"]
                     # print(f'freq: {f}, gain: {gain}, len: {l}')
                     # print(f'\tfid ge [%]: {100*results["fids"][0]}')
-                    if check_f:
-                        print(f'\tfid gf [%]: {100*results["fids"][1]:.3f}')
+                    # if check_f:
+                    #     print(f'\tfid gf [%]: {100*results["fids"][1]:.3f}')
 
         if check_f:
             self.data["If"] = np.array(If)
@@ -979,8 +982,6 @@ class SingleShotOptExperiment(QickExperiment):
         if data == None:
             data = self.data
         fid = data["fid"]
-        threshold = data["threshold"]
-        angle = data["angle"]
         fpts = data["fpts"]
         gainpts = data["gainpts"]
         lenpts = data["lenpts"]
@@ -1001,11 +1002,14 @@ class SingleShotOptExperiment(QickExperiment):
             above_threshold = fid >= min_accept
         
             # For each row, get first index that's above threshold
-            gain_indices = np.where(above_threshold[0])[0]
-            time_indices = np.where(above_threshold[0])[1]
+            freq_indices = np.where(above_threshold)[0]
+            gain_indices = np.where(above_threshold)[1]
+            time_indices = np.where(above_threshold)[2]
+            min_ind = gain_indices+time_indices
+            a = np.argmin(min_ind)
             
             # Get the first occurrence
-            imax = (0,gain_indices[0], time_indices[0])
+            imax = (freq_indices[a],gain_indices[a], time_indices[a])
             print(f'Set fidelity: {100*fid[imax]:.3f} %')
             print(
                 f"Set params: \n Freq (MHz) {fpts[imax[0]]:.3f} \n Gain (DAC units) {gainpts[imax[1]]:.3f} \n Readout length (us) {lenpts[imax[2]]:.3f}"
@@ -1281,4 +1285,9 @@ class SingleShotOptExperiment(QickExperiment):
             print("Not all elements in fid_expts are odd.")
         return do_more
 
+    def update(self, cfg_file, verbose=True):
+        qi = self.cfg.expt.qubit[0]
+        config.update_readout(cfg_file, 'gain', self.data['gain'], qi, verbose=verbose);
+        config.update_readout(cfg_file, 'readout_length', self.data['length'], qi, verbose=verbose);
+        config.update_readout(cfg_file, 'frequency', self.data['freq'], qi, verbose=verbose);
         

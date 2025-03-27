@@ -12,7 +12,7 @@ min_r2 = 0.35
 tol=0.3
 plt.rcParams['legend.handlelength'] = 0.5
 
-def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, single=False, max_t1=500, max_err=1, min_r2=0.35, tol=0.3):
+def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, single=False, start_coarse=False,max_t1=500, max_err=1, min_r2=0.35, tol=0.3):
         cfg_path = cfg_dict['cfg_file']
         auto_cfg = config.load(cfg_path)
         
@@ -60,10 +60,8 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True, sin
 
         # Run SS Opt fine and SS 
         if single: 
-            shotopt=meas.SingleShotOptExperiment(cfg_dict, qi=qi,params={'expts_f':1, 'expts_gain':5, 'expts_len':5},style='fine')
-            if update: 
-                config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi);
-                config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi);
+            params={'expts_f':1, 'expts_gain':7, 'expts_len':5}
+            meas_opt(cfg_dict, [qi], params, do_res=True, start_coarse=start_coarse)
 
         shot=meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':20000})
         if update: shot.update(cfg_path)
@@ -145,7 +143,7 @@ def measure_params(qi, cfg_dict, update=True, readout=True, display=False, max_t
         err_dict['fge_err']=np.sqrt(t2r.data['fit_err_avgi'][1][1])
 
         # T1 
-        t1= meas.T1Experiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+        t1= meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
         if update: t1.update(cfg_path, rng_vals=[1,max_t1], verbose=False)
         if not t1.status:
             t1.data['new_t1_i']=np.nan
@@ -512,7 +510,7 @@ def meas_opt(cfg_dict, qubit_list, params=None, update=True, start_coarse=True, 
             if update:
                 config.update_readout(cfg_path, 'gain', shotopt.data['gain'], qi)   
                 config.update_readout(cfg_path, 'readout_length', shotopt.data['length'], qi)
-            if do_res:
+            if do_res and do_more:
                 run_res(cfg_dict, qi)
 
 def run_res(cfg_dict, qi):

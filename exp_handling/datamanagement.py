@@ -387,7 +387,7 @@ class AttrDict(dict):
         if a in self:
             return self.__getitem__(a)
         else:
-            return self.__getattribute__(a)
+            return self.__getattribute__(a) #@IgnoreException
         
     def to_dict(self):
         d={}

@@ -104,10 +104,9 @@ class T1Program(QickProgram):
             # Apply AC Stark pulse during wait time
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
             # Small buffer delay after AC Stark pulse
-            self.delay_auto(t=0.01, tag="wait")
+            self.delay_auto(t=cfg.expt["end_wait"], tag="wait")
         else:
             # Simple delay for standard T1 measurement
-            # Adding 0.01 μs buffer for timing precision
             self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag="wait")
 
         # Measure the qubit state

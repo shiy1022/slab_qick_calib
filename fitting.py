@@ -102,7 +102,7 @@ def fitexp(xdata, ydata, fitparams=None):
     pOpt = fitparams
     pCov = np.full(shape=(len(fitparams), len(fitparams)), fill_value=np.inf)
     try:
-        pOpt, pCov = sp.optimize.curve_fit(expfunc, xdata, ydata, p0=fitparams)
+        pOpt, pCov = sp.optimize.curve_fit(expfunc, xdata, ydata, p0=fitparams) #@IgnoreException
         # return pOpt, pCov
     except RuntimeError: 
         #print('Warning: Fit exponential failed!')
@@ -246,17 +246,17 @@ def fitdecayslopesin(xdata, ydata, fitparams=None, debug=False):
 
     pCov = np.full(shape=(len(fitparams), len(fitparams)), fill_value=np.inf)
     try:
-        pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds)
+        pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds) #@IgnoreException
         # return pOpt, pCov
     except RuntimeError: 
         #print('Warning: fit decaying sine failed! Refitting with phase -90')
         try: 
             fitparams[2]=fitparams[2]-90
-            pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds)
+            pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds) #@IgnoreException
         except:
             try: 
                 fitparams[2]=fitparams[2]+180
-                pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds)
+                pOpt, pCov = sp.optimize.curve_fit(decayslopesin, xdata, ydata, p0=fitparams)#, bounds=bounds) #@IgnoreException
             except:
                 pOpt = [np.nan]*len(pOpt)
     return pOpt, pCov, fitparams
@@ -397,10 +397,8 @@ def fithanger(xdata, ydata, fitparams=None):
     pCov = np.full(shape=(len(fitparams), len(fitparams)), fill_value=np.inf)
     try:
         pOpt, pCov = sp.optimize.curve_fit(hangerS21func_sloped, xdata, ydata, p0=fitparams, bounds=bounds)
+        pOpt, pCov = sp.optimize.curve_fit(hangerS21func_sloped, xdata, ydata, p0=pOpt, bounds=bounds)
         #print(pOpt)
-        pOpt[1]=pOpt[1]
-        pOpt[2]=pOpt[2]
-        pOpt[0]=pOpt[0]
         # return pOpt, pCov
     except RuntimeError: 
         print('Warning: fit hanger failed!')

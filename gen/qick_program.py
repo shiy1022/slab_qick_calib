@@ -255,8 +255,8 @@ class QickProgram(AveragerProgramV2):
             self.add_gauss(
                 ch=self.qubit_ch,
                 name="ramp",
-                sigma=0.05,  # Width of rise/fall
-                length=0.3,  # Length of rise/fall
+                sigma=0.02,  # Width of rise/fall
+                length=0.2,  # Length of rise/fall
                 even_length=True,
             )
             pulse_args["envelope"] = "ramp"  # Use Gaussian envelope for edges
@@ -381,6 +381,72 @@ class QickProgram(AveragerProgramV2):
                     self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
                 # Small delay before next iteration
                 self.delay_auto(0.01)
+
+
+def cond_reset(self, i):
+        """
+        Perform active qubit reset.
+
+        This method implements a measurement-based reset protocol that:
+        1. Measures the qubit state
+        2. Applies a π pulse only if the qubit is in |1⟩ state
+        3. Repeats the process i times to improve reset fidelity
+
+        Args:
+            i: Number of reset iterations to perform
+        """
+        n=0
+        cfg = AttrDict(self.cfg)        
+        # Wait for readout to complete
+        self.wait_auto(cfg.expt.read_wait)
+        # Add extra delay for stability
+        self.delay_auto(cfg.expt.read_wait + cfg.expt.extra_delay)
+
+        # Read qubit state and conditionally apply π pulse
+        # If I < threshold (qubit in |1⟩), apply π pulse to return to |0⟩
+        # If I >= threshold (qubit in |0⟩), skip the π pulse
+        self.read_and_jump(
+            ro_ch=self.adc_ch,
+            component="I",  # Use I quadrature for state discrimination
+            threshold=cfg.expt.threshold,  # Threshold for state discrimination
+            test="<",  # Apply pulse if I < threshold
+            label=f"NOPULSE0",  # Jump to this label if I >= threshold
+        )
+
+        # Apply π pulse to flip qubit from |1⟩ to |0⟩
+        self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+        # Small delay for pulse completion
+        self.delay_auto(0.01)
+        # Label for conditional jump target
+
+        # For all but the last iteration, perform another measurement
+        # Trigger readout
+        self.trigger(ros=[self.adc_ch], pins=[0], t=self.trig_offset)
+        # Apply readout pulse
+        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
+        # Apply LO pulse if available
+        if self.lo_ch is not None:
+            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
+        # Small delay before next iteration
+        self.delay_auto(0.01)
+
+        self.wait_auto(cfg.expt.read_wait)
+        # Add extra delay for stability
+        self.delay_auto(cfg.expt.read_wait + cfg.expt.extra_delay)
+
+        # Read qubit state and conditionally apply π pulse
+        # If I < threshold (qubit in |1⟩), apply π pulse to return to |0⟩
+        # If I >= threshold (qubit in |0⟩), skip the π pulse
+        self.read_and_jump(
+            ro_ch=self.adc_ch,
+            component="I",  # Use I quadrature for state discrimination
+            threshold=cfg.expt.threshold,  # Threshold for state discrimination
+            test="<",  # Apply pulse if I < threshold
+            label=f"NOPULSE1",  # Jump to this label if I >= threshold
+        )
+        self.label(f"NOPULSE1")
+        self.label(f"NOPULSE0")
+
 
 
 class QickProgram2Q(AveragerProgramV2):

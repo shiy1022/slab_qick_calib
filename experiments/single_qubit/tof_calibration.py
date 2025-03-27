@@ -23,11 +23,19 @@ class LoopbackProgram(QickProgram):
         self.frequency = cfg.expt.frequency
         self.gain = cfg.expt.gain
         self.readout_length = cfg.expt.readout_length
-        self.phase = 0
+        self.phase = cfg.expt.phase
         super()._initialize(cfg, readout="custom")
 
+        # Create a π pulse to excite the qubit from |0⟩ to |1⟩
+        if cfg.expt.check_e:
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+
     def _body(self, cfg):
+        cfg = AttrDict(cfg)
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if cfg.expt.check_e:
+            self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
+            self.delay_auto(t=0.01, tag="wait")
         if self.lo_ch is not None:
             self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
@@ -72,8 +80,16 @@ class ToFCalibrationExperiment(QickExperiment):
             "frequency": self.cfg.device.readout.frequency[qi],  # [MHz]
             "reps": 1,  # Number of averages per point
             "qubit": [qi],
+            "phase": 0,
             "final_delay": 0.1,
+            'check_e': False,
+            'use_readout': False,
         }
+
+        if 'use_readout' in params and params['use_readout']:
+            params_def['gain'] = self.cfg.device.readout.gain[qi]
+            params_def['phase'] = self.cfg.device.readout.phase[qi]
+
         self.cfg.expt = {**params_def, **params}
 
         if go:

@@ -35,8 +35,8 @@ class RabiProgram(QickProgram):
         super().make_pulse(pulse, "qubit_pulse")
 
         
-        #if cfg.expt.checkEF and cfg.expt.pulse_ge:
-        super().make_pi_pulse(q,cfg.device.qubit.f_ge, "pi_ge")
+        if cfg.expt.checkEF and cfg.expt.pulse_ge:
+            super().make_pi_pulse(q,cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):
 

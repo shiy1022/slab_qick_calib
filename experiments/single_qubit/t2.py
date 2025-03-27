@@ -45,8 +45,8 @@ class T2Program(QickProgram):
             super().make_pulse(pulse, "stark_pulse")
 
         # For EF check in Ramsey or pi pulse for echo
-        #if cfg.expt.checkEF or cfg.expt.experiment_type == "echo":
-        super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+        if cfg.expt.checkEF or cfg.expt.experiment_type == "echo":
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):
         cfg = AttrDict(self.cfg)
@@ -167,7 +167,7 @@ class T2Experiment(QickExperiment):
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = 1.5 / self.cfg.device.qubit[par][qi]
             if style == "fast":
-                params["ramsey_freq"] = 1.2 * params["ramsey_freq"]
+                params["ramsey_freq"] = params["ramsey_freq"]
         if params["experiment_type"] == "echo":
             params_def["num_pi"] = 1
         else:
@@ -182,7 +182,6 @@ class T2Experiment(QickExperiment):
 
         for key in cfg_qub:
             params_def[key] = cfg_qub[key][qi]
-
 
 
         # Merge default and user-provided parameters
@@ -220,6 +219,8 @@ class T2Experiment(QickExperiment):
         if data is None:
             data = self.data
 
+        inds = [0,1,2,3,4]
+
         if fit:
             if fit_twofreq:
                 self.fitterfunc = fitter.fittwofreq_decaysin
@@ -232,14 +233,14 @@ class T2Experiment(QickExperiment):
                 self.fitterfunc = fitter.fitdecayslopesin
             # yscale, freq, phase_deg, decay, y0, slope
 
-            super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data, **kwargs)
+            super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data, inds=inds, **kwargs)
 
             # It tries to fit to a sloped decaying sine, but if that fails remove the slope. 
             if not self.status and not refit:
                 #print('Refitting without slope')
                 self.fitfunc = fitter.decaysin
                 self.fitterfunc = fitter.fitdecaysin
-                super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data, **kwargs)
+                super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data,inds=inds, **kwargs)
                  
 
             inds = np.arange(5)

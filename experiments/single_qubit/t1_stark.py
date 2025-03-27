@@ -73,7 +73,7 @@ class T1MultiProgram(QickProgram):
         if cfg.expt.acStark:
             self.delay_auto(t=0.01, tag="wait_stark")
             self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)
-            self.delay_auto(t=0.01, tag="wait")
+            self.delay_auto(t=0.2, tag="wait")
         else:
             self.delay_auto(t=cfg.expt["wait_time"] + 0.01, tag="wait")
 
@@ -141,6 +141,7 @@ class T1StarkExperiment(QickExperiment):
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
             "stark_gain":1,
+            "end_wait":0.5,
             "df": 70,
         }
         params = {**params_def, **params}
@@ -178,7 +179,7 @@ class T1StarkExperiment(QickExperiment):
 
         return self.data
 
-    def display(self, data=None, fit=True, plot_all=False, ax=None, show_hist=True):
+    def display(self, data=None, fit=True, plot_all=False, ax=None, show_hist=False):
 
         q = self.cfg.expt.qubit[0]
         df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge[q]

@@ -171,6 +171,7 @@ class QickExperiment(Experiment):
         use_i=None,
         get_hist=True,
         verbose=False,
+        inds=None,
         **kwargs,
     ):
         """
@@ -234,8 +235,12 @@ class QickExperiment(Experiment):
         i_best = i_best.encode("ascii", "ignore")
         data["i_best"] = i_best
 
+        if inds is None:
+            inds=np.arange(len(fit_err))
+        
+        fit_err=fit_err[inds]
         # Calculate relative parameter errors
-        data["fit_err_par"] = np.sqrt(np.diag(fit_err)) / fit_pars
+        data["fit_err_par"] = np.sqrt(np.diag(fit_err)) / fit_pars[inds]
         fit_err = np.mean(np.abs(data["fit_err_par"]))
         data["fit_err"] = fit_err
 
@@ -588,7 +593,7 @@ class QickExperiment(Experiment):
                 tm = self.cfg.device.readout.tm[self.cfg.expt.qubit[0]]
                 sigma = self.cfg.device.readout.sigma[self.cfg.expt.qubit[0]]
                 p0 = [popt[0], vg, ve]
-                popt, pcov = curve_fit(
+                popt, pcov = curve_fit( #@IgnoreException
                     lambda x, mag_g, vg, ve: two_gaussians_decay(
                         x, mag_g, vg, ve, sigma, tm
                     ),

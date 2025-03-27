@@ -115,14 +115,14 @@ class ResSpec(QickExperiment):
             params_def["span"] = 500
         else:
             params_def["center"] = self.cfg.device.readout.frequency[qi]
-            params_def["expts"] = 200
+            params_def["expts"] = 220
             params_def["span"] = 5
 
         # combine params and params_Def, preferring params
         params = {**params_def, **params}
 
         if params["span"] == "kappa":
-            params["span"] = float(8 * self.cfg.device.readout.kappa[qi])
+            params["span"] = float(7 * self.cfg.device.readout.kappa[qi])
         params = {**params_def, **params}
         if "center" in params:
             params["start"] = params["center"] - params["span"] / 2
@@ -256,6 +256,7 @@ class ResSpec(QickExperiment):
         hanger=True,
         debug=False,
         ax=None,
+        plot_res=True,
         **kwargs,
     ):
         if data is None:
@@ -295,6 +296,8 @@ class ResSpec(QickExperiment):
                         fitter.hangerS21func_sloped(data["freq"], *data["freq_init"]),
                         label="Initial fit",
                     )
+                if plot_res: 
+                    ax[0].axvline(self.cfg.device.readout.frequency[qubit]+self.data['freq_offset'], color='k', linewidth=1)
             elif not any(np.isnan(data["lorentz_fit"])):
                 ax[0].plot(
                     data["freq"],
