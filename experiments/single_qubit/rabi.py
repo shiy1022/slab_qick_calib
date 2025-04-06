@@ -34,7 +34,6 @@ class RabiProgram(QickProgram):
         }
         super().make_pulse(pulse, "qubit_pulse")
 
-        
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
             super().make_pi_pulse(q,cfg.device.qubit.f_ge, "pi_ge")
 
@@ -53,12 +52,10 @@ class RabiProgram(QickProgram):
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait ef 2")
+        if 'end_wait' in cfg.expt:
+            self.delay_auto(t=cfg.expt.end_wait, tag="end_wait")
         
         super().measure(cfg)
-
-    def reset(self, i):
-        super().reset(i)
-
 
 class RabiExperiment(QickExperiment):
     """
@@ -261,6 +258,95 @@ class RabiExperiment(QickExperiment):
         super().save_data(data=data)
 
 
+class ReadoutCheck(QickExperiment):
+
+    def __init__(
+        self,
+        cfg_dict,
+        qi=0,
+        go=True,
+        params={},
+        prefix=None,
+        progress=True,
+        display=True,
+        style="",
+        disp_kwargs=None,
+        min_r2=None,
+        max_err=None,
+    ):
+        
+    
+        prefix = f"'readout_qubit{qi}"
+
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        params_def = {
+            "expts": 30,
+            "reps": 5*self.reps,
+            "soft_avgs": self.soft_avgs,
+            "checkEF": False,
+            "pulse_ge": True,
+            'active_reset': self.cfg.device.readout.active_reset[qi],
+            "qubit": [qi],
+            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
+            'df':50,
+            'qubit_freq':self.cfg.device.qubit.f_ge[qi],
+            'phase':0,
+            'length':10,
+            'gain':0.5,
+            'type':'const',
+            'max_wait':10,
+            'max_gain':1,
+            'end_wait':0.2,
+            'start':0,
+            'expt_type':'end_wait'
+        }        
+
+        min_gain=2**-15
+        # Apply style modifications
+        if style == "fine":
+            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+        elif style == "fast":
+            params_def["expts"] = 25    
+
+        params = {**params_def, **params}
+        params['sigma'] = params['length']
+        params_def["freq"] = params['qubit_freq'] + params['df']
+        
+        self.cfg.expt = {**params_def, **params}
+        
+        super().check_params(params_def)
+        if self.cfg.expt.active_reset:
+            super().configure_reset()
+        
+        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
+            disp_kwargs = {'plot_all': True}
+        if go:
+            super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err, disp_kwargs=disp_kwargs)
+
+    def acquire(self, progress=False, debug=False, single=False):
+        self.qubit = self.cfg.expt.qubit
+
+        if self.cfg.expt.expt_type == 'end_wait':
+            self.cfg.expt['end_wait'] = QickSweep1D("sweep_loop", self.cfg.expt.start, self.cfg.expt['max_wait'])
+        
+            self.param = {"label": "end_wait", "param": "t", "param_type": "time"}
+        else:
+            self.cfg.expt['gain'] = QickSweep1D("sweep_loop", self.cfg.expt.start, self.cfg.expt['max_gain'])
+            self.param = {"label": "qubit_pulse", "param": "gain", "param_type": "pulse"}
+        super().acquire(RabiProgram, progress=progress, single=single)
+
+        return self.data
+    
+    def analyze(self, data=None, fit=True, **kwargs):
+        if data is None:
+            data = self.data
+        return data
+    
+    def display(self, data=None, fit=False, plot_all=False, **kwargs):
+        if data is None:
+            data = self.data
+
+        super().display(data=data, fit=fit, plot_all=plot_all, **kwargs)
 class RabiChevronExperiment(QickExperiment2DSimple):
     """
     Amplitude Rabi Experiment

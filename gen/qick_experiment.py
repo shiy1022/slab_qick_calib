@@ -79,7 +79,7 @@ class QickExperiment(Experiment):
             * self.cfg.device.readout.soft_avgs_base
         )
 
-    def acquire(self, prog_name, progress=True, get_hist=True):
+    def acquire(self, prog_name, progress=True, get_hist=True, single=True):
         """
         Acquire measurement data by running the specified quantum program.
 
@@ -141,7 +141,7 @@ class QickExperiment(Experiment):
 
         # Generate histogram if requested
         if get_hist:
-            v, hist = self.make_hist(prog)
+            v, hist = self.make_hist(prog, single=single)
 
         # Compile data dictionary
         data = {
@@ -251,8 +251,6 @@ class QickExperiment(Experiment):
         self.get_status()
 
         return data
-
-    
 
     def display(
         self,
@@ -395,7 +393,7 @@ class QickExperiment(Experiment):
             )
             plt.show()
 
-    def make_hist(self, prog):
+    def make_hist(self, prog, single=True):
         """
         Generate histogram of single-shot measurement results.
 
@@ -413,12 +411,20 @@ class QickExperiment(Experiment):
         offset = self.soccfg._cfg["readouts"][self.cfg.expt.qubit_chan]["iq_offset"]
 
         # Collect individual measurement shots
-        shots_i, shots_q = prog.collect_shots(offset=offset)
+        shots_i, shots_q = prog.collect_shots(offset=offset, single=single)
 
         # Create histogram with 60 bins
         # sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
-        hist, bin_edges = np.histogram(shots_i, bins=60, density=True)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        if single: 
+            hist, bin_edges = np.histogram(shots_i, bins=60, density=True)
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        else:
+            hist = []
+            bin_centers = []
+            for i in range(len(shots_i)):
+                hist0, bin_edges0 = np.histogram(shots_i[i], bins=60, density=True)
+                hist.append(hist0)
+                bin_centers.append((bin_edges0[:-1] + bin_edges0[1:]) / 2)
         return bin_centers, hist
 
     def run(
@@ -468,9 +474,7 @@ class QickExperiment(Experiment):
         if save:
             self.save_data(data)
         if display:
-            self.display(data, **disp_kwargs)
-
-        
+            self.display(data, **disp_kwargs)     
 
     def save_data(self, data=None, verbose=False):
         """

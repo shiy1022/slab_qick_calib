@@ -303,7 +303,7 @@ class QickProgram(AveragerProgramV2):
         self.make_pulse(pulse, name)
         return pulse
 
-    def collect_shots(self, offset=0):
+    def collect_shots(self, offset=0, single=True):
         """
         Collect raw measurement data from the ADC.
 
@@ -317,17 +317,27 @@ class QickProgram(AveragerProgramV2):
             Tuple of (i_shots, q_shots) containing the I and Q quadrature data
         """
         # Process each readout channel
+        if not single:
+            i_shots = []
+            q_shots = []
         for i, (ch, rocfg) in enumerate(self.ro_chs.items()):
             nsamp = rocfg["length"]  # Number of samples
             iq_raw = self.get_raw()  # Get raw ADC data
 
             # Extract and normalize I quadrature data
-            i_shots = iq_raw[i][:, :, :, 0] / nsamp - offset
-            i_shots = i_shots.flatten()  # Flatten to 1D array
-
+            # indices are : channel, # reps, expts,readout # in pulse, i/q
+            
+            i_shots_vec = iq_raw[i][:, :, :, 0] / nsamp - offset
             # Extract and normalize Q quadrature data
-            q_shots = iq_raw[i][:, :, :, 1] / nsamp - offset
-            q_shots = q_shots.flatten()  # Flatten to 1D array
+            q_shots_vec = iq_raw[i][:, :, :, 1] / nsamp - offset
+            if single:
+                i_shots = i_shots_vec.flatten()  # Flatten to 1D array
+                q_shots = q_shots_vec.flatten()  # Flatten to 1D array
+            else:
+                for j in range(i_shots_vec.shape[1]):
+                    i_shots.append(i_shots_vec[:,j,:])
+                    q_shots.append(q_shots_vec[:,j,:])
+
 
         return i_shots, q_shots
 
@@ -383,7 +393,7 @@ class QickProgram(AveragerProgramV2):
                 self.delay_auto(0.01)
 
 
-def cond_reset(self, i):
+    def cond_reset(self, i):
         """
         Perform active qubit reset.
 
