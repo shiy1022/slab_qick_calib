@@ -3,7 +3,7 @@ import numpy as np
 # Fix me, check clock frequency using soc. 
 def check_freqs(i, cfg_dict):
     auto_cfg = config.load(cfg_dict['cfg_file'])
-    dac = auto_cfg.hw.dacs.qubit.ch[i]
+    dac = auto_cfg.hw.soc.dacs.qubit.ch[i]
     # Get the correct sampling frequency from soc for the DAC channel
     fs = cfg_dict['soc']._get_ch_cfg(dac)['fs']
     mirror_freq = fs/2
@@ -32,7 +32,7 @@ def check_freqs(i, cfg_dict):
 def check_resonances(cfg_dict):
     auto_cfg = config.load(cfg_dict['cfg_file'])
     # Get readout DAC channel 
-    ro_dac = auto_cfg.hw.dacs.readout.ch[0]
+    ro_dac = auto_cfg.hw.soc.dacs.readout.ch[0]
     # Get the correct sampling frequency from soc
     fs = cfg_dict['soc']._get_ch_cfg(ro_dac)['fs']
     mirror_freq = fs/2

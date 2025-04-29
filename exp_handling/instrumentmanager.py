@@ -9,19 +9,18 @@ import sys
 import socket
 from optparse import OptionParser
 
-try:
-    import Pyro4
-    Pyro4Loaded = True
-    # Block calls from running simultaneously
-    Pyro4.config.SERVERTYPE = 'multiplex'
-    Pyro4.config.REQUIRE_EXPOSE = False
-    # Pyro4.config.HMAC_KEY = b'6551d449b0564585a9d39c0bd327dcf1'
-    Pyro4.config.SERIALIZER = "pickle"
-    Pyro4.config.SERIALIZERS_ACCEPTED=set(['json', 'marshal', 'serpent','pickle'])
-except ImportError:
-    print("Warning: Pyro4 package is not present")
-    print("Instrument Servers will not work.")
-    Pyro4Loaded = False
+import Pyro4
+Pyro4Loaded = True
+# Block calls from running simultaneously
+Pyro4.config.SERVERTYPE = 'multiplex'
+Pyro4.config.REQUIRE_EXPOSE = False
+# Pyro4.config.HMAC_KEY = b'6551d449b0564585a9d39c0bd327dcf1'
+Pyro4.config.SERIALIZER = "pickle"
+Pyro4.config.SERIALIZERS_ACCEPTED=set(['json', 'marshal', 'serpent','pickle'])
+# except ImportError:
+#     print("Warning: Pyro4 package is not present")
+#     print("Instrument Servers will not work.")
+#     Pyro4Loaded = False
 
 
 class InstrumentManager(dict):
