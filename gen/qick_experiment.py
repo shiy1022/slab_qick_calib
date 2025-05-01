@@ -240,6 +240,7 @@ class QickExperiment(Experiment):
         
         fit_err=fit_err[inds]
         # Calculate relative parameter errors
+        fit_pars =np.array(fit_pars)
         data["fit_err_par"] = np.sqrt(np.diag(fit_err)) / fit_pars[inds]
         fit_err = np.mean(np.abs(data["fit_err_par"]))
         data["fit_err"] = fit_err

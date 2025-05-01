@@ -30,10 +30,13 @@ class ResSpecProgram(QickProgram):
         self.frequency = cfg.expt.frequency
         self.gain = cfg.expt.gain
         q = cfg.expt.qubit[0]
-        self.readout_length = cfg.device.readout.readout_length[q]
+        self.readout_length = cfg.expt.length
         self.phase = cfg.device.readout.phase[q]
-
-        super()._initialize(cfg, readout="")
+        if cfg.expt.long_pulse:
+            readout='long'
+        else:
+            readout= 'custom'
+        super()._initialize(cfg, readout=readout)
         self.add_loop("freq_loop", cfg.expt.expts)
 
         if cfg.expt.pulse_e:
@@ -90,9 +93,7 @@ class ResSpec(QickExperiment):
     ):
 
         prefix = "resonator_spectroscopy_"
-        if style == "coarse":
-            prefix = prefix + "coarse"
-        elif 'pulse_e' in params and params['pulse_e']:
+        if 'pulse_e' in params and params['pulse_e']:
             prefix = prefix + "chi_"
         elif 'pulse_f' in params and params['pulse_f']:
             prefix = prefix + "f_"
@@ -103,11 +104,13 @@ class ResSpec(QickExperiment):
             "gain": self.cfg.device.readout.gain[qi],
             "reps": self.reps,
             "soft_avgs": self.soft_avgs,
+            "length": self.cfg.device.readout.readout_length[qi],
             "final_delay": 5,
             "pulse_e": False,
             "pulse_f": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
+            'long_pulse': False,
         }
         if style == "coarse":
             params_def["start"] = 6000
@@ -120,6 +123,8 @@ class ResSpec(QickExperiment):
 
         # combine params and params_Def, preferring params
         params = {**params_def, **params}
+        if params["length"]>100: # This is currently true; may change in the future
+            params['long_pulse'] = True
 
         if params["span"] == "kappa":
             params["span"] = float(7 * self.cfg.device.readout.kappa[qi])
@@ -296,8 +301,8 @@ class ResSpec(QickExperiment):
                         fitter.hangerS21func_sloped(data["freq"], *data["freq_init"]),
                         label="Initial fit",
                     )
-                if plot_res: 
-                    ax[0].axvline(self.cfg.device.readout.frequency[qubit]+self.data['freq_offset'], color='k', linewidth=1)
+                #if plot_res: 
+                #    ax[0].axvline(self.cfg.device.readout.frequency[qubit]+self.data['freq_offset'], color='k', linewidth=1)
             elif not any(np.isnan(data["lorentz_fit"])):
                 ax[0].plot(
                     data["freq"],
@@ -336,7 +341,8 @@ class ResSpec(QickExperiment):
             if freq: 
                 config.update_readout(cfg_file, 'frequency', self.data['freq_min'], qi, verbose=verbose)
             if self.data['kappa']>0:
-                config.update_readout(cfg_file, 'kappa', self.data['kappa'], qi, rng_vals=[0.03, 10], verbose=verbose)
+                config.update_readout(cfg_file, 'kappa', self.data['kappa'], qi,  verbose=verbose)
+                #rng_vals=[0.03, 10],
             if not fast:
                 config.update_readout(cfg_file, 'qi', self.data['fit'][1], qi, verbose=verbose)
                 config.update_readout(cfg_file, 'qe', self.data['fit'][2], qi, verbose=verbose)
@@ -390,6 +396,7 @@ class ResSpecPower(QickExperiment2D):
             "soft_avgs": self.soft_avgs,
             "rng": 100,
             "max_gain": self.cfg.device.qubit.max_gain,
+            "length": self.cfg.device.readout.readout_length[qi],
             "span": 15,
             "expts": 200,
             "start_gain": 0.003,
@@ -404,6 +411,7 @@ class ResSpecPower(QickExperiment2D):
             "pulse_f": False,
             "pulse_type": "const",
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
+            'long_pulse': False,
         }
         params = {**params_def, **params}
         params["start"] = (

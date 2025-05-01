@@ -1,5 +1,5 @@
 import yaml
-from exp_handling.datamanagement import AttrDict
+from slab_qick_calib.exp_handling.datamanagement import AttrDict
 from functools import reduce
 import numpy as np
 from datetime import datetime
@@ -193,6 +193,56 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
                 "nyquist": [1] * num_qubits,
                 "type": ["full"] * num_qubits,
             },
+            "readout": {
+                "ch": [0] * num_qubits,
+                "nyquist": [2] * num_qubits,
+                "type": [type] * num_qubits,
+            },
+        },
+    }
+
+    auto_cfg = {"device": device, "hw": {"soc": soc}, "aliases": {"soc": aliases}}
+
+    cfg = yaml.safe_dump(auto_cfg, default_flow_style=None)
+
+    # write it:
+    with open(file_name, "w") as modified_file:
+        modified_file.write(cfg)
+
+    return cfg
+
+def init_config_res(file_name, num_qubits, type="full", aliases="Qick001"):
+
+    device = {"readout": {}}
+
+    # Readout params
+    device["readout"]["frequency"] = [7000] * num_qubits
+    device["readout"]["gain"] = [0.05] * num_qubits
+
+    device["readout"]["kappa"] = [0.5] * num_qubits
+    device["readout"]["kappa_hi"] = [0.5] * num_qubits
+    device["readout"]["qe"] = [0] * num_qubits
+    device["readout"]["qi"] = [0] * num_qubits
+    device["readout"]["qi_hi"] = [0] * num_qubits
+    device["readout"]["qi_lo"] = [0] * num_qubits
+
+
+    device["readout"]["phase"] = [0] * num_qubits
+    device["readout"]["readout_length"] = [100] * num_qubits
+    
+    device["readout"]["trig_offset"] = [0.5] * num_qubits
+    device["readout"]["final_delay"] = [50] * num_qubits
+    
+    device["readout"]["reps"] = [1] * num_qubits
+    device["readout"]["soft_avgs"] = [1] * num_qubits
+
+    device["readout"]["max_gain"] = 1
+    device["readout"]["reps_base"] = 150
+    device["readout"]["soft_avgs_base"] = 1
+    
+    soc = {
+        "adcs": {"readout": {"ch": [0] * num_qubits}},
+        "dacs": {
             "readout": {
                 "ch": [0] * num_qubits,
                 "nyquist": [2] * num_qubits,

@@ -1163,7 +1163,7 @@ class SingleShotOptExperiment(QickExperiment):
                 self.fname[0 : -len(imname)]
                 + "images\\"
                 + imname[0:-3]
-                + "_raw_{k}.png"
+                + f"_raw_{k}.png"
             )
 
         fig.suptitle(title)

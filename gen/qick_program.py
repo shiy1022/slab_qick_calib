@@ -127,7 +127,20 @@ class QickProgram(AveragerProgramV2):
         )
 
         # Create readout pulse
-        self.add_pulse(
+        if readout=='long':
+            self.add_pulse(
+            ch=self.res_ch,
+            name="readout_pulse",
+            style="const",  # Constant amplitude pulse
+            ro_ch=self.adc_ch,  # Associated readout channel
+            length=1,
+            freq=self.frequency,
+            phase=self.phase,
+            gain=self.gain,
+            mode='periodic',
+        )
+        else:
+            self.add_pulse(
             ch=self.res_ch,
             name="readout_pulse",
             style="const",  # Constant amplitude pulse

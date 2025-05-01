@@ -1,12 +1,12 @@
 aliases: {soc: bf1_soc}
 device:
   qubit:
-    T1: [30, 30, 30]
+    T1: [1.71, 5, 5]
     T2e: [60, 60, 60]
-    T2r: [30, 30, 30]
-    f_ef: [3800, 3800, 3800]
-    f_ge: [2500, 3750, 3100]
-    kappa: [0, 0, 0]
+    T2r: [75, 30, 30]
+    f_ef: [2400, 2700, 3057.7189]
+    f_ge: [2517.7048, 2916.602, 4117.1017]
+    kappa: [-19.4523, 0.6788, 22.3429]
     low_gain: 0.003
     max_gain: 1
     pop: [0, 0, 0]
@@ -17,36 +17,36 @@ device:
         sigma_inc: [5, 5, 5]
         type: [gauss, gauss, gauss]
       pi_ge:
-        gain: [0.15, 0.15, 0.15]
-        sigma: [0.1, 0.1, 0.1]
-        sigma_inc: [5, 5, 5]
+        gain: [0.005, 1, 1]
+        sigma: [0.4, 0.4, 0.42]
+        sigma_inc: [4, 4, 4]
         type: [gauss, gauss, gauss]
-    spec_gain: [1, 1, 1]
+    spec_gain: [10, 10, 10]
     temp: [0, 0, 0]
-    tuned_up: [false, false, false]
+    tuned_up: [true, false, false]
   readout:
     active_reset: [false, false, false]
     chi: [0, 0, 0]
-    fidelity: [0, 0, 0]
-    final_delay: [180, 180, 180]
-    frequency: [5303.3908, 5833.6154, 6528.6491]
-    gain: [0.03, 0.03, 0.03]
-    kappa: [1.0096, 0.8317, 1.0836]
-    lamb: [0, 0, 0]
+    fidelity: [0.1594, 0, 0.0265]
+    final_delay: [10.28, 180, 180]
+    frequency: [5303.6623, 5833.6831, 6528.8395]
+    gain: [0.03, 0.04, 0.04]
+    kappa: [0.6804, 0.6473, 0.7454]
+    lamb: [-0.6713, -0.7203, -1.3384]
     max_gain: 1
-    phase: [0, 0, 0]
-    qe: [1.6012, 1.5132, 1.2181]
-    qi: [0.7818, 1.3074, 1.1923]
-    readout_length: [5, 5, 5]
+    phase: [90.0, 0, -54.487]
+    qe: [1.7242, 1.3513, 1.317]
+    qi: [1.4226, 2.706, 2.6146]
+    readout_length: [1, 1,1]
     reps: [1, 1, 1]
     reps_base: 150
     reset_e: [0, 0, 0]
     reset_g: [0, 0, 0]
-    sigma: [0, 0, 0]
+    sigma: [1.7348, 0, 1.4995]
     soft_avgs: [1, 1, 1]
     soft_avgs_base: 1
-    threshold: [10, 10, 10]
-    tm: [0, 0, 0]
+    threshold: [-0.1538, 10, 0.7419]
+    tm: [2.038, 0, 0.1952]
     trig_offset: [0.5, 0.5, 0.5]
 hw:
   soc:

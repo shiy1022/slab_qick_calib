@@ -116,12 +116,12 @@ class QubitSpec(QickExperiment):
         params_def2 = {
             "soft_avgs": self.soft_avgs,
             "final_delay": 10,
-            "length": 10,
+            "length": 5,
             "pulse_type": "const",
             "checkEF": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
-            "sep_readout": True,
+            "sep_readout": False,
         }
         params_def = {**params_def2,**params_def}
 
@@ -255,7 +255,7 @@ class QubitSpecPower(QickExperiment2D):
             params_def["gain"] = 3 * params_def["gain"]
         params_def2 = {
             "final_delay": 10,
-            "length": 25,
+            "length": 5,
             "reps": 2*self.reps,
             "soft_avgs": self.soft_avgs,
             "rng": 50,
@@ -265,7 +265,7 @@ class QubitSpecPower(QickExperiment2D):
             "checkEF": checkEF,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
-            "sep_readout": True,
+            "sep_readout": False,
             "log": log,
         }
         params_def = {**params_def, **params_def2}
