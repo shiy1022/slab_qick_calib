@@ -17,7 +17,7 @@
 # from experiments.single_qubit.single_shot_ziqian import hist, HistogramProgram
 
 
-# import fitting as fitter
+# import slab_qick_calib.fitting as fitter
 
 # """
 # Single qubit RB sequence generator

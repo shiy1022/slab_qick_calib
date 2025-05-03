@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.6"
 license = {text = "MIT"}
 authors = [
-    {name = "", email = ""}
+    {name = "", email = "circuitqed@gmail.com"}
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -19,5 +19,5 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = ""
-"Bug Tracker" = ""
+"Homepage" = "www.github.com/SchusterLab/slab_qick_calib"
+"Bug Tracker" = "www.github.com/SchusterLab/slab_qick_calib/issuse"

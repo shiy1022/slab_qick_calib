@@ -1,4 +1,4 @@
-import config 
+import slab_qick_calib.config as config 
 import numpy as np 
 # Fix me, check clock frequency using soc. 
 def check_freqs(i, cfg_dict):

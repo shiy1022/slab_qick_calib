@@ -14,7 +14,7 @@ from tqdm import tqdm_notebook as tqdm
 
 from experiments.single_qubit.single_shot import hist, HistogramProgram
 
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 
 """
 Single qubit RB sequence generator

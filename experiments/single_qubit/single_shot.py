@@ -10,7 +10,7 @@ from gen.qick_program import QickProgram
 from scipy.optimize import curve_fit
 from scipy.special import erf
 from copy import deepcopy
-import config
+import slab_qick_calib.config as config
 blue = "#4053d3"
 red = "#b51d14"
 int_rgain = True

@@ -5,7 +5,7 @@ setup(
     version="0.1.0",
     description="Qubit calibration tools for QICK",
     author="",
-    author_email="",
+    author_email="circuitqed@gmail.com",
     packages=find_packages(),
     include_package_data=True,
     python_requires=">=3.6",

@@ -7,7 +7,7 @@ import experiments as meas
 from qick.asm_v2 import QickSweep1D
 from scipy.optimize import curve_fit
 
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 
 class RamseyStarkExperiment(QickExperiment):
     """

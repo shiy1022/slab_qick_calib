@@ -1,5 +1,5 @@
 import experiments as meas
-import config
+import slab_qick_calib.config as config
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as cs

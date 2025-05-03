@@ -237,8 +237,9 @@ def init_config_res(file_name, num_qubits, type="full", aliases="Qick001"):
     device["readout"]["soft_avgs"] = [1] * num_qubits
 
     device["readout"]["max_gain"] = 1
-    device["readout"]["reps_base"] = 150
+    device["readout"]["reps_base"] = 30
     device["readout"]["soft_avgs_base"] = 1
+    device["readout"]["phase_inc"] = [1140]
     
     soc = {
         "adcs": {"readout": {"ch": [0] * num_qubits}},

@@ -4,7 +4,7 @@ from qick import *
 import time
 from tqdm import tqdm_notebook as tqdm
 import copy
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 from gen.qick_experiment import QickExperiment, QickExperiment2DSimple, QickExperimentLoop
 import seaborn as sns
 from gen.qick_program import QickProgram

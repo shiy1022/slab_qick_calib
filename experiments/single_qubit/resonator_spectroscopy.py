@@ -6,11 +6,11 @@ from exp_handling.datamanagement import AttrDict
 from scipy.signal import find_peaks
 from gen.qick_experiment import QickExperiment, QickExperiment2D
 from gen.qick_program import QickProgram
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 from qick.asm_v2 import QickSweep1D
 from scipy.ndimage import gaussian_filter1d
 import copy
-import config
+import slab_qick_calib.config as config
 
 """
 Measures the resonant frequency of the readout resonator when the qubit is in its ground state: sweep readout pulse frequency and look for the frequency with the maximum measured amplitude.
@@ -86,6 +86,7 @@ class ResSpec(QickExperiment):
         prefix="",
         progress=True,
         display=True,
+        save=True,
         qi=0,
         go=True,
         params={},
@@ -139,7 +140,7 @@ class ResSpec(QickExperiment):
                 self.analyze(fit=False, peaks=True)
                 self.display(fit=False, peaks=True)
             else:
-                super().run(display=display, progress=progress)
+                super().run(display=display, progress=progress, save=save)
 
     def acquire(self, progress=False):
 

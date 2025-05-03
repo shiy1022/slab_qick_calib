@@ -68,11 +68,14 @@ class QickProgram(AveragerProgramV2):
         self.adc_ch = cfg.hw.soc.adcs.readout.ch[q]  # ADC channel for readout
         self.res_ch = cfg.hw.soc.dacs.readout.ch[q]  # DAC channel for resonator drive
         self.res_ch_type = cfg.hw.soc.dacs.readout.type[q]  # Resonator channel type
-        self.qubit_ch = cfg.hw.soc.dacs.qubit.ch[q]  # DAC channel for qubit drive
-        self.qubit_ch_type = cfg.hw.soc.dacs.qubit.type[q]  # Qubit channel type
+        
         self.res_nqz = cfg.hw.soc.dacs.readout.nyquist[q]  # Nyquist zone for resonator
-        self.qubit_nqz = cfg.hw.soc.dacs.qubit.nyquist[q]  # Nyquist zone for qubit
+        
         self.trig_offset = cfg.device.readout.trig_offset[q]  # Trigger timing offset
+        if 'qubit' in cfg.hw.soc.dacs:
+            self.qubit_ch = cfg.hw.soc.dacs.qubit.ch[q]  # DAC channel for qubit drive
+            self.qubit_ch_type = cfg.hw.soc.dacs.qubit.type[q]  # Qubit channel type
+            self.qubit_nqz = cfg.hw.soc.dacs.qubit.nyquist[q]  # Nyquist zone for qubit
 
         # Configure standard readout parameters if specified
         if readout == "standard":
@@ -150,11 +153,12 @@ class QickProgram(AveragerProgramV2):
             phase=self.phase,
             gain=self.gain,
         )
-
-        # Set up qubit control channel
-        self.declare_gen(
-            ch=self.qubit_ch, nqz=self.qubit_nqz
-        )  # Declare qubit signal generator
+        
+        if 'qubit' in cfg.hw.soc.dacs:
+            # Set up qubit control channel
+            self.declare_gen(
+                ch=self.qubit_ch, nqz=self.qubit_nqz
+            )  # Declare qubit signal generator
 
     def _body(self, cfg):
         """

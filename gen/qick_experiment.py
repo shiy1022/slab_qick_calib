@@ -4,7 +4,7 @@ from qick import *
 from exp_handling.experiment import Experiment
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 import time
 import warnings
 from scipy.optimize import curve_fit

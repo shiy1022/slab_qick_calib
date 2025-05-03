@@ -5,7 +5,7 @@ from exp_handling.datamanagement import AttrDict
 
 from gen.qick_experiment import QickExperiment
 from gen.qick_program import QickProgram
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 from qick.asm_v2 import QickSweep1D
 
 

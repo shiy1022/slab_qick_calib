@@ -6,7 +6,7 @@ from gen.qick_experiment import QickExperiment, QickExperiment2D
 from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):

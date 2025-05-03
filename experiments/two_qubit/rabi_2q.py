@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
 from gen.qick_experiment_2q import QickExperiment2Q
 from gen.qick_program import QickProgram2Q
-import fitting as fitter
+import slab_qick_calib.fitting as fitter
 from qick.asm_v2 import QickSweep1D
 from scipy.optimize import curve_fit
 # ====================================================== #
