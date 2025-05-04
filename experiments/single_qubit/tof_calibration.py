@@ -5,7 +5,7 @@ from qick import *
 from exp_handling.datamanagement import AttrDict
 from gen.qick_experiment import QickExperiment
 from gen.qick_program import QickProgram
-
+from gen.qick_experiment import QickExperiment2DSimple
 """
 Run this calibration when the wiring of the setup is changed.
 
@@ -106,7 +106,7 @@ class ToFCalibrationExperiment(QickExperiment):
             cfg=self.cfg,
         )
         iq_list = prog.acquire_decimated(self.im[self.cfg.aliases.soc],
-            soft_avgs=self.cfg.expt.soft_avgs,)
+            soft_avgs=self.cfg.expt.soft_avgs,progress=progress,)
         t = prog.get_time_axis(ro_index=0)
         i  = iq_list[0][:,0]
         q  = iq_list[0][:,1]
@@ -153,5 +153,59 @@ class ToFCalibrationExperiment(QickExperiment):
             )
 
     def save_data(self, data=None):
-        print(f"Saving {self.fname}")
         super().save_data(data=data)
+
+
+class ToF2D(QickExperiment2DSimple):
+
+    def __init__(
+        self,
+        cfg_dict,
+        qi=0,
+        go=True,
+        params={},
+        prefix="",
+        progress=False,
+        style="",
+    ):
+
+        if prefix == "":
+            prefix = f"tof_2d_{qi}"
+
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        exp_name = ToFCalibrationExperiment
+        exp_name(cfg_dict, qi, go=False, params=params)
+
+        params_def = {
+            "expts_count": 1000,
+            "soft_avgs": 1,
+            "qubit": [qi],
+        }
+        params = {**params_def, **params}
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        
+        params = {**self.expt.cfg.expt, **params}
+        self.cfg.expt = params
+
+        if go:
+            super().run(progress=progress)
+
+    def acquire(self, progress=False):
+
+        pts = np.arange(self.cfg.expt.expts_count)
+        y_sweep = [{"var": "npts", "pts": pts}]
+
+        super().acquire(y_sweep=y_sweep, progress=progress)
+
+        return self.data
+        
+    def analyze(self, data=None, fit=True, **kwargs):
+        pass
+
+    def display(self, data=None, fit=True, plot_both=False, **kwargs):
+        if data is None:
+            data = self.data
+        qubit = self.cfg.expt.qubit[0]
+        
+        

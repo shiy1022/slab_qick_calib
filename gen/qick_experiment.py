@@ -1241,22 +1241,14 @@ class QickExperiment2DSimple(QickExperiment2D):
         Args:
             y_sweep: List of dictionaries defining the y-axis parameter sweep
                      Each dict contains 'var' (parameter name) and 'pts' (values)
+                     If 'var' is 'count', the y-axis is time in hours, it will repeat same experiment
             progress: Whether to show progress bar
 
         Returns:
             Dictionary containing 2D measurement data
         """
         # Initialize data dictionary with all expected fields
-        data = {
-            "avgi": [],
-            "avgq": [],
-            "amps": [],
-            "phases": [],
-            "xpts": [],
-            "start_time": [],
-            "bin_centers": [],
-            "hist": [],
-        }
+        data = {}
 
         # Prepare for y-axis sweep
         yvals = np.arange(len(y_sweep[0]["pts"]))
@@ -1272,10 +1264,13 @@ class QickExperiment2DSimple(QickExperiment2D):
                 self.expt.cfg.expt[y_sweep[j]["var"]] = y_sweep[j]["pts"][i]
 
             # Run the nested experiment (which handles the x-axis sweep)
-            data_new = self.expt.acquire()
+            data_new = self.expt.acquire(progress=progress)
 
             # Store all data from the nested experiment
+        
             for key in data_new:
+                if i==0:
+                    data[key] = []
                 data[key].append(data_new[key])
 
         # Set y-axis values (either time in hours or the swept parameter)
@@ -1292,6 +1287,8 @@ class QickExperiment2DSimple(QickExperiment2D):
 
         # Use the x-axis values from the first nested experiment run
         data["xpts"] = data["xpts"][0]
+        for k, a in data.items():
+            data[k] = np.array(a)
         self.data = data
         return data
 
