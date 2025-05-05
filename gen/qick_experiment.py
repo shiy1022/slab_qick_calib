@@ -623,11 +623,6 @@ class QickExperimentLoop(QickExperiment):
     It handles the loop iteration, data collection for each parameter value, and
     aggregation of results into a complete dataset.
 
-    Typical use cases include:
-    - Frequency sweeps (spectroscopy)
-    - Amplitude sweeps (power ramps)
-    - Pulse length sweeps
-    - Delay time sweeps (T1, T2 measurements)
     """
 
     def __init__(self, cfg_dict=None, prefix="QickExp", progress=False, qi=0):
@@ -752,109 +747,6 @@ class QickExperimentLoop(QickExperiment):
         data["phases"].append(phases)
         return data
 
-    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False):
-        """
-        Analyze loop experiment data.
-
-        This method calls the parent class analyze method to fit the data
-        to the specified model function.
-
-        Args:
-            fitfunc: Function to fit data to
-            fitterfunc: Function that performs the fitting
-            data: Data dictionary to analyze
-            fit: Whether to perform fitting
-
-        Returns:
-            Data dictionary with added fit results
-        """
-        super().analyze(fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, fit=fit)
-
-    def display(
-        self,
-        data=None,
-        ax=None,
-        plot_all=False,
-        title="",
-        xlabel="",
-        fit=True,
-        show_hist=True,
-        fitfunc=None,
-        captionStr=[],
-        var=[],
-        debug=False,
-    ):
-        """
-        Display loop experiment results.
-
-        This method calls the parent class display method to create plots
-        showing the measurement data and optional fit curves.
-
-        Args:
-            data: Data dictionary to display
-            ax: Matplotlib axis to plot on
-            plot_all: Whether to plot all quadratures
-            title: Plot title
-            xlabel: X-axis label
-            fit: Whether to show fit curves
-            show_hist: Whether to show histogram plot
-            fitfunc: Function used for fitting
-            captionStr: List of caption strings
-            var: List of variables to display
-            debug: Whether to show debug information
-        """
-        super().display(
-            data=data,
-            ax=ax,
-            plot_all=plot_all,
-            title=title,
-            xlabel=xlabel,
-            fit=fit,
-            show_hist=show_hist,
-            fitfunc=fitfunc,
-            captionStr=captionStr,
-            var=var,
-            debug=debug,
-        )
-
-    def run(
-        self,
-        progress=True,
-        analyze=True,
-        display=True,
-        save=True,
-        min_r2=0.9,
-        max_err=0.1,
-        **kwargs,
-    ):
-        """
-        Run the complete loop experiment workflow.
-
-        This method calls the parent class run method to execute the full
-        experiment sequence: acquire, analyze, display, and save.
-
-        Args:
-            progress: Whether to show progress bar
-            analyze: Whether to perform data analysis
-            display: Whether to display results
-            save: Whether to save data to disk
-            min_r2: Minimum R² value for acceptable fit
-            max_err: Maximum error for acceptable fit
-            **kwargs: Additional arguments passed to the analyze method
-
-        Returns:
-            Result of the parent class run method
-        """
-        return super().run(
-            progress=progress,
-            analyze=analyze,
-            display=display,
-            save=save,
-            min_r2=min_r2,
-            max_err=max_err,
-            **kwargs,
-        )
-
     def make_hist(self, shots_i):
         """
         Generate histogram from collected shots.
@@ -871,34 +763,6 @@ class QickExperimentLoop(QickExperiment):
         hist, bin_edges = np.histogram(shots_i, bins=60)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         return bin_centers, hist
-
-    def update_config(self, q_ind=None):
-        """
-        Update experiment configuration.
-
-        This method calls the parent class update_config method to update
-        the experiment configuration for a specific qubit.
-
-        Args:
-            q_ind: Qubit index to update configuration for
-        """
-        super().update_config(q_ind=q_ind)
-
-    def save_data(self, data=None):
-        """
-        Save loop experiment data to disk.
-
-        This method calls the parent class save_data method to save the
-        experiment data to disk.
-
-        Args:
-            data: Data dictionary to save
-
-        Returns:
-            Filename where data was saved
-        """
-        super().save_data(data=data)
-        return self.fname
 
 
 class QickExperiment2D(QickExperimentLoop):
@@ -917,15 +781,6 @@ class QickExperiment2D(QickExperimentLoop):
     """
 
     def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
-        """
-        Initialize the QickExperiment2D.
-
-        Args:
-            cfg_dict: Configuration dictionary
-            prefix: Prefix for saved data files
-            progress: Whether to show progress bars
-            qi: Qubit index to use for the experiment
-        """
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
     def acquire(self, prog_name, y_sweep, progress=True):
@@ -1003,23 +858,6 @@ class QickExperiment2D(QickExperimentLoop):
         # Add metadata and store data
         data["start_time"] = current_time
         self.data = data
-        return data
-
-    def stow_data(self, iq_list, data):
-        """
-        Process and store I/Q data from a measurement.
-
-        This method calls the parent class stow_data method to process
-        I/Q data and add it to the data dictionary.
-
-        Args:
-            iq_list: List of I/Q data from program.acquire()
-            data: Data dictionary to update
-
-        Returns:
-            Updated data dictionary
-        """
-        data = super().stow_data(iq_list, data)
         return data
 
     def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
@@ -1153,57 +991,6 @@ class QickExperiment2D(QickExperimentLoop):
             )
             plt.show()
 
-    def run(
-        self,
-        progress=True,
-        analyze=True,
-        display=True,
-        save=True,
-        min_r2=0.9,
-        max_err=0.1,
-        **kwargs,
-    ):
-        """
-        Run the complete 2D experiment workflow.
-
-        This method calls the parent class run method to execute the full
-        experiment sequence: acquire, analyze, display, and save.
-
-        Args:
-            progress: Whether to show progress bar
-            analyze: Whether to perform data analysis
-            display: Whether to display results
-            save: Whether to save data to disk
-            min_r2: Minimum R² value for acceptable fit
-            max_err: Maximum error for acceptable fit
-            **kwargs: Additional arguments passed to the analyze method
-        """
-        super().run(
-            progress=progress,
-            analyze=analyze,
-            display=display,
-            save=save,
-            min_r2=min_r2,
-            max_err=max_err,
-            **kwargs,
-        )
-
-    def save_data(self, data=None):
-        """
-        Save 2D experiment data to disk.
-
-        This method calls the parent class save_data method to save the
-        experiment data to disk.
-
-        Args:
-            data: Data dictionary to save
-
-        Returns:
-            Filename where data was saved
-        """
-        super().save_data(data=data)
-        return self.fname
-
 
 class QickExperiment2DSimple(QickExperiment2D):
     """
@@ -1292,65 +1079,8 @@ class QickExperiment2DSimple(QickExperiment2D):
         self.data = data
         return data
 
-    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
-        """
-        Analyze 2D experiment data.
-
-        This method calls the parent class analyze method to fit the data
-        to the specified model function.
-
-        Args:
-            fitfunc: Function to fit data to
-            fitterfunc: Function that performs the fitting
-            data: Data dictionary to analyze
-            fit: Whether to perform fitting
-            **kwargs: Additional arguments passed to the fitter
-
-        Returns:
-            Data dictionary with added fit results
-        """
-        data = super().analyze(
-            fitfunc=fitfunc, fitterfunc=fitterfunc, data=data, fit=fit
-        )
-        return data
-
-    def display(
-        self,
-        data=None,
-        ax=None,
-        plot_both=False,
-        title="",
-        xlabel="",
-        ylabel="",
-        **kwargs,
-    ):
-        """
-        Display 2D experiment results.
-
-        This method calls the parent class display method to create 2D color plots
-        showing the measurement results.
-
-        Args:
-            data: Data dictionary to display
-            ax: Matplotlib axis to plot on
-            plot_both: Whether to plot both I and Q quadratures
-            title: Plot title
-            xlabel: X-axis label
-            ylabel: Y-axis label
-            **kwargs: Additional arguments for plotting
-        """
-        super().display(
-            data=data,
-            ax=ax,
-            plot_both=plot_both,
-            title=title,
-            xlabel=xlabel,
-            ylabel=ylabel,
-        )
-
 
 # Utility functions for data analysis and fitting
-
 
 def gaussian(x, mag, cen, wid):
     """

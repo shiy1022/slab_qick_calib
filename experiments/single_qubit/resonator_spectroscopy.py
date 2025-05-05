@@ -156,8 +156,15 @@ class ResSpec(QickExperiment):
             )
             super().acquire(ResSpecProgram, progress=progress)
         else:
-            a=QickExperimentLoop
-            data = a.acquire(ResSpecProgram, progress=progress)
+            exp=QickExperimentLoop()
+            exp.cfg.expt = self.cfg.expt
+            if self.cfg.expt.phase_const:
+                freq_pts = np.linspace(self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span, self.cfg.expt.expts)
+            else:
+                freq_pts = get_homophase(self.cfg.expt)
+            x_sweep = [{"pts": freq_pts, "var": 'frequency'}]
+            data = exp.acquire(ResSpecProgram, x_sweep, progress=progress)
+            self.data = data
 
         return self.data
 
