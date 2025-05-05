@@ -360,7 +360,7 @@ class T1Experiment(QickExperiment):
                 config.update_qubit(cfg_file, 'T2r', self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
                 config.update_qubit(cfg_file, 'T2e', 2*self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
 
-class T1_2D(QickExperiment2D):
+class T1_2D(QickExperiment2DSimple):
     """
     T1_2D: Class for 2D T1 measurements to track stability over time
 
@@ -409,29 +409,14 @@ class T1_2D(QickExperiment2D):
 
         # Define default parameters
         params_def = {
-            "expts": 60,  # Number of wait time points
-            "span": 3.7 * self.cfg.device.qubit.T1[qi],  # Total span of wait times (μs)
-            "reps": 2 * self.reps,  # Number of repetitions
-            "soft_avgs": self.soft_avgs,  # Number of averages
-            "start": 0,  # Start time for wait sweep (μs)
             "sweep_pts": 200,  # Number of time points (2nd dimension)
-            "qubit": qi,  # Qubit index
-            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],  # Readout channel
         }
 
-        # Adjust parameters based on measurement style
-        if style == "fine":
-            params_def["soft_avgs"] = (
-                params_def["soft_avgs"] * 2
-            )  # Double averages for fine measurements
-        elif style == "fast":
-            params_def["expts"] = 30  # Fewer points for fast measurements
-
         # Merge default parameters with user-provided parameters
+        exp_name = T1Experiment
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
         params = {**params_def, **params}
-
-        # Calculate step size from span and number of experiments
-        params["step"] = params["span"] / params["expts"]
+        params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
         # Run the experiment if go=True

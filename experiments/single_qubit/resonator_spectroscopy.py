@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from qick import *
 from exp_handling.datamanagement import AttrDict
 from scipy.signal import find_peaks
-from gen.qick_experiment import QickExperiment, QickExperiment2D
+from gen.qick_experiment import QickExperiment, QickExperiment2DSimple, QickExperimentLoop
 from gen.qick_program import QickProgram
 import slab_qick_calib.fitting as fitter
 from qick.asm_v2 import QickSweep1D
@@ -112,6 +112,8 @@ class ResSpec(QickExperiment):
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
             'long_pulse': False,
+            'loop':False,
+            'phase_const':False,
         }
         if style == "coarse":
             params_def["start"] = 6000
@@ -143,15 +145,19 @@ class ResSpec(QickExperiment):
                 super().run(display=display, progress=progress, save=save)
 
     def acquire(self, progress=False):
-
-        self.param = {"label": "readout_pulse", "param": "freq", "param_type": "pulse"}
+        
         q = self.cfg.expt.qubit[0]
         self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
 
-        self.cfg.expt.frequency = QickSweep1D(
-            "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
-        )
-        super().acquire(ResSpecProgram, progress=progress)
+        if self.cfg.expt.loop:
+            self.param = {"label": "readout_pulse", "param": "freq", "param_type": "pulse"}
+            self.cfg.expt.frequency = QickSweep1D(
+                "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
+            )
+            super().acquire(ResSpecProgram, progress=progress)
+        else:
+            a=QickExperimentLoop
+            data = a.acquire(ResSpecProgram, progress=progress)
 
         return self.data
 
@@ -173,12 +179,7 @@ class ResSpec(QickExperiment):
         if fit:
             ydata = data["amps"][1:-1]
             xdata = data["freq"][1:-1]
-            fitparams = [
-                max(ydata),
-                -(max(ydata) - min(ydata)),
-                xdata[np.argmin(ydata)],
-                0.1,
-            ]
+            
             if hanger:
                 data["fit"], data["fit_err"], data["init"] = fitter.fithanger(
                     xdata, ydata
@@ -212,14 +213,20 @@ class ResSpec(QickExperiment):
                 data["init"][0]=data["init"][0]-data["freq_offset"]
                 data['freq_min']=xdata[np.argmin(ydata)]-data["freq_offset"]
             else:
-                print(fitparams)
-                data["lorentz_fit"] = fitter.fitlor(xdata, ydata, fitparams=fitparams)
+                fitparams = [
+                max(ydata),
+                -(max(ydata) - min(ydata)),
+                xdata[np.argmin(ydata)],
+                0.1,
+            ]
+                data['freq_init'] = copy.deepcopy(fitparams)
+                data["fit"] = fitter.fitlor(xdata, ydata, fitparams=fitparams)
                 print("From Fit:")
                 print(f'\tf0: {data["lorentz_fit"][2]}')
                 print(f'\tkappa[MHz]: {data["lorentz_fit"][3]*2}')
             self.get_status()
-        
-        
+
+        # Remove linear phase slope
         phs_data = np.unwrap(data["phases"][1:-1])
         slope, intercept = np.polyfit(data["xpts"][1:-1], phs_data, 1)
         phs_fix = phs_data - slope * data["xpts"][1:-1] - intercept
@@ -284,34 +291,32 @@ class ResSpec(QickExperiment):
 
         ax[0].set_ylabel("Amps (ADC units)")
         ax[0].plot(data["freq"][1:-1], data["amps"][1:-1], ".-")
+        if hanger:
+            fitfunc = fitter.hangerS21func_sloped
+        else:
+            fitfunc = fitter.lorfunc
+
         if fit:
             if hanger:
                 if not any(np.isnan(data["fit"])):
                     label = f"$\kappa$: {data['kappa']:.2f} MHz"
                     label += f" \n$f$: {data['fit'][0]:.2f} MHz"
-                    ax[0].plot(
+                    
+            ax[0].plot(
                         data["freq"],
-                        fitter.hangerS21func_sloped(data["freq"], *data["freq_fit"]),
+                        fitfunc(data["freq"], *data["freq_fit"]),
                         label=label,
                     )
-                    ax[0].legend()
-
-                if debug:
-                    ax[0].plot(
-                        data["freq"],
-                        fitter.hangerS21func_sloped(data["freq"], *data["freq_init"]),
-                        label="Initial fit",
-                    )
-                #if plot_res: 
-                #    ax[0].axvline(self.cfg.device.readout.frequency[qubit]+self.data['freq_offset'], color='k', linewidth=1)
-            elif not any(np.isnan(data["lorentz_fit"])):
+            if debug:
                 ax[0].plot(
                     data["freq"],
-                    fitter.lorfunc(data["lorentz_fit"], data["freq"]),
-                    label="Lorentzian fit",
+                    fitfunc(data["freq"], *data["freq_init"]),
+                    label="Initial fit",
                 )
-            else:
-                print("Lorentzian fit contains NaN values, skipping plot.")
+            ax[0].legend()
+            if plot_res: 
+                ax[0].axvline(self.cfg.device.readout.frequency[qubit]+self.data['freq_offset'], color='k', linewidth=1)
+
         if peaks:
             num_peaks = len(data["coarse_peaks_index"])
             print("Number of peaks:", num_peaks)
@@ -349,7 +354,8 @@ class ResSpec(QickExperiment):
                 config.update_readout(cfg_file, 'qe', self.data['fit'][2], qi, verbose=verbose)
 
 
-class ResSpecPower(QickExperiment2D):
+
+class ResSpecPower(QickExperiment2DSimple):
     """
     Keys:
         final_delay (float): Delay time between repetitions in seconds.
@@ -394,10 +400,8 @@ class ResSpecPower(QickExperiment2D):
 
         params_def = {
             "reps": self.reps / 600,
-            "soft_avgs": self.soft_avgs,
             "rng": 100,
             "max_gain": self.cfg.device.qubit.max_gain,
-            "length": self.cfg.device.readout.readout_length[qi],
             "span": 15,
             "expts": 200,
             "start_gain": 0.003,
@@ -405,14 +409,7 @@ class ResSpecPower(QickExperiment2D):
             "expts_gain": 20,
             "f_off": 4,
             "min_reps": 100,
-            "final_delay": 5,
             "log": True,
-            "qubit": [qi],
-            "pulse_e": pulse_e,
-            "pulse_f": False,
-            "pulse_type": "const",
-            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
-            'long_pulse': False,
         }
         params = {**params_def, **params}
         params["start"] = (
@@ -420,7 +417,9 @@ class ResSpecPower(QickExperiment2D):
             - params["span"] / 2
             - params["f_off"]
         )
-
+        exp_name = ResSpec 
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
         if go:
@@ -430,6 +429,7 @@ class ResSpecPower(QickExperiment2D):
 
     def acquire(self, progress=False):
 
+        # Use log set of powers 
         if "log" in self.cfg.expt and self.cfg.expt.log == True:
             rng = self.cfg.expt.rng
             rat = rng ** (-1 / (self.cfg.expt["expts_gain"] - 1))
@@ -542,3 +542,37 @@ class ResSpecPower(QickExperiment2D):
         super().save_data(data=data)
 
 
+def get_homophase(params):
+    """
+    Calculate the list of frequencies that gives you equal phase spacing
+    Parameters:
+    config (dict): A dictionary containing the following keys:
+        - "npoints" (int): Number of points in the frequency list.
+        - "span" (float): Frequency span.
+        - "kappa" (float): linewidth
+        - "kappa_inc" (float): expected linewidth fudge factor (fix me).
+        - "center_freq" (float): Center frequency.
+    Returns:
+    numpy.ndarray: An array containing the calculated frequency list.
+    """
+    nlin = 2
+    kappa_inc = 10
+
+    N = params["expts"] - nlin * 2
+    df = params["span"]
+    w = df / params["kappa"] * kappa_inc
+    at = np.arctan(2 * w / (1 - w**2)) + np.pi
+    R = w / np.tan(at / 2)
+    fr = params["center"]
+    n = np.arange(N) - N / 2 + 1 / 2
+    flist = fr + R * df / (2 * w) * np.tan(n / (N - 1) * at)
+    flist_lin = (
+        -np.arange(nlin, 0, -1) * df / N * 3
+        + params["center"]
+        - params["span"] / 2
+    )
+    flist_linp = (
+        np.arange(1, nlin + 1) * df / N * 3 + params["center"] + params["span"] / 2
+    )
+    flist = np.concatenate([flist_lin, flist, flist_linp])
+    return flist

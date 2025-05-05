@@ -2,7 +2,7 @@ import numpy as np
 from qick import *
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2D
+from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
 from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
@@ -202,7 +202,7 @@ class QubitSpec(QickExperiment):
         return self.fname
 
 
-class QubitSpecPower(QickExperiment2D):
+class QubitSpecPower(QickExperiment2DSimple):
     """
     self.cfg.expt: dict
         - start_f (float): Qubit frequency start [MHz].
@@ -229,63 +229,39 @@ class QubitSpecPower(QickExperiment2D):
         progress=None,
         qi=0,
         go=True,
-        span=None,
         params={},
         style="",
-        checkEF=False,
-        log=True,
+        display=True,
         min_r2=None,
         max_err=None,
     ):
 
-        ef = 'ef_' if checkEF else ''
+        ef = "ef" if "checkEF" in params and params["checkEF"] else ""
 
         prefix += style + f"qubit_spectroscopy_power_{ef}qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         # Define default parameters
-        max_length = 100
         if style == "coarse":
             params_def = {"span": 800, "expts": 500}
         elif style == "fine":
             params_def = {"span": 40, "expts": 100}
         else:
             params_def = {"span": 120, "expts": 200}
-        if checkEF:
-            params_def["gain"] = 3 * params_def["gain"]
+
         params_def2 = {
-            "final_delay": 10,
-            "length": 5,
             "reps": 2*self.reps,
-            "soft_avgs": self.soft_avgs,
             "rng": 50,
             "max_gain": self.cfg.device.qubit.max_gain,
             "expts_gain": 10,
-            "pulse_type": "const",
-            "checkEF": checkEF,
-            "qubit": [qi],
-            "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
-            "sep_readout": False,
-            "log": log,
+            "log": True,
         }
         params_def = {**params_def, **params_def2}
-
-        # combine params and params_def, preferring params
         params = {**params_def, **params}
+        exp_name = QubitSpec 
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        params = {**self.expt.cfg.expt, **params}
 
-        if checkEF:
-            params_def["start"] = self.cfg.device.qubit.f_ef[qi] - params["span"] / 2
-        else:
-            params_def["start"] = self.cfg.device.qubit.f_ge[qi] - params["span"] / 2
-        params = {**params_def, **params}
-
-        if params["length"] == "t1":
-            if not checkEF:
-                params["length"] = 3 * self.cfg.device.qubit.T1[qi]
-            else:
-                params["length"] = self.cfg.device.qubit.T1[qi] / 4
-        if params["length"] > max_length:
-            params["length"] = max_length
 
         self.cfg.expt = params
 
@@ -293,7 +269,7 @@ class QubitSpecPower(QickExperiment2D):
         super().check_params(params_def)
 
         if go:
-            self.go(progress=progress, display=True, analyze=True, save=True)
+            self.go(progress=progress, display=display)
 
     def acquire(self, progress=False):
         if "log" in self.cfg.expt and self.cfg.expt.log == True:

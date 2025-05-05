@@ -177,8 +177,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
-        exp_name = RamseyStarkExperiment
-        exp_name(cfg_dict, qi, go=False, params=params)
 
         params_def = {
             "end_gain": self.cfg.device.qubit.max_gain,
@@ -186,7 +184,8 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
             "start_gain": 0.15,
             "qubit": [qi],
         }
-        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params)
+        exp_name = RamseyStarkExperiment
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
@@ -307,7 +306,6 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         exp_name = RamseyStarkExperiment
-        exp_name(cfg_dict, qi, go=False, params=params)
 
         params_def = {
             "end_df": 200,
@@ -315,7 +313,7 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
             "start_df": 5,
             "qubit": [qi],
         }
-        self.expt = RamseyStarkExperiment(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
         params = {**params_def, **params}
         params['start_freq'] = self.cfg.device.qubit.f_ge[qi] + params['start_df']
         params['end_freq'] = self.cfg.device.qubit.f_ge[qi] + params['end_df']
