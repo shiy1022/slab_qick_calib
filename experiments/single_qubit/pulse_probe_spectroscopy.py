@@ -292,7 +292,7 @@ class QubitSpecPower(QickExperiment2DSimple):
             "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
 
-        super().acquire(QubitSpecProgram, ysweep, progress=progress)
+        super().acquire(ysweep, progress=progress)
 
         return self.data
 

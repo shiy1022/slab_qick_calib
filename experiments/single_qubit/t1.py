@@ -4,7 +4,7 @@ from qick import *
 from exp_handling.datamanagement import AttrDict
 from datetime import datetime
 import slab_qick_calib.fitting as fitter
-from gen.qick_experiment import QickExperiment, QickExperiment2D
+from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
 from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 import slab_qick_calib.config as config
@@ -443,7 +443,7 @@ class T1_2D(QickExperiment2DSimple):
         y_sweep = [{"pts": sweep_pts, "var": "count"}]
 
         # Run the T1Program for each point in the 2D sweep
-        super().acquire(T1Program, y_sweep, progress=progress)
+        super().acquire(y_sweep, progress=progress)
 
         return self.data
 

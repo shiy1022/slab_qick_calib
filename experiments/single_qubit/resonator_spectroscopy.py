@@ -149,19 +149,27 @@ class ResSpec(QickExperiment):
         q = self.cfg.expt.qubit[0]
         self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
 
-        if self.cfg.expt.loop:
+        if not self.cfg.expt.loop:
             self.param = {"label": "readout_pulse", "param": "freq", "param_type": "pulse"}
             self.cfg.expt.frequency = QickSweep1D(
                 "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
             )
             super().acquire(ResSpecProgram, progress=progress)
         else:
-            exp=QickExperimentLoop()
+            cfg_dict=dict()
+            cfg_dict['soc']=self.soccfg
+            cfg_dict['cfg_file']=self.config_file
+            cfg_dict['im']=self.im
+            cfg_dict['expt_path']='dummy'
+            
+            exp=QickExperimentLoop(cfg_dict=cfg_dict, prefix='dummy', progress=progress, qi=q)
             exp.cfg.expt = self.cfg.expt
             if self.cfg.expt.phase_const:
-                freq_pts = np.linspace(self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span, self.cfg.expt.expts)
-            else:
                 freq_pts = get_homophase(self.cfg.expt)
+            else:
+                freq_pts = np.linspace(self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span, self.cfg.expt.expts)
+            
+                
             x_sweep = [{"pts": freq_pts, "var": 'frequency'}]
             data = exp.acquire(ResSpecProgram, x_sweep, progress=progress)
             self.data = data
@@ -468,7 +476,7 @@ class ResSpecPower(QickExperiment2DSimple):
             "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
 
-        super().acquire(ResSpecProgram, y_sweep, progress=progress)
+        super().acquire(y_sweep, progress=False)
 
         return self.data
 
