@@ -689,6 +689,7 @@ class QickExperimentLoop(QickExperiment):
                 load_pulses=True,
                 progress=False,
             )
+            
 
             # Store measurement data for this parameter value
             data = self.stow_data(iq_list, data)
@@ -699,7 +700,8 @@ class QickExperimentLoop(QickExperiment):
             shots_i.append(shots_i_new)
 
             # Store parameter value
-            data["xpts"].append(x_sweep[0]["pts"][i])
+            xpt = self.get_params(prog)
+            data["xpts"].append(xpt)
 
         # Generate histogram from all collected shots
         bin_centers, hist = self.make_hist(shots_i)
@@ -712,7 +714,7 @@ class QickExperimentLoop(QickExperiment):
 
         # Convert all data to numpy arrays
         for k, a in data.items():
-            data[k] = np.array(a)
+            data[k] = np.array(a).flatten()
 
         # Add metadata and store data
         data["start_time"] = current_time

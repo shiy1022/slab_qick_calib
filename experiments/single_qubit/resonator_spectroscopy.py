@@ -87,6 +87,7 @@ class ResSpec(QickExperiment):
         progress=True,
         display=True,
         save=True,
+        analyze=True,
         qi=0,
         go=True,
         params={},
@@ -114,6 +115,7 @@ class ResSpec(QickExperiment):
             'long_pulse': False,
             'loop':False,
             'phase_const':False,
+            'kappa':self.cfg.device.readout.kappa[qi],
         }
         if style == "coarse":
             params_def["start"] = 6000
@@ -142,33 +144,36 @@ class ResSpec(QickExperiment):
                 self.analyze(fit=False, peaks=True)
                 self.display(fit=False, peaks=True)
             else:
-                super().run(display=display, progress=progress, save=save)
+                super().run(display=display, progress=progress, save=save, analyze=analyze)
 
     def acquire(self, progress=False):
         
         q = self.cfg.expt.qubit[0]
         self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
-
+        self.param = {"label": "readout_pulse", "param": "freq", "param_type": "pulse"}
+        
         if not self.cfg.expt.loop:
-            self.param = {"label": "readout_pulse", "param": "freq", "param_type": "pulse"}
+            
             self.cfg.expt.frequency = QickSweep1D(
                 "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
             )
             super().acquire(ResSpecProgram, progress=progress)
         else:
-            cfg_dict=dict()
-            cfg_dict['soc']=self.soccfg
-            cfg_dict['cfg_file']=self.config_file
-            cfg_dict['im']=self.im
-            cfg_dict['expt_path']='dummy'
-            
+            cfg_dict = {'soc': self.soccfg, 'cfg_file': self.config_file, 'im': self.im, 'expt_path': 'dummy'}
             exp=QickExperimentLoop(cfg_dict=cfg_dict, prefix='dummy', progress=progress, qi=q)
-            exp.cfg.expt = self.cfg.expt
+            exp.cfg.expt = copy.deepcopy(self.cfg.expt)
+            exp.param=self.param
+            
+            
             if self.cfg.expt.phase_const:
+                
                 freq_pts = get_homophase(self.cfg.expt)
             else:
+                df = 2.231597954960307e-05
+                self.cfg.expt.span = np.round(self.cfg.expt.span/df/(self.cfg.expt.expts-1))*df*(self.cfg.expt.expts-1)
+                
                 freq_pts = np.linspace(self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span, self.cfg.expt.expts)
-            
+            exp.cfg.expt.expts = 1  
                 
             x_sweep = [{"pts": freq_pts, "var": 'frequency'}]
             data = exp.acquire(ResSpecProgram, x_sweep, progress=progress)
@@ -373,26 +378,14 @@ class ResSpec(QickExperiment):
 class ResSpecPower(QickExperiment2DSimple):
     """
     Keys:
-        final_delay (float): Delay time between repetitions in seconds.
-        reps (int): Number of repetitions for each experiment.
-        soft_avgs (int): Number of soft_avgs for the experiment.
         rng (int): Range for the gain sweep.
         max_gain (int): Maximum gain value.
         expts_gain (int): Number of gain points in the sweep.
-        span_f (float): Frequency span for the sweep in MHz.
-        expts_f (int): Number of frequency points in the sweep.
         start_gain (int): Starting gain value.
         step_gain (int): Step size for the gain sweep.
         f_off (float): Frequency offset in MHz.
         min_reps (int): Minimum number of repetitions.
         log (bool): Whether to use logarithmic scaling for the gain sweep.
-        start_f (float): Starting frequency for the sweep in MHz.
-        step_f (float): Step size for the frequency sweep in MHz.
-        qubit (int): Qubit index.
-        pulse_e (bool): Whether to apply a pulse on the e-channel.
-        pulse_f (bool): Whether to apply a pulse on the f-channel.
-        pulse_type (str): Type of pulse to apply.
-        qubit_chan (int): Qubit channel index.
     """
 
     def __init__(
@@ -556,6 +549,77 @@ class ResSpecPower(QickExperiment2DSimple):
     def save_data(self, data=None):
         super().save_data(data=data)
 
+class ResSpec2D(QickExperiment2DSimple):
+
+    def __init__(
+        self,
+        cfg_dict,
+        qi=0,
+        go=True,
+        save=True,
+        display=True,
+        analyze=True,
+        params={},
+        prefix="",
+        progress=False,
+        style="",
+    ):
+
+        if prefix == "":
+            prefix = f"resonator_spectroscopy_2d_{qi}"
+
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        exp_name = ResSpec
+        params_def = {
+            "expts_count": 50,
+        }
+        params = {**params_def, **params}
+        self.expt = exp_name(cfg_dict, prefix=prefix, qi=qi, go=False, params=params)
+        
+        self.cfg.expt = {**self.expt.cfg.expt, **params}
+
+        if go:
+            super().run(progress=progress, save=save, display=display, analyze=analyze)
+
+    def acquire(self, progress=False):
+
+        pts = np.arange(self.cfg.expt.expts_count)
+        y_sweep = [{"var": "npts", "pts": pts}]
+        super().acquire(y_sweep=y_sweep, progress=progress)
+
+        self.data['avgi_full'] = self.data['avgi']
+        self.data['avgq_full'] = self.data['avgq']
+        self.data['amps_full'] = self.data['amps']
+        self.data['phases_full'] = self.data['phases']
+
+        self.data['avgi'] = np.mean(self.data['avgi'], axis=0)
+        self.data['avgq'] = np.mean(self.data['avgq'], axis=0)
+        self.data['amps'] = np.mean(self.data['amps'], axis=0)
+        self.data['phases'] = np.mean(self.data['phases'], axis=0)
+
+        phs_data = np.unwrap(self.data["phases"][1:-1])
+        slope, intercept = np.polyfit(self.data["xpts"][1:-1], phs_data, 1)
+        phs_fix = phs_data - slope * self.data["xpts"][1:-1] - intercept
+        self.data["phase_fix"] = np.unwrap(phs_fix)
+
+        return self.data
+        
+    def analyze(self, data=None, fit=True, **kwargs):
+        pass
+
+
+        
+    def display(self, data=None, fit=True, plot_both=False, **kwargs):
+        data = self.data
+        fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+        ax[0].set_title(f"Resonator Spectroscopy 2D Q{self.cfg.expt.qubit[0]}")
+        ax[0].set_xlabel("Readout Frequency (MHz)")
+        ax[0].set_ylabel("Readout Gain (DAC units)")
+        ax[0].plot(data["xpts"], data["amps"], ".-")
+        ax[1].plot(data["xpts"][1:-1], data["phase_fix"], ".-")
+        plt.show()
+
 
 def get_homophase(params):
     """
@@ -571,7 +635,7 @@ def get_homophase(params):
     numpy.ndarray: An array containing the calculated frequency list.
     """
     nlin = 2
-    kappa_inc = 10
+    kappa_inc = 1.2
 
     N = params["expts"] - nlin * 2
     df = params["span"]

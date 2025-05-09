@@ -67,9 +67,8 @@ class QickProgram(AveragerProgramV2):
         # Configure hardware channels for the selected qubit
         self.adc_ch = cfg.hw.soc.adcs.readout.ch[q]  # ADC channel for readout
         self.res_ch = cfg.hw.soc.dacs.readout.ch[q]  # DAC channel for resonator drive
-        self.res_ch_type = cfg.hw.soc.dacs.readout.type[q]  # Resonator channel type
-        
-        self.res_nqz = cfg.hw.soc.dacs.readout.nyquist[q]  # Nyquist zone for resonator
+        self.res_ch_type = cfg.hw.soc.dacs.readout.type[q]  # Resonator channel type (full, mux, int)
+        self.res_nqz = cfg.hw.soc.dacs.readout.nyquist[q]  # Nyquist zone for resonator (1 for <5 GHz, 2 for >5 GHz)
         
         self.trig_offset = cfg.device.readout.trig_offset[q]  # Trigger timing offset
         if 'qubit' in cfg.hw.soc.dacs:
@@ -116,6 +115,8 @@ class QickProgram(AveragerProgramV2):
         else:
             self.lo_ch = None  # No LO channel available
 
+        if 'aves' in cfg.expt: 
+            self.add_loop("ave_loop", cfg.expt.aves)
         # Set up resonator readout channel
         self.declare_gen(
             ch=self.res_ch, nqz=self.res_nqz
