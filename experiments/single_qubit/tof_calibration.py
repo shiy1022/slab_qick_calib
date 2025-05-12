@@ -152,8 +152,6 @@ class ToFCalibrationExperiment(QickExperiment):
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
             )
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
 
 
 class ToF2D(QickExperiment2DSimple):

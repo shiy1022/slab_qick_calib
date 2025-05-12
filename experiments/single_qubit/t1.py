@@ -338,19 +338,6 @@ class T1Experiment(QickExperiment):
             rescale=rescale,
         )
 
-    def save_data(self, data=None):
-        """
-        Save the experiment data to disk
-
-        Args:
-            data: Data dictionary to save (uses self.data if None)
-
-        Returns:
-            Filename where data was saved
-        """
-        super().save_data(data=data)
-        return self.fname
-
     def update(self, cfg_file, rng_vals=[1,500],first_time=False, verbose=True):
         qi = self.cfg.expt.qubit[0]
         if self.status: 

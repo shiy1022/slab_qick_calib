@@ -254,10 +254,6 @@ class RabiExperiment(QickExperiment):
             rescale=rescale,
         )
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-
-
 class ReadoutCheck(QickExperiment):
 
     def __init__(
@@ -477,10 +473,6 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             ax[1].set_xlabel('$\Delta$ Frequency (MHz)')
             ax[0].set_ylabel('Frequency (MHz)')
             ax[1].set_ylabel('Amplitude')
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 def chevron_freq(x, w0): 
     return np.sqrt(w0**2 + x**2)

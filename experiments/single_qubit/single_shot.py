@@ -652,9 +652,6 @@ class HistogramExperiment(QickExperiment):
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
             )
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-
     def update(self, cfg_file, freq=True, fast=False, verbose=True):
         qi = self.cfg.expt.qubit[0]
         
