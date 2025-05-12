@@ -15,7 +15,12 @@ class QubitSpecProgram(QickProgram):
 
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
-
+        
+        q = cfg.expt.qubit[0]
+        self.frequency = cfg.device.readout.frequency[q]
+        self.gain = cfg.device.readout.gain[q]
+        self.readout_length = cfg.expt.length
+        self.phase = cfg.device.readout.phase[q]
         super()._initialize(cfg, readout="standard")
 
         pulse = {
@@ -49,16 +54,8 @@ class QubitSpecProgram(QickProgram):
         if cfg.expt.checkEF:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait 2")
-        
 
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
-        if self.lo_ch is not None:
-            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
-        self.trigger(
-            ros=[self.adc_ch],
-            pins=[0],
-            t=self.trig_offset,
-        )
+        super().measure(cfg)
 
 
 class QubitSpec(QickExperiment):
@@ -117,11 +114,13 @@ class QubitSpec(QickExperiment):
             "soft_avgs": self.soft_avgs,
             "final_delay": 10,
             "length": 5,
+            'readout_length': self.cfg.device.readout.readout_length[qi],
             "pulse_type": "const",
             "checkEF": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
-            "sep_readout": False,
+            "sep_readout": True,
+            'active_reset':False
         }
         params_def = {**params_def2,**params_def}
 
@@ -141,6 +140,8 @@ class QubitSpec(QickExperiment):
                 params["length"] = self.cfg.device.qubit.T1[qi] / 4
         if params["length"] > max_length:
             params["length"] = max_length
+        if not params['sep_readout']:
+            params['readout_length']=params['length']
 
         self.cfg.expt = params
         # Check for unexpected parameters
@@ -269,7 +270,7 @@ class QubitSpecPower(QickExperiment2DSimple):
         super().check_params(params_def)
 
         if go:
-            self.go(progress=progress, display=display)
+            self.run(progress=progress, display=display)
 
     def acquire(self, progress=False):
         if "log" in self.cfg.expt and self.cfg.expt.log == True:

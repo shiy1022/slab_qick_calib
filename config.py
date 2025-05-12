@@ -1,3 +1,11 @@
+"""
+Configuration module for quantum experiments.
+
+This module provides functions for loading, saving, and updating configuration files
+for quantum experiments. It also includes functions for initializing default configurations
+for different types of experiments.
+"""
+
 import yaml
 from slab_qick_calib.exp_handling.datamanagement import AttrDict
 from functools import reduce
@@ -6,56 +14,88 @@ from datetime import datetime
 
 
 def nested_set(dic, keys, value):
+    """Set a nested dictionary value using a list of keys."""
     for key in keys[:-1]:
         dic = dic.setdefault(key, {})
     dic[keys[-1]] = value
 
 
 def load(file_name):
+    """Load a YAML configuration file and return it as an AttrDict."""
     with open(file_name, "r") as file:
-        auto_cfg = AttrDict(
-            yaml.safe_load(file)
-        )  # turn it into an attribute dictionary
+        auto_cfg = AttrDict(yaml.safe_load(file))
     return auto_cfg
 
 
-def save(cfg, file_name):
-    # dump it:
-    cfg = yaml.safe_dump(cfg.to_dict(), default_flow_style=None)
+def save(cfg, file_name, reload=True):
+    """
+    Save a configuration to a YAML file.
+    
+    Args:
+        cfg: Configuration object to save
+        file_name: Path to save the configuration
+        reload: Whether to reload the file after saving (default: True)
+    
+    Returns:
+        The saved configuration as an AttrDict if reload=True, otherwise None
+    """
+    # Convert to YAML format
+    cfg_yaml = yaml.safe_dump(cfg.to_dict(), default_flow_style=None)
 
-    # write it:
+    # Write to file
     with open(file_name, "w") as modified_file:
-        modified_file.write(cfg)
+        modified_file.write(cfg_yaml)
 
-    # now, open the modified file again
-    with open(file_name, "r") as file:
-        cfg = AttrDict(yaml.safe_load(file))  # turn it into an attribute dictionary
+    # Reload if requested
+    if reload:
+        with open(file_name, "r") as file:
+            return AttrDict(yaml.safe_load(file))
+    return None
 
-    return cfg
 
 def save_copy(file_name):
-    # dump it:
+    """
+    Save a copy of a configuration file with a timestamp in the filename.
+    
+    Args:
+        file_name: Path to the original configuration file
+    
+    Returns:
+        The saved configuration as an AttrDict
+    """
+    # Load the configuration
     cfg = load(file_name)
-    cfg = yaml.safe_dump(cfg.to_dict(), default_flow_style=None)
+    cfg_yaml = yaml.safe_dump(cfg.to_dict(), default_flow_style=None)
 
-    # write it:
+    # Create a new filename with timestamp
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_name = f"{file_name[0:-4]}_{current_time}.yml"
-    with open(file_name, "w") as modified_file:
-        modified_file.write(cfg)
+    new_file_name = f"{file_name[0:-4]}_{current_time}.yml"
+    
+    # Write to the new file
+    with open(new_file_name, "w") as modified_file:
+        modified_file.write(cfg_yaml)
 
-    # now, open the modified file again
-    with open(file_name, "r") as file:
-        cfg = AttrDict(yaml.safe_load(file))  # turn it into an attribute dictionary
-
-    return cfg
+    # Reload and return
+    with open(new_file_name, "r") as file:
+        return AttrDict(yaml.safe_load(file))
 
 
 def recursive_get(d, keys):
+    """Get a value from a nested dictionary using a list of keys."""
     return reduce(lambda c, k: c.get(k, {}), keys, d)
 
 
 def in_rng(val, rng_vals):
+    """
+    Ensure a value is within a specified range.
+    
+    Args:
+        val: The value to check
+        rng_vals: A tuple/list of (min, max) values
+    
+    Returns:
+        The value, clamped to the specified range
+    """
     if val < rng_vals[0]:
         print("Val is out of range, setting to min")
         return rng_vals[0]
@@ -65,199 +105,339 @@ def in_rng(val, rng_vals):
     else:
         return val
 
-def update(param_type, file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
+
+def format_value(value, sig=4, rng_vals=None):
+    """
+    Format a value for storage in the configuration.
+    
+    Args:
+        value: The value to format
+        sig: Number of significant digits for floating point values
+        rng_vals: Optional range limits (min, max)
+    
+    Returns:
+        The formatted value
+    """
+    # Skip formatting for NaN values
+    if np.isnan(value):
+        return value
+        
+    # Round floating point values
+    if not isinstance(value, (int, str, bool)):
+        value = float(round(value, sig))
+        
+    # Apply range limits if provided
+    if rng_vals is not None:
+        value = in_rng(value, rng_vals)
+        
+    return value
+
+
+def update_config(file_name, path, field, value, index=None, verbose=True, sig=4, rng_vals=None):
+    """
+    Update a value in a configuration file.
+    
+    This is a general-purpose update function that can update any part of the configuration.
+    
+    Args:
+        file_name: Path to the configuration file
+        path: Path to the parameter section (e.g., "device.qubit", "hw.soc.lo")
+        field: Field name to update
+        value: New value
+        index: Optional index for array values
+        verbose: Whether to print update information
+        sig: Number of significant digits for floating point values
+        rng_vals: Optional range limits (min, max)
+    
+    Returns:
+        The updated configuration
+    """
+    # Load the configuration
     cfg = load(file_name)
-    if not np.isnan(value):
-        if not isinstance(value, int) and not isinstance(value, str) and not isinstance(value, bool) :
-            value = float(round(value, sig))
-        if rng_vals is not None:
-            value = in_rng(value, rng_vals)
-        if isinstance(field, tuple):  # for setting nested fields
-            v = recursive_get(cfg["device"][param_type], field)
-            old_value = v[qubit_i]
-            v[qubit_i] = value
-            nested_set(cfg["device"][param_type], field, v)
-            if verbose:
-                print(f"*Set cfg {param_type} {qubit_i} {field} to {value} from {old_value}*")
+    
+    # Skip if value is NaN
+    if np.isnan(value):
+        return cfg
+        
+    # Format the value
+    value = format_value(value, sig, rng_vals)
+    
+    # Split the path into components
+    path_parts = path.split('.')
+    
+    # Navigate to the target section
+    section = cfg
+    for part in path_parts:
+        section = section[part]
+    
+    # Update the value
+    if isinstance(field, tuple):  # For nested fields
+        v = recursive_get(section, field)
+        old_value = v[index]
+        v[index] = value
+        nested_set(section, field, v)
+    elif index is not None:  # For array values
+        old_value = section[field][index]
+        section[field][index] = value
+    else:  # For scalar values
+        old_value = section[field]
+        section[field] = value
+    
+    # Print update information if requested
+    if verbose:
+        if index is not None:
+            print(f"*Set cfg {path} {index} {field} to {value} from {old_value}*")
         else:
-            old_value = cfg["device"][param_type][field][qubit_i]
-            cfg["device"][param_type][field][qubit_i] = value
-            if verbose:
-                print(f"*Set cfg {param_type} {qubit_i} {field} to {value} from {old_value}*")
-        save(cfg, file_name)
+            print(f"*Set cfg {path} {field} to {value} from {old_value}*")
+    
+    # Save the updated configuration
+    save(cfg, file_name)
+    
     return cfg
+
 
 def update_qubit(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
-    cfg = update("qubit", file_name, field, value, qubit_i, verbose, sig, rng_vals)
-    return cfg
+    """Update a qubit parameter in the configuration."""
+    return update_config(file_name, "device.qubit", field, value, qubit_i, verbose, sig, rng_vals)
+
 
 def update_readout(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
-    cfg = update("readout", file_name, field, value, qubit_i, verbose, sig, rng_vals)
-    return cfg
+    """Update a readout parameter in the configuration."""
+    return update_config(file_name, "device.readout", field, value, qubit_i, verbose, sig, rng_vals)
 
-def update_stark(
-    file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None
-):
-    cfg = load(file_name)
-    if not np.isnan(value):
-        if rng_vals is not None:
-            value = in_rng(value, rng_vals)
-        if not isinstance(value, int) and not isinstance(value, str):
-            value = float(round(value, sig))
-        old_value = cfg["stark"][field][qubit_i]
-        cfg["stark"][field][qubit_i] = value
-        save(cfg, file_name)
-        if verbose:
-            print(f"*Set cfg stark {qubit_i} {field} to {value} from {old_value}*")
-    return cfg
 
-def update_lo(file_name, field, value,qi, verbose=True, sig=4, rng_vals=None):
-    cfg = load(file_name)
-    if not np.isnan(value):
-        if rng_vals is not None:
-            value = in_rng(value, rng_vals)
-        if not isinstance(value, int) and not isinstance(value, str):
-            value = float(round(value, sig))
-        old_value = cfg["hw"]["soc"]["lo"][field][qi]
-        cfg["hw"]["soc"]["lo"][field][qi] = value
-        save(cfg, file_name)
-        if verbose:
-            print(f"*Set cfg lo {field} to {value} from {old_value}*")
-    return cfg
+def update_stark(file_name, field, value, qubit_i, verbose=True, sig=4, rng_vals=None):
+    """Update a Stark shift parameter in the configuration."""
+    return update_config(file_name, "stark", field, value, qubit_i, verbose, sig, rng_vals)
+
+
+def update_lo(file_name, field, value, qi, verbose=True, sig=4, rng_vals=None):
+    """Update a local oscillator parameter in the configuration."""
+    return update_config(file_name, "hw.soc.lo", field, value, qi, verbose, sig, rng_vals)
 
 def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
-
-    device = {"qubit": {"pulses": {"pi_ge": {}, "pi_ef": {}}}, "readout": {}}
-
-    # Qubit params
-    device["qubit"]["T1"] = [t1] * num_qubits
-    device["qubit"]["T2r"] = [t1] * num_qubits
-    device["qubit"]["T2e"] = [2 * t1] * num_qubits
+    """
+    Initialize a configuration file for quantum experiments with qubits.
     
-    device["qubit"]["f_ge"] = [4000] * num_qubits
-    device["qubit"]["f_ef"] = [3800] * num_qubits
-    device["qubit"]["kappa"] = [0] * num_qubits
-    device["qubit"]["spec_gain"] = [1] * num_qubits
-
-    device["qubit"]["pulses"]["pi_ge"]["gain"] = [0.15] * num_qubits
-    device["qubit"]["pulses"]["pi_ge"]["sigma"] = [0.1] * num_qubits
-    device["qubit"]["pulses"]["pi_ge"]["sigma_inc"] = [5] * num_qubits
-    device["qubit"]["pulses"]["pi_ge"]["type"] = ["gauss"] * num_qubits
-    device["qubit"]["pulses"]["pi_ef"]["gain"] = [0.15] * num_qubits
-    device["qubit"]["pulses"]["pi_ef"]["sigma"] = [0.1] * num_qubits
-    device["qubit"]["pulses"]["pi_ef"]["sigma_inc"] = [5] * num_qubits
-    device["qubit"]["pulses"]["pi_ef"]["type"] = ["gauss"] * num_qubits
-
-    device["qubit"]["pop"] = [0] * num_qubits
-    device["qubit"]["temp"] = [0] * num_qubits
-
-    device["qubit"]["tuned_up"]= [False] * num_qubits
-
-    # Readout params
-    device["readout"]["frequency"] = [7000] * num_qubits
-    device["readout"]["gain"] = [0.05] * num_qubits
-
-    device["readout"]["lamb"] = [0] * num_qubits
-    device["readout"]["chi"] = [0] * num_qubits
-    device["readout"]["kappa"] = [0.5] * num_qubits
-    device["readout"]["qe"] = [0] * num_qubits
-    device["readout"]["qi"] = [0] * num_qubits
-
-    device["readout"]["phase"] = [0] * num_qubits
-    device["readout"]["readout_length"] = [5] * num_qubits
-    device["readout"]["threshold"] = [10] * num_qubits
-    device["readout"]["fidelity"] = [0] * num_qubits
-    device["readout"]["tm"] = [0] * num_qubits
-    device["readout"]["sigma"] = [0] * num_qubits
-
-    device["readout"]["trig_offset"] = [0.5] * num_qubits
-    device["readout"]["final_delay"] = [t1 * 6] * num_qubits
-    device["readout"]["active_reset"]=[False]*num_qubits
-    device["readout"]["reset_e"] = [0]*num_qubits
-    device["readout"]["reset_g"] = [0]*num_qubits
+    Args:
+        file_name: Path to save the configuration
+        num_qubits: Number of qubits to configure
+        type: Type of readout, default is "full"
+        t1: Default T1 relaxation time in μs
+        aliases: Identifier for the System-on-Chip (SoC)
     
-    device["readout"]["reps"] = [1] * num_qubits
-    device["readout"]["soft_avgs"] = [1] * num_qubits
-
-    device["qubit"]["low_gain"]=0.003
-    device["qubit"]["max_gain"] = 1
-    device["readout"]["max_gain"] = 1
-    device["readout"]["reps_base"] = 150
-    device["readout"]["soft_avgs_base"] = 1
+    Returns:
+        The created configuration
+    """
+    # Create a helper function to initialize arrays
+    def init_array(value, length=num_qubits):
+        """Create an array with the same value repeated."""
+        return [value] * length
     
+    # Initialize the configuration structure
+    device = {
+        "qubit": {
+            "pulses": {
+                "pi_ge": {},
+                "pi_ef": {}
+            }
+        }, 
+        "readout": {}
+    }
+    
+    # Qubit coherence parameters
+    device["qubit"].update({
+        "T1": init_array(t1),
+        "T2r": init_array(t1),
+        "T2e": init_array(2 * t1),
+    })
+    
+    # Qubit frequency parameters
+    device["qubit"].update({
+        "f_ge": init_array(4000),
+        "f_ef": init_array(3800),
+        "kappa": init_array(0),
+        "spec_gain": init_array(1),
+    })
+    
+    # Qubit pulse parameters
+    for pulse_type in ["pi_ge", "pi_ef"]:
+        device["qubit"]["pulses"][pulse_type].update({
+            "gain": init_array(0.15),
+            "sigma": init_array(0.1),
+            "sigma_inc": init_array(5),
+            "type": init_array("gauss"),
+        })
+    
+    # Other qubit parameters
+    device["qubit"].update({
+        "pop": init_array(0),
+        "temp": init_array(0),
+        "tuned_up": init_array(False),
+        "low_gain": 0.003,
+        "max_gain": 1,
+    })
+    
+    # Readout frequency and gain
+    device["readout"].update({
+        "frequency": init_array(7000),
+        "gain": init_array(0.05),
+    })
+    
+    # Readout resonator parameters
+    device["readout"].update({
+        "lamb": init_array(0),
+        "chi": init_array(0),
+        "kappa": init_array(0.5),
+        "qe": init_array(0),
+        "qi": init_array(0),
+    })
+    
+    # Readout settings
+    device["readout"].update({
+        "phase": init_array(0),
+        "readout_length": init_array(5),
+        "threshold": init_array(10),
+        "fidelity": init_array(0),
+        "tm": init_array(0),
+        "sigma": init_array(0),
+    })
+    
+    # Readout timing
+    device["readout"].update({
+        "trig_offset": init_array(0.5),
+        "final_delay": init_array(t1 * 6),
+        "active_reset": init_array(False),
+        "reset_e": init_array(0),
+        "reset_g": init_array(0),
+    })
+    
+    # Readout averaging
+    device["readout"].update({
+        "reps": init_array(1),
+        "soft_avgs": init_array(1),
+        "max_gain": 1,
+        "reps_base": 150,
+        "soft_avgs_base": 1,
+    })
+    
+    # Hardware configuration
     soc = {
-        "adcs": {"readout": {"ch": [0] * num_qubits}},
+        "adcs": {
+            "readout": {
+                "ch": init_array(0)
+            }
+        },
         "dacs": {
             "qubit": {
-                "ch": [1] * num_qubits,
-                "nyquist": [1] * num_qubits,
-                "type": ["full"] * num_qubits,
+                "ch": init_array(1),
+                "nyquist": init_array(1),
+                "type": init_array("full"),
             },
             "readout": {
-                "ch": [0] * num_qubits,
-                "nyquist": [2] * num_qubits,
-                "type": [type] * num_qubits,
+                "ch": init_array(0),
+                "nyquist": init_array(2),
+                "type": init_array(type),
             },
         },
     }
-
-    auto_cfg = {"device": device, "hw": {"soc": soc}, "aliases": {"soc": aliases}}
-
-    cfg = yaml.safe_dump(auto_cfg, default_flow_style=None)
-
-    # write it:
+    
+    # Assemble the complete configuration
+    auto_cfg = {
+        "device": device, 
+        "hw": {"soc": soc}, 
+        "aliases": {"soc": aliases}
+    }
+    
+    # Convert to YAML and save
+    cfg_yaml = yaml.safe_dump(auto_cfg, default_flow_style=None)
     with open(file_name, "w") as modified_file:
-        modified_file.write(cfg)
+        modified_file.write(cfg_yaml)
+    
+    return cfg_yaml
 
-    return cfg
 
 def init_config_res(file_name, num_qubits, type="full", aliases="Qick001"):
-
+    """
+    Initialize a configuration file for resonator experiments.
+    
+    Args:
+        file_name: Path to save the configuration
+        num_qubits: Number of qubits to configure
+        type: Type of readout, default is "full"
+        aliases: Identifier for the System-on-Chip (SoC)
+    
+    Returns:
+        The created configuration
+    """
+    # Create a helper function to initialize arrays
+    def init_array(value, length=num_qubits):
+        """Create an array with the same value repeated."""
+        return [value] * length
+    
+    # Initialize the configuration structure
     device = {"readout": {}}
-
-    # Readout params
-    device["readout"]["frequency"] = [7000] * num_qubits
-    device["readout"]["gain"] = [0.05] * num_qubits
-
-    device["readout"]["kappa"] = [0.5] * num_qubits
-    device["readout"]["kappa_hi"] = [0.5] * num_qubits
-    device["readout"]["qe"] = [0] * num_qubits
-    device["readout"]["qi"] = [0] * num_qubits
-    device["readout"]["qi_hi"] = [0] * num_qubits
-    device["readout"]["qi_lo"] = [0] * num_qubits
-
-
-    device["readout"]["phase"] = [0] * num_qubits
-    device["readout"]["readout_length"] = [100] * num_qubits
     
-    device["readout"]["trig_offset"] = [0.5] * num_qubits
-    device["readout"]["final_delay"] = [50] * num_qubits
+    # Readout frequency and gain
+    device["readout"].update({
+        "frequency": init_array(7000),
+        "gain": init_array(0.05),
+    })
     
-    device["readout"]["reps"] = [1] * num_qubits
-    device["readout"]["soft_avgs"] = [1] * num_qubits
-
-    device["readout"]["max_gain"] = 1
-    device["readout"]["reps_base"] = 30
-    device["readout"]["soft_avgs_base"] = 1
-    device["readout"]["phase_inc"] = [1140]
+    # Readout resonator parameters
+    device["readout"].update({
+        "kappa": init_array(0.5),
+        "kappa_hi": init_array(0.5),
+        "qe": init_array(0),
+        "qi": init_array(0),
+        "qi_hi": init_array(0),
+        "qi_lo": init_array(0),
+    })
     
+    # Readout settings
+    device["readout"].update({
+        "phase": init_array(0),
+        "readout_length": init_array(100),
+        "trig_offset": init_array(0.5),
+        "final_delay": init_array(50),
+    })
+    
+    # Readout averaging
+    device["readout"].update({
+        "reps": init_array(1),
+        "soft_avgs": init_array(1),
+        "max_gain": 1,
+        "reps_base": 30,
+        "soft_avgs_base": 1,
+        "phase_inc": [1140],
+    })
+    
+    # Hardware configuration
     soc = {
-        "adcs": {"readout": {"ch": [0] * num_qubits}},
+        "adcs": {
+            "readout": {
+                "ch": init_array(0)
+            }
+        },
         "dacs": {
             "readout": {
-                "ch": [0] * num_qubits,
-                "nyquist": [2] * num_qubits,
-                "type": [type] * num_qubits,
+                "ch": init_array(0),
+                "nyquist": init_array(2),
+                "type": init_array(type),
             },
         },
     }
-
-    auto_cfg = {"device": device, "hw": {"soc": soc}, "aliases": {"soc": aliases}}
-
-    cfg = yaml.safe_dump(auto_cfg, default_flow_style=None)
-
-    # write it:
+    
+    # Assemble the complete configuration
+    auto_cfg = {
+        "device": device, 
+        "hw": {"soc": soc}, 
+        "aliases": {"soc": aliases}
+    }
+    
+    # Convert to YAML and save
+    cfg_yaml = yaml.safe_dump(auto_cfg, default_flow_style=None)
     with open(file_name, "w") as modified_file:
-        modified_file.write(cfg)
-
-    return cfg
+        modified_file.write(cfg_yaml)
+    
+    return cfg_yaml

@@ -229,8 +229,10 @@ class QickProgram(AveragerProgramV2):
         pulse = AttrDict(pulse)  # Convert to attribute dictionary
 
         # Common pulse parameters
+        if "chan" not in pulse:
+            pulse.chan = self.qubit_ch
         pulse_args = {
-            "ch": self.qubit_ch,
+            "ch": pulse.chan,
             "name": name,
             "freq": pulse.freq,  # Pulse frequency
             "phase": pulse.phase,  # Pulse phase

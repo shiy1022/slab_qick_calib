@@ -204,8 +204,6 @@ class ToF2D(QickExperiment2DSimple):
         pass
 
     def display(self, data=None, fit=True, plot_both=False, **kwargs):
-        if data is None:
-            data = self.data
-        qubit = self.cfg.expt.qubit[0]
+        pass
         
         

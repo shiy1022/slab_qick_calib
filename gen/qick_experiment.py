@@ -134,6 +134,7 @@ class QickExperiment(Experiment):
         xpts = self.get_params(prog)
 
         # Process I/Q data to get amplitude and phase
+        # Shape: Readout channels / Readouts in Program / Loops / I and Q
         amps = np.abs(iq_list[0][0].dot([1, 1j]))
         phases = np.angle(iq_list[0][0].dot([1, 1j]))
         avgi = iq_list[0][0][:, 0]
@@ -493,6 +494,13 @@ class QickExperiment(Experiment):
         super().save_data(data=data)
         return self.fname
 
+    def print(self):
+        """
+        Print out the experimental config"""
+        for key, value in self.cfg.expt.items():
+            print(f"{key}: {value}")
+        
+
     def get_status(self, max_err=1, min_r2=0.1):
         # Determine if experiment was successful based on fit quality
         if (
@@ -516,6 +524,10 @@ class QickExperiment(Experiment):
         This method extracts the values of the parameter being swept in the experiment,
         either a pulse parameter (e.g., amplitude, frequency) or a time parameter
         (e.g., delay, pulse length).
+        self.param needs to have fields set: 
+        - param_type: "pulse" or "time"
+        - label: Label of the parameter to extract [listed in the program]
+        - param: Name of the parameter to extract (freq, gain, total_length, t)
 
         Args:
             prog: QickProgram instance to get parameters from
@@ -557,7 +569,9 @@ class QickExperiment(Experiment):
         )
 
     def get_freq(self, fit=True):
-        # Provide correct frequency if mixer's are in use, for two different LO types.
+        """
+        Provide correct frequency if mixers are in use, for LO coming from QICK or external source
+"""
         freq_offset = 0
         q = self.cfg.expt.qubit[0]
         if "mixer_freq" in self.cfg.hw.soc.dacs.readout:
@@ -576,7 +590,11 @@ class QickExperiment(Experiment):
         #     self.data["freq_fit"][0] = freq_offset + self.data["fit"][0]
         #     self.data["freq_init"][0] = freq_offset + self.data["init"][0]
 
+    
     def scale_ge(self):
+        """
+        Scale g->0 and e->1 based on histogram data"""
+
         hist = self.data["hist"]
         bin_centers = self.data["bin_centers"]
         v_rng = np.max(bin_centers) - np.min(bin_centers)

@@ -27,9 +27,9 @@ class ResSpecProgram(QickProgram):
 
     def _initialize(self, cfg):
         cfg = AttrDict(self.cfg)
+        q = cfg.expt.qubit[0]
         self.frequency = cfg.expt.frequency
         self.gain = cfg.expt.gain
-        q = cfg.expt.qubit[0]
         self.readout_length = cfg.expt.length
         self.phase = cfg.device.readout.phase[q]
         if cfg.expt.long_pulse:
@@ -54,14 +54,7 @@ class ResSpecProgram(QickProgram):
                 self.pulse(ch=self.qubit_ch, name="pi_ef", t=0)
             self.delay_auto(t=0.02, tag="waiting")
         
-        self.pulse(ch=self.res_ch, name="readout_pulse", t=0)    
-        if self.lo_ch is not None:
-            self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.01)
-        self.trigger(
-            ros=[self.adc_ch],
-            pins=[0],
-            t=self.trig_offset,
-        )
+        super().measure(cfg)
 
 
 class ResSpec(QickExperiment):
@@ -115,6 +108,7 @@ class ResSpec(QickExperiment):
             'long_pulse': False,
             'loop':False,
             'phase_const':False,
+            "active_reset":False,
             'kappa':self.cfg.device.readout.kappa[qi],
         }
         if style == "coarse":
@@ -407,7 +401,7 @@ class ResSpecPower(QickExperiment2DSimple):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         params_def = {
-            "reps": self.reps / 600,
+            "reps": self.reps / 2400,
             "rng": 100,
             "max_gain": self.cfg.device.qubit.max_gain,
             "span": 15,
@@ -596,7 +590,11 @@ class ResSpec2D(QickExperiment2DSimple):
         self.data['avgi'] = np.mean(self.data['avgi'], axis=0)
         self.data['avgq'] = np.mean(self.data['avgq'], axis=0)
         self.data['amps'] = np.mean(self.data['amps'], axis=0)
-        self.data['phases'] = np.mean(self.data['phases'], axis=0)
+        phs = self.data['phases'] - self.cfg.device.readout.phase_inc*self.data['xpts']
+        phs = np.unwrap(phs)
+        phs = np.mean(phs, axis=0)
+        phs = phs - np.mean(phs)
+        self.data['phases'] = phs
 
         phs_data = np.unwrap(self.data["phases"][1:-1])
         slope, intercept = np.polyfit(self.data["xpts"][1:-1], phs_data, 1)
@@ -634,7 +632,7 @@ def get_homophase(params):
     Returns:
     numpy.ndarray: An array containing the calculated frequency list.
     """
-    nlin = 2
+    nlin = 3
     kappa_inc = 1.2
 
     N = params["expts"] - nlin * 2
