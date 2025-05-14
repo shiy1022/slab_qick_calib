@@ -71,7 +71,7 @@ class ToFCalibrationExperiment(QickExperiment):
         if prefix is None:
             prefix = f"adc_trig_offset_calibration_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, qi=qi, prefix=prefix, progress=progress)
         params_def = {
             "soft_avgs": 1000,
             "readout_length": 1,  # [us]
@@ -170,7 +170,7 @@ class ToF2D(QickExperiment2DSimple):
         if prefix == "":
             prefix = f"tof_2d_{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, qi=qi, prefix=prefix, progress=progress)
 
         exp_name = ToFCalibrationExperiment
         exp_name(cfg_dict, qi, go=False, params=params)
@@ -181,7 +181,7 @@ class ToF2D(QickExperiment2DSimple):
             "qubit": [qi],
         }
         params = {**params_def, **params}
-        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
         
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params

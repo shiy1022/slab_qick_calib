@@ -242,7 +242,7 @@ class T1StarkPowerExperiment(QickExperiment2DSimple):
         if prefix == "":
             prefix = f"t1_stark_amp_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, qi=qi, prefix=prefix, progress=progress)
 
         params_def = {
             "end_gain": self.cfg.device.qubit.max_gain,
@@ -250,7 +250,7 @@ class T1StarkPowerExperiment(QickExperiment2DSimple):
             "start_gain": 0.15,
             "qubit": [qi],
         }
-        self.expt = T1StarkExperiment(cfg_dict, qi, go=False, params=params, acStark=acStark, style=style)
+        self.expt = T1StarkExperiment(cfg_dict, qi=qi, go=False, params=params, acStark=acStark, style=style)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
@@ -358,7 +358,7 @@ class T1StarkFreqExperiment(QickExperiment2DSimple):
         if prefix == "":
             prefix = f"t1_stark_freq_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict,qi=qi,  prefix=prefix, progress=progress)
 
         params_def = {
             "span_f": 200,
@@ -367,7 +367,7 @@ class T1StarkFreqExperiment(QickExperiment2DSimple):
         }
         params = {**params_def, **params}
         params["start_f"] = self.cfg.device.qubit.f_ge[qi] + params["start_df"]
-        self.expt = T1StarkExperiment(cfg_dict, qi, go=False, params=params, acStark=acStark, style=style)
+        self.expt = T1StarkExperiment(cfg_dict, qi=qi, go=False, params=params, acStark=acStark, style=style)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
