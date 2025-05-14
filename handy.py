@@ -1,6 +1,8 @@
 from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+
 def plot_many(d,title='', save_path=None, chan='avgi',yax=None, norm=False, horz_line=None):
     nrows = int(np.ceil(len(d)/4))
     fig, ax = plt.subplots(nrows,4, figsize=(12,3*nrows))
