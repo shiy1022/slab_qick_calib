@@ -420,12 +420,12 @@ class ResSpecPower(QickExperiment2DSimple):
             - params["f_off"]
         )
         exp_name = ResSpec 
-        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
         if go:
-            self.go(analyze=False, display=False, progress=True, save=True)
+            self.run(analyze=False, display=False, progress=True, save=True)
             self.analyze(fit=True, lowgain=None, highgain=None)
             self.display(fit=True)
 

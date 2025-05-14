@@ -69,3 +69,14 @@ def plot_many_limited(d,row:int = 1,title='',save = True, save_path=None, chan='
         if save:
             plt.savefig(fname)
 
+
+
+def config_figs():
+
+    # Set seaborn color palette
+    colors = ["#0869c8", "#b51d14", '#ddb310', '#658b38', '#7e1e9c', '#75bbfd', '#cacaca']
+    sns.set_palette(sns.color_palette(colors))
+
+    # Figure parameters
+    plt.rcParams['figure.figsize'] = [8, 4]
+    plt.rcParams.update({'font.size': 13})

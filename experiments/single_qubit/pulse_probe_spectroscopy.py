@@ -260,7 +260,7 @@ class QubitSpecPower(QickExperiment2DSimple):
         params_def = {**params_def, **params_def2}
         params = {**params_def, **params}
         exp_name = QubitSpec 
-        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
         params = {**self.expt.cfg.expt, **params}
 
 
