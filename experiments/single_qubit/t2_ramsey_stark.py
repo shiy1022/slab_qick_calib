@@ -154,7 +154,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         soft_avgs (int): Number of soft_avgs.
         qubit (list): List containing the qubit index.
         stark_freq (float): Stark frequency.
-        checkZZ (bool): Flag to check ZZ interaction.
         checkEF (bool): Flag to check EF interaction.
         qubit_chan (int): Qubit channel for readout.
     """
@@ -175,7 +174,7 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         if prefix == "":
             prefix = f"ramsey_stark_amp_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, qi=qi, prefix=prefix, progress=progress)
 
 
         params_def = {
@@ -185,7 +184,7 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
             "qubit": [qi],
         }
         exp_name = RamseyStarkExperiment
-        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
@@ -303,7 +302,7 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         if prefix == "":
             prefix = f"ramsey_stark_freq_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict,qi=qi,  prefix=prefix, progress=progress)
 
         exp_name = RamseyStarkExperiment
 
@@ -313,7 +312,7 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
             "start_df": 5,
             "qubit": [qi],
         }
-        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
         params = {**params_def, **params}
         params['start_freq'] = self.cfg.device.qubit.f_ge[qi] + params['start_df']
         params['end_freq'] = self.cfg.device.qubit.f_ge[qi] + params['end_df']

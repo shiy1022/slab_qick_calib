@@ -6,7 +6,6 @@ from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import slab_qick_calib.fitting as fitter
 import time
-import warnings
 from scipy.optimize import curve_fit
 
 
@@ -44,7 +43,7 @@ class QickExperiment(Experiment):
     specific experiment types (e.g., T1, T2, Rabi oscillations).
     """
 
-    def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
+    def __init__(self, cfg_dict=None, qi=0, prefix="QickExp", progress=None):
         """
         Initialize the QickExperiment with hardware configuration and experiment parameters.
 
@@ -496,7 +495,8 @@ class QickExperiment(Experiment):
 
     def print(self):
         """
-        Print out the experimental config"""
+        Print out the experimental config
+        """
         for key, value in self.cfg.expt.items():
             print(f"{key}: {value}")
         
