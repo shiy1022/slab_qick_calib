@@ -157,6 +157,7 @@ class T1Experiment(QickExperiment):
         min_r2=None,
         max_err=None,
         display=True,
+        print=True,
     ):
         """
         Initialize the T1 experiment
@@ -221,6 +222,9 @@ class T1Experiment(QickExperiment):
             disp_kwargs = {"plot_all": True}
 
         # Run the experiment if go=True
+        if print: 
+            super().print()
+            go=False
         if go:
             super().run(
                 display=display,

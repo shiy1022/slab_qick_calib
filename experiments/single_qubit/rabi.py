@@ -135,6 +135,7 @@ class RabiExperiment(QickExperiment):
     - 'num_pulses': Number of pulses used in the experiment (default: 1)
     - 'qubit_chan': Channel for the qubit readout (default: self.cfg.hw.soc.adcs.readout.ch[qi])
     - 'sweep': Type of sweep to perform ('amp' or 'length') (default: 'amp')
+    - 'freq': Frequency of the qubit pulse (default: self.cfg.device.qubit.f_ge[qi])
     
     Additional keys may be added based on the specific requirements of the experiment.
     """
