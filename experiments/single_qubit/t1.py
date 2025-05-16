@@ -280,9 +280,9 @@ class T1Experiment(QickExperiment):
 
         # Fit to exponential decay function
         # fitparams=[y-offset, amp, x-offset, decay rate]
-        fitfunc = fitter.expfunc  # Exponential decay function
-        fitterfunc = fitter.fitexp  # Fitting function for exponential decay
-        super().analyze(fitfunc, fitterfunc, data, **kwargs)
+        self.fitfunc = fitter.expfunc  # Exponential decay function
+        self.fitterfunc = fitter.fitexp  # Fitting function for exponential decay
+        super().analyze(self.fitfunc, self.fitterfunc, data, **kwargs)
 
         # Extract T1 time from fit parameters
         data["new_t1"] = data["best_fit"][2]  # T1 from combined I/Q fit
@@ -333,7 +333,7 @@ class T1Experiment(QickExperiment):
             xlabel=xlabel,
             fit=fit,
             show_hist=show_hist,
-            fitfunc=fitfunc,
+            fitfunc=self.fitfunc,
             caption_params=caption_params,
             rescale=rescale,
         )

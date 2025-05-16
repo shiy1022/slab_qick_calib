@@ -127,7 +127,6 @@ class RabiExperiment(QickExperiment):
     - 'gain': Max gain value for the pulse (default: gain)
     - 'sigma': Standard deviation of the Gaussian pulse (default: sigma)
     - 'checkEF': Boolean flag to check EF interaction (default: False)
-    - 'checkCC': Boolean flag to check CC interaction (default: False)
     - 'pulse_ge': Boolean flag to indicate if pulse is for ground to excited state transition (default: True)
     - 'start': Starting point for the experiment (default: 0)
     - 'step': Step size for the gain (calculated as int(params['gain']/params['expts']))
@@ -288,10 +287,10 @@ class RabiExperiment(QickExperiment):
         if fit:
             # Fit the data to a sinusoidal function
             # fitparams=[amp, freq (non-angular), phase (deg), decay time, amp offset]
-            fitterfunc = fitter.fitsin
-            fitfunc = fitter.sinfunc
+            self.fitterfunc = fitter.fitsin
+            self.fitfunc = fitter.sinfunc
             data = super().analyze(
-                fitfunc=fitfunc, fitterfunc=fitterfunc, fit=fit, **kwargs
+                fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, fit=fit, **kwargs
             )
 
         # Calculate π-pulse length from the fit for each data type
@@ -343,7 +342,6 @@ class RabiExperiment(QickExperiment):
         title += f" Rabi Q{q} (Pulse {param} {self.cfg.expt[param]}"
 
         # Set up fit function and caption parameters
-        fitfunc = fitter.sinfunc
         caption_params = [{'index': "pi_length", 
                           'format': "$\pi$ length: {val:.3f}"}]
         
@@ -362,7 +360,7 @@ class RabiExperiment(QickExperiment):
             xlabel=xlabel,
             fit=fit,
             show_hist=show_hist,
-            fitfunc=fitfunc,
+            fitfunc=self.fitfunc,
             caption_params=caption_params,
             rescale=rescale,
         )
@@ -524,6 +522,7 @@ class ReadoutCheck(QickExperiment):
 
         # Use the parent class display method
         super().display(data=data, fit=fit, plot_all=plot_all, **kwargs)
+
 class RabiChevronExperiment(QickExperiment2DSimple):
     """
     2D Rabi experiment that sweeps both frequency and amplitude/length.
