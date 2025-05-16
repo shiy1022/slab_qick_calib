@@ -135,10 +135,6 @@ class RamseyStarkExperiment(QickExperiment):
 
         return data
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
-
 class RamseyStarkPowerExperiment(QickExperiment2DSimple):
     """
     Initialize the T2 Ramsey Stark experiment.
@@ -262,10 +258,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         )
         plt.show()
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
-
 class RamseyStarkFreqExperiment(QickExperiment2DSimple):
     """
     Initialize the T2 Ramsey Stark experiment.
@@ -380,10 +372,6 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         #     self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "quad_fit.png"
         # )
         # plt.show()
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 
 def quad_fit(x, a, b, c):

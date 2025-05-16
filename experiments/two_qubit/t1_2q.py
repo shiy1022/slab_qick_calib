@@ -202,10 +202,6 @@ class T1_2Q(QickExperiment2Q):
             caption_params=caption_params,
         )
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
-
 
 class T1_2Q_Continuous(QickExperiment2Q):
     """
@@ -279,8 +275,3 @@ class T1_2Q_Continuous(QickExperiment2Q):
 
     def display(self, data=None, fit=True, show=False, **kwargs):
         pass
-
-    def save_data(self, data=None):
-        print(f"Saving {self.fname}")
-        super().save_data(data=data)
-        return self.fname

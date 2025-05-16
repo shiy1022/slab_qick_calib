@@ -695,10 +695,6 @@ class MemoryExperiment(QickExperiment):
         if data is None:
             data = self.data
 
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-
     def check_reset(self): 
         nbins=75
         fig, ax = plt.subplots(2,1, figsize=(6,7))
@@ -922,8 +918,6 @@ class RepMeasExperiment(QickExperiment):
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
             )
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
 
     def check_reset(self): 
         nbins=75

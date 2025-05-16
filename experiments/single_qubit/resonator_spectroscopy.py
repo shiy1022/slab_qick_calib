@@ -553,14 +553,6 @@ class ResSpec(QickExperiment):
                 self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
             )
         
-    def save_data(self, data=None):
-        """
-        Save the experiment data.
-        
-        Args:
-            data: Data to save (if None, use self.data)
-        """
-        super().save_data(data=data)
 
     def update(self, cfg_file, freq=True, fast=False, verbose=True):
         """
@@ -856,15 +848,6 @@ class ResSpecPower(QickExperiment2DSimple):
         # Save figure
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
-
-    def save_data(self, data=None):
-        """
-        Save the experiment data.
-        
-        Args:
-            data: Data to save (if None, use self.data)
-        """
-        super().save_data(data=data)
 
 class ResSpec2D(QickExperiment2DSimple):
     """

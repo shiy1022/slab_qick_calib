@@ -202,10 +202,6 @@ class T1StarkExperiment(QickExperiment):
             caption_params=caption_params,
         )
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
-
 
 class T1StarkPowerExperiment(QickExperiment2DSimple):
     """
@@ -319,10 +315,6 @@ class T1StarkPowerExperiment(QickExperiment2DSimple):
         )
         plt.show()
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
-
 class T1StarkFreqExperiment(QickExperiment2DSimple):
     """
     Stark Power Rabi Experiment
@@ -433,10 +425,6 @@ class T1StarkFreqExperiment(QickExperiment2DSimple):
             self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "quad_fit.png"
         )
         plt.show()
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 
 class T1StarkPowerSingle(QickExperiment):
@@ -553,10 +541,6 @@ class T1StarkPowerSingle(QickExperiment):
         ax[3].plot(data["xpts"], data['t1'])
         ax[3].set_ylabel("$T_1$ / $T_{1,ave}$")
         fig.tight_layout()
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 class T1StarkPowerQuadSingle(QickExperimentLoop):
     """
@@ -685,9 +669,6 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
             ax.set_xlabel("I [ADC units]")
             ax.set_ylabel("Probability")
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 class T1StarkPowerQuadMulti(QickExperimentLoop):
     """
@@ -829,9 +810,6 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
             ax.set_xlabel("I [ADC units]")
             ax.set_ylabel("Probability")
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 
 class T1StarkPowerContTimeExperiment(QickExperiment2DSimple):
@@ -1051,10 +1029,6 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DSimple):
 
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 
 class T1StarkPowerContTime(QickExperiment2DSimple):
@@ -1276,10 +1250,6 @@ class T1StarkPowerContTime(QickExperiment2DSimple):
 
         imname = self.fname.split("\\")[-1]
         fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 
 def find_inverse_quad_fit(y, a, b, c):
