@@ -1,3 +1,16 @@
+"""
+Stark Spectroscopy Experiment
+
+This module implements AC Stark spectroscopy experiments for qubit characterization.
+Stark spectroscopy measures the shift in qubit frequency due to the presence of a 
+drive field (Stark pulse) applied to the readout resonator. This allows measurement
+of the dispersive shift and other qubit-resonator coupling parameters.
+
+The module includes:
+- QubitSpecProgram: Defines the pulse sequence for the Stark spectroscopy experiment
+- StarkSpec: Main experiment class for Stark spectroscopy
+"""
+
 import numpy as np
 from qick import *
 
@@ -10,14 +23,38 @@ import slab_qick_calib.fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):
+    """
+    Defines the pulse sequence for a Stark spectroscopy experiment.
+    
+    The sequence consists of:
+    1. Simultaneous qubit pulse (variable frequency) and Stark pulse (fixed frequency)
+    2. Wait time
+    3. Measurement
+    """
     def __init__(self, soccfg, final_delay, cfg):
+        """
+        Initialize the Stark spectroscopy program.
+        
+        Args:
+            soccfg: SOC configuration
+            final_delay: Delay time after measurement
+            cfg: Configuration dictionary
+        """
         super().__init__(soccfg, final_delay=final_delay, cfg=cfg)
 
     def _initialize(self, cfg):
+        """
+        Initialize the program with the necessary pulses and loops.
+        
+        Args:
+            cfg: Configuration dictionary containing experiment parameters
+        """
         cfg = AttrDict(self.cfg)
 
+        # Initialize with standard readout
         super()._initialize(cfg, readout="standard")
 
+        # Define the qubit pulse with variable frequency
         pulse = {
             "freq": cfg.expt.frequency,
             "gain": cfg.expt.gain,
@@ -27,6 +64,7 @@ class QubitSpecProgram(QickProgram):
         }
         super().make_pulse(pulse, "qubit_pulse")
 
+        # Define the Stark pulse applied to the resonator
         stark_pulse = {
             "chan": self.res_ch,
             "freq": cfg.expt.stark_freq,
@@ -36,24 +74,64 @@ class QubitSpecProgram(QickProgram):
             "phase": 0,
         }
         super().make_pulse(stark_pulse, "stark_pulse")
+        
+        # Add sweep loops for Stark gain and qubit frequency
         self.add_loop("stark_loop", cfg.expt.stark_expts)
         self.add_loop("freq_loop", cfg.expt.expts)
 
-
     def _body(self, cfg):
-
+        """
+        Define the main body of the experiment sequence.
+        
+        Args:
+            cfg: Configuration dictionary containing experiment parameters
+        """
         cfg = AttrDict(self.cfg)
+        
+        # Configure readout
         self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
+        # Apply qubit and Stark pulses simultaneously
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
         self.pulse(ch=self.res_ch, name="stark_pulse", t=0)
 
+        # Wait before measurement
         self.delay_auto(t=0.01, tag="wait")
         
+        # Perform measurement
         super().measure(cfg)
 
 
 class StarkSpec(QickExperiment):
+    """
+    Main experiment class for Stark spectroscopy.
+    
+    This class implements Stark spectroscopy by sweeping the qubit frequency while
+    applying a Stark pulse to the readout resonator. The Stark pulse shifts the qubit
+    frequency due to the AC Stark effect, allowing measurement of the dispersive shift.
+    
+    Parameters:
+    - 'start': Start frequency for qubit sweep (MHz)
+    - 'span': Frequency span for qubit sweep (MHz)
+    - 'expts': Number of frequency points
+    - 'gain': Gain of the qubit pulse
+    - 'length': Length of the pulses
+    - 'stark_expts': Number of Stark gain points
+    - 'df_stark': Frequency offset from resonator frequency for Stark pulse (MHz)
+    - 'max_stark_gain': Maximum gain for Stark pulse
+    - 'stark_rng': Range for Stark gain sweep
+    - 'pulse_type': Type of pulse ('const' or 'gauss')
+    - 'final_delay': Delay time between repetitions (μs)
+    - 'reps': Number of repetitions
+    - 'soft_avgs': Number of software averages
+    - 'active_reset': Whether to use active reset
+    
+    The style parameter can be:
+    - 'huge': Very wide frequency span with high power
+    - 'coarse': Wide frequency span with medium power
+    - 'medium': Medium frequency span with low power
+    - 'fine': Narrow frequency span with very low power
+    """
 
     def __init__(
         self,
@@ -68,9 +146,24 @@ class StarkSpec(QickExperiment):
         min_r2=None,
         max_err=None,
     ):
-
+        """
+        Initialize the Stark spectroscopy experiment.
+        
+        Args:
+            cfg_dict: Configuration dictionary
+            qi: Qubit index
+            go: Whether to run the experiment immediately
+            params: Additional parameters to override defaults
+            prefix: Prefix for data files
+            progress: Whether to show progress bar
+            display: Whether to display results
+            style: Style of experiment ('huge', 'coarse', 'medium', or 'fine')
+            min_r2: Minimum R² value for fit quality
+            max_err: Maximum error for fit quality
+        """
         # Currently no control of readout time; may want to change for simultaneious readout
         
+        # Set prefix for data files
         prefix = f"stark_spectroscopy_{style}_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
@@ -79,91 +172,150 @@ class StarkSpec(QickExperiment):
         spec_gain = self.cfg.device.qubit.spec_gain[qi]
         low_gain = self.cfg.device.qubit.low_gain
 
+        # Set style-specific parameters
         if style == 'huge':
+            # Very wide frequency span with high power
             params_def = {"gain": 80*low_gain * spec_gain, "span": 1500, "expts": 1000, "reps": self.reps}
         elif style == "coarse":
-            params_def = {"gain": 20*low_gain * spec_gain, "span": 500, "expts": 500, "reps":self.reps}
+            # Wide frequency span with medium power
+            params_def = {"gain": 20*low_gain * spec_gain, "span": 500, "expts": 500, "reps": self.reps}
         elif style == "medium":
-            params_def = {"gain": 5*low_gain * spec_gain, "span": 50, "expts": 200, "reps":self.reps}
+            # Medium frequency span with low power
+            params_def = {"gain": 5*low_gain * spec_gain, "span": 50, "expts": 200, "reps": self.reps}
         elif style == "fine":
-            params_def = {"gain": low_gain * spec_gain, "span": 5, "expts": 100, "reps":2*self.reps}
+            # Narrow frequency span with very low power
+            params_def = {"gain": low_gain * spec_gain, "span": 5, "expts": 100, "reps": 2*self.reps}
         
+        # Additional default parameters
         params_def2 = {
             "soft_avgs": self.soft_avgs,
             "final_delay": 10,
             "length": 5,
-            "stark_expts":20,
-            "df_stark":0,
-            "max_stark_gain":1,
-            "stark_rng":10,
+            "stark_expts": 20,
+            "df_stark": 0,
+            "max_stark_gain": 1,
+            "stark_rng": 10,
             "pulse_type": "const",
             "qubit": [qi],
-            "active_reset":False,
+            "active_reset": False,
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
-        params_def = {**params_def2,**params_def}
+        params_def = {**params_def2, **params_def}
 
-        # combine params and params_Def, preferring params
+        # Merge default and user-provided parameters
         params = {**params_def, **params}
 
-
+        # Calculate start frequency
         params_def["start"] = self.cfg.device.qubit.f_ge[qi] - params["span"] / 2
         params = {**params_def, **params}
-        params["stark_freq"]=self.cfg.device.readout.frequency[qi] + params["df_stark"]
+        
+        # Set Stark pulse frequency
+        params["stark_freq"] = self.cfg.device.readout.frequency[qi] + params["df_stark"]
 
-
+        # Adjust pulse length if needed
         if params["length"] == "t1":
+            # Set pulse length to T1/4 if specified as "t1"
             params["length"] = self.cfg.device.qubit.T1[qi] / 4
         if params["length"] > max_length:
+            # Limit pulse length to maximum allowed
             params["length"] = max_length
 
+        # Set experiment configuration
         self.cfg.expt = params
+        
         # Check for unexpected parameters
         super().check_params(params_def)
     
+        # Run the experiment if requested
         if go:
             super().run(min_r2=min_r2, max_err=max_err, display=display, progress=progress, analyze=False)
 
     def acquire(self, progress=False):
+        """
+        Acquire data for the Stark spectroscopy experiment.
+        
+        Args:
+            progress: Whether to show progress bar
+            
+        Returns:
+            Acquired data
+        """
+        # Get qubit index and set final delay
         q = self.cfg.expt.qubit[0]
         self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
+        
+        # Set parameter to sweep
         self.param = {"label": "qubit_pulse", "param": "freq", "param_type": "pulse"}
         
+        # Configure frequency sweep
         self.cfg.expt.frequency = QickSweep1D(
             "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
+        
+        # Configure Stark gain sweep
         self.cfg.expt.stark_gain = QickSweep1D(
             "stark_loop", self.cfg.expt.max_stark_gain/self.cfg.expt.stark_rng, self.cfg.expt.max_stark_gain
         )
+
+        # Acquire data using the QubitSpecProgram
         super().acquire(QubitSpecProgram, progress=progress, get_hist=False)
+        
         return self.data
 
     def analyze(self, data=None, fit=True, **kwargs):
-
+        """
+        Analyze the acquired data to extract qubit parameters.
+        
+        Args:
+            data: Data to analyze (if None, use self.data)
+            fit: Whether to fit the data to a Lorentzian model
+            **kwargs: Additional arguments for the fit
+            
+        Returns:
+            Analyzed data with fit parameters
+        """
         if fit:
+            # Fit the data to a Lorentzian model
             fitterfunc = fitter.fitlor
             fitfunc = fitter.lorfunc
             super().analyze(fitfunc, fitterfunc, use_i=False)
+            
+            # Store the fitted qubit frequency
             data["new_freq"] = data["best_fit"][2]
+            
         return self.data
 
     def display(
         self, fit=True, ax=None, plot_all=True, **kwargs
     ):
+        """
+        Display the results of the Stark spectroscopy experiment.
         
+        This method is currently disabled (pass statement).
+        When enabled, it would display the spectroscopy results with fit parameters.
+        
+        Args:
+            fit: Whether to show the fit
+            ax: Matplotlib axis to plot on
+            plot_all: Whether to plot all data types
+            **kwargs: Additional arguments for the display
+        """
+        # Display functionality is currently disabled
         pass
+        
+        # Example of how display could be implemented:
         # fitfunc = fitter.lorfunc
         # xlabel = "Qubit Frequency (MHz)"
-        
+        # 
         # title = f"Spectroscopy Q{self.cfg.expt.qubit[0]} (Gain {self.cfg.expt.gain})"
-        
+        # 
         # # Define which fit parameters to display in caption
         # # Index 2 is frequency, index 3 is kappa
         # caption_params = [
         #     {"index": 2, "format": "$f$: {val:.6} MHz"},
         #     {"index": 3, "format": "$\kappa$: {val:.3} MHz"},
         # ]
-
+        #
         # super().display(
         #     ax=ax,
         #     plot_all=plot_all,
@@ -176,5 +328,14 @@ class StarkSpec(QickExperiment):
         # )
 
     def save_data(self, data=None):
+        """
+        Save the experiment data.
+        
+        Args:
+            data: Data to save (if None, use self.data)
+            
+        Returns:
+            Path to the saved data file
+        """
         super().save_data(data=data)
         return self.fname
