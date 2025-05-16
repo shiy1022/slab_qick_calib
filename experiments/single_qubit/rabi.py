@@ -369,7 +369,7 @@ class RabiChevronExperiment(QickExperiment2DSimple):
         params={},
         style="",
         prefix=None,
-        progress=None,
+        progress=False,
     ):  
         if 'type' in params:
             pre=params['type']
@@ -398,7 +398,7 @@ class RabiChevronExperiment(QickExperiment2DSimple):
         self.cfg.expt = params
         
         if go:
-            super().run()
+            super().run(progress=progress)
         
 
     def acquire(self, progress=False, debug=False):

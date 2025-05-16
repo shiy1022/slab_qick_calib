@@ -55,23 +55,23 @@ The configuration is organized into three main sections:
 |-----------|-------------|---------------------|
 | `pulses.pi_ge.gain` | Amplitude of π pulse for g→e transition | Used in `rabi.py` and other experiments that apply π pulses to the qubit. |
 | `pulses.pi_ge.sigma` | Width parameter for Gaussian π pulse (g→e) | Used in `rabi.py` to set the pulse width. |
-| `pulses.pi_ge.sigma_inc` | Scaling factor for sigma | Used to calculate the total pulse length from sigma. |
+| `pulses.pi_ge.sigma_inc` | Number of sigma at which pulse is cropped | Used to calculate the total pulse length from sigma. |
 | `pulses.pi_ge.type` | Pulse shape type (e.g., "gauss") | Determines the pulse shape in experiments. |
 | `pulses.pi_ef.gain` | Amplitude of π pulse for e→f transition | Used when manipulating the second excited state. |
 | `pulses.pi_ef.sigma` | Width parameter for Gaussian π pulse (e→f) | Used to set the pulse width for e→f transitions. |
-| `pulses.pi_ef.sigma_inc` | Scaling factor for sigma | Used to calculate the total pulse length from sigma. |
+| `pulses.pi_ef.sigma_inc` | Number of sigma at which pulse is cropped | Used to calculate the total pulse length from sigma. |
 | `pulses.pi_ef.type` | Pulse shape type (e.g., "gauss") | Determines the pulse shape in experiments. |
 
 ### Other Qubit Parameters
 
 | Parameter | Description | Usage in Experiments |
 |-----------|-------------|---------------------|
-| `spec_gain` | Gain scaling factor for spectroscopy | Used in `pulse_probe_spectroscopy.py` to set appropriate pulse amplitudes. |
+| `spec_gain` | Gain scaling factor for spectroscopy for qubit to qubit variation | Used in `pulse_probe_spectroscopy.py` to set appropriate pulse amplitudes. |
 | `pop` | Thermal population | Used in analysis of qubit measurements. |
 | `temp` | Qubit temperature | Used in analysis of qubit measurements. |
 | `tuned_up` | Boolean flag indicating if qubit is tuned | Used in experiments to determine whether to show additional diagnostic information. |
-| `low_gain` | Minimum gain value for pulses | Used in `pulse_probe_spectroscopy.py` and `rabi.py` to set the minimum gain for pulses. |
-| `max_gain` | Maximum gain value for pulses | Used in `pulse_probe_spectroscopy.py` and `rabi.py` to set the maximum gain for pulses. |
+| `low_gain` | Gain for finest spectroscopy scan | Used in `pulse_probe_spectroscopy.py` and `rabi.py` to set the minimum gain for pulses. |
+| `max_gain` | Maximum gain value for pulses (RFSoC property) | Used in `pulse_probe_spectroscopy.py` and `rabi.py` to set the maximum gain for pulses. |
 
 ## Readout Parameters (`device.readout`)
 
@@ -84,8 +84,8 @@ The configuration is organized into three main sections:
 | `lamb` | Lamb shift | Used in analysis of resonator spectroscopy data. |
 | `chi` | Dispersive shift | Used in analysis of resonator spectroscopy data. |
 | `kappa` | Resonator linewidth (MHz) | Used in `resonator_spectroscopy.py` to determine appropriate frequency spans. |
-| `qe` | External quality factor | Used in analysis of resonator spectroscopy data. |
-| `qi` | Internal quality factor | Used in analysis of resonator spectroscopy data. |
+| `qe` | External quality factor in units of 10k | Used in analysis of resonator spectroscopy data. |
+| `qi` | Internal quality factor in units of 10k | Used in analysis of resonator spectroscopy data. |
 
 ### Readout Settings
 
@@ -93,20 +93,20 @@ The configuration is organized into three main sections:
 |-----------|-------------|---------------------|
 | `phase` | Phase rotation for readout signal | Used in all experiments to correctly process the readout signal. |
 | `readout_length` | Duration of readout pulse (μs) | Used in all experiments that perform qubit readout. |
-| `threshold` | Threshold for state discrimination | Used in single-shot readout experiments. |
+| `threshold` | Threshold for state discrimination | Used for active reset. |
 | `fidelity` | Readout fidelity | Used in analysis of readout performance. |
 | `tm` | Time constant for readout | Used in analysis of readout performance. |
-| `sigma` | Width parameter for readout pulse | Used in alnalysis of readout performance. |
+| `sigma` | Width parameter for readout histogram | Used in alnalysis of readout performance. |
 | `trig_offset` | Trigger offset for readout | Used in timing of readout pulses. |
 | `final_delay` | Delay after readout before next experiment (μs) | Used in all experiments to ensure qubit returns to ground state. Set to 6*T1 by default. |
 | `active_reset` | Boolean flag for active qubit reset | Used in experiments that support active reset to improve experiment speed. |
 | `reset_e` | Parameter for active reset of excited state | Used in active reset protocols. |
 | `reset_g` | Parameter for active reset of ground state | Used in active reset protocols. |
-| `reps` | Number of repetitions for each experiment | Used in all experiments to set the number of repetitions. |
-| `soft_avgs` | Number of software averages | Used in all experiments to set the number of software averages. |
-| `reps_base` | Base number of repetitions | Used to calculate appropriate repetition counts. |
-| `soft_avgs_base` | Base number of software averages | Used to calculate appropriate averaging counts. |
-| `max_gain` | Maximum gain for readout | Used to limit readout pulse amplitude. |
+| `reps` | If qubit needs more or fewer reps than reps_base, set param here (1 standard) | Used in all experiments to set the number of repetitions. |
+| `soft_avgs` | If qubit needs more or fewer soft_avgs than soft_avgs_base, set param here (1 standard) | Used in all experiments to set the number of software averages. |
+| `reps_base` | Base number of repetitions for entire device | Used to calculate appropriate repetition counts. |
+| `soft_avgs_base` | Base number of software averages for entire device | Used to calculate appropriate averaging counts. |
+| `max_gain` | Maximum gain for readout, RFSoC parameter (usually 1) | Used to limit readout pulse amplitude. |
 
 ## Hardware Configuration (`hw.soc`)
 
@@ -121,11 +121,11 @@ The configuration is organized into three main sections:
 | Parameter | Description | Usage in Experiments |
 |-----------|-------------|---------------------|
 | `dacs.qubit.ch` | DAC channel for qubit control | Used in all experiments to specify which DAC channel to use for qubit control. |
-| `dacs.qubit.nyquist` | Nyquist zone for qubit DAC | Used in signal generation for qubit control. |
-| `dacs.qubit.type` | Type of qubit DAC output | Used in signal generation for qubit control. |
+| `dacs.qubit.nyquist` | Nyquist zone for qubit DAC, 1 for frequencies < fs, 2 for frequencies above | Used in signal generation for qubit control. |
+| `dacs.qubit.type` | Type of qubit DAC output, full/mux/int but only full supported now | Used in signal generation for qubit control. |
 | `dacs.readout.ch` | DAC channel for readout | Used in all experiments to specify which DAC channel to use for readout. |
-| `dacs.readout.nyquist` | Nyquist zone for readout DAC | Used in signal generation for readout. |
-| `dacs.readout.type` | Type of readout DAC output | Used in signal generation for readout. |
+| `dacs.readout.nyquist` | Nyquist zone for readout DAC, 1 for frequencies < fs, 2 for frequencies above | Used in signal generation for readout. |
+| `dacs.readout.type` | Type of readout DAC output, full/mux/int but only full supported now | Used in signal generation for readout. |
 
 ## Usage Examples
 

@@ -1036,7 +1036,7 @@ class QickExperiment2DSimple(QickExperiment2D):
         """
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
-    def acquire(self, y_sweep, progress=True):
+    def acquire(self, y_sweep, progress=False):
         """
         Acquire data for a 2D parameter sweep using a nested experiment.
 

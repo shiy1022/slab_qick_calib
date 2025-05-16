@@ -119,26 +119,21 @@ def measure_params(qi, cfg_dict, update=True, readout=True, display=False, max_t
             config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
             config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, rng_vals=[1, max_t1], sig=2, verbose=False)
         if not t2r.status:
-            #t2r.display(debug=True)
-            #print('Refitting')
-            #t2r.analyze(refit=True, verbose=True)#, debug=True)
-            
-            if not t2r.status:
-                t2r.display(debug=True, refit=True)#debug=True, refit=True)
-                print(t2r.data['r2'])
-                print(t2r.data['fit_err_par'])
+            t2r.display(debug=True, refit=True)#debug=True, refit=True)
+            print(t2r.data['r2'])
+            print(t2r.data['fit_err_par'])
 
-                find_spec(qi, cfg_dict, start="medium")
-                t2r= meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False)
-                if t2r.status and update:
-                    config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
-                    config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, rng_vals=[1, max_t1], sig=2, verbose=False)
-                    print('Recentered qubit frequency')
-                if not t2r.status:
-                    t2r.display(debug=True)
-                    t2r.data['best_fit']=[np.nan, np.nan, np.nan, np.nan]
-                    t2r.data['new_freq']=np.nan
-                    print('T2 Ramsey failed')
+            find_spec(qi, cfg_dict, start="fine")
+            t2r= meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False)
+            if t2r.status and update:
+                config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
+                config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, rng_vals=[1, max_t1], sig=2, verbose=False)
+                print('Recentered qubit frequency')
+            if not t2r.status:
+                t2r.display(debug=True)
+                t2r.data['best_fit']=[np.nan, np.nan, np.nan, np.nan]
+                t2r.data['new_freq']=np.nan
+                print('T2 Ramsey failed')
         err_dict['t2r_err']=np.sqrt(t2r.data['fit_err_avgi'][3][3])
         err_dict['fge_err']=np.sqrt(t2r.data['fit_err_avgi'][1][1])
 

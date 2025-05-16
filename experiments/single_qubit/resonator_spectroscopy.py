@@ -315,6 +315,8 @@ class ResSpec(QickExperiment):
                 if not any(np.isnan(data["fit"])):
                     label = f"$\kappa$: {data['kappa']:.2f} MHz"
                     label += f" \n$f$: {data['fit'][0]:.2f} MHz"
+                else:
+                    label = "No fit"
                     
             ax[0].plot(
                         data["freq"],
