@@ -8,7 +8,7 @@ import slab_qick_calib.fitting as fitter
 import slab_qick_calib.calib.readout_helpers as helpers
 import time
 from scipy.optimize import curve_fit
-
+from pathlib import Path
 
 
 """
@@ -1006,10 +1006,19 @@ class QickExperiment2D(QickExperimentLoop):
         # Save figure if created in this method
         if savefig:
             fig.tight_layout()
-            imname = self.fname.split("\\")[-1]
-            fig.savefig(
-                self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png"
-            )
+
+            file_path = Path(self.fname)
+    
+            # Get the parent directory
+            parent_dir = file_path.parent
+            
+            # Get the filename and change its extension to .png
+            new_filename = file_path.name.rsplit('.', 1)[0] + '.png'
+            # Create the full output path and save the figure
+            output_path = parent_dir / 'images' / new_filename
+
+
+            fig.savefig(output_path)
             plt.show()
 
 

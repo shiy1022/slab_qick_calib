@@ -470,7 +470,7 @@ class SingleShotOptExperiment(QickExperiment):
         fig.tight_layout()
         imname = self.fname.split("\\")[-1]
         fig.savefig(
-            self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "_raw_{k}.png"
+            self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + f"_raw_{k}.png"
         )
 
         title = f"Single Shot Optimization Q{self.cfg.expt.qubit[0]}"

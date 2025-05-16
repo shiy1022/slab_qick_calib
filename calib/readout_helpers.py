@@ -1,22 +1,362 @@
-# Utility functions for data analysis and fitting
+"""
+Readout Helpers Module
+======================
+
+This module provides utilities for analyzing and visualizing quantum readout data.
+It includes tools for:
+- Histogram generation and analysis
+- IQ data rotation and processing
+- Gaussian fitting of state distributions
+- Fidelity calculation between quantum states
+- Modeling T1 decay effects on readout signals
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.special import erf
-blue = "#4053d3"
-red = "#b51d14"
 from copy import deepcopy
 
-# Make it possible to turn fitting off 
+# Standard colors for plotting
+BLUE = "#4053d3"  # Color for ground state
+RED = "#b51d14"   # Color for excited state
+GREEN = "#2ca02c"  # Color for f state
+
+# Default plot settings
+DEFAULT_ALPHA = 0.25
+DEFAULT_MARKER_SIZE = 0.7
+DEFAULT_BINS = 100
+
+
+#------------------------------------------------------------------------------
+# Basic Utility Functions
+#------------------------------------------------------------------------------
+
+def rotate(x, y, theta):
+    """
+    Rotate points in the x-y plane by angle theta.
+    
+    Parameters
+    ----------
+    x : array_like
+        x-coordinates
+    y : array_like
+        y-coordinates
+    theta : float
+        Rotation angle in radians
+        
+    Returns
+    -------
+    tuple
+        Rotated (x, y) coordinates
+    """
+    return (
+        x * np.cos(theta) - y * np.sin(theta),
+        x * np.sin(theta) + y * np.cos(theta)
+    )
+
+
+def full_rotate(d, theta):
+    """
+    Rotate all IQ data in a dictionary by angle theta.
+    
+    Parameters
+    ----------
+    d : dict
+        Dictionary containing 'Ig', 'Qg', 'Ie', 'Qe' arrays
+    theta : float
+        Rotation angle in radians
+        
+    Returns
+    -------
+    dict
+        Dictionary with rotated IQ data
+    """
+    d = deepcopy(d)
+    d["Ig"], d["Qg"] = rotate(d["Ig"], d["Qg"], theta)
+    d["Ie"], d["Qe"] = rotate(d["Ie"], d["Qe"], theta)
+    
+    # Rotate f state if available
+    if "If" in d and "Qf" in d:
+        d["If"], d["Qf"] = rotate(d["If"], d["Qf"], theta)
+        
+    return d
+
+
+def make_hist(d, nbins=200):
+    """
+    Create a normalized histogram from data.
+    
+    Parameters
+    ----------
+    d : array_like
+        Input data
+    nbins : int, optional
+        Number of histogram bins, default is 200
+        
+    Returns
+    -------
+    tuple
+        Bin centers and histogram values
+    """
+    hist, bin_edges = np.histogram(d, bins=nbins, density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    return bin_centers, hist
+
+
+#------------------------------------------------------------------------------
+# Fitting Functions
+#------------------------------------------------------------------------------
+
+def gaussian(x, mag, cen, wid):
+    """
+    Gaussian function for fitting.
+    
+    Parameters
+    ----------
+    x : array_like
+        Input x values
+    mag : float
+        Magnitude (area under curve)
+    cen : float
+        Center position
+    wid : float
+        Width (standard deviation)
+        
+    Returns
+    -------
+    array_like
+        Gaussian values at x
+    """
+    return mag / np.sqrt(2 * np.pi) / wid * np.exp(-((x - cen) ** 2) / 2 / wid**2)
+
+
+def two_gaussians(x, mag1, cen1, wid, mag2, cen2):
+    """
+    Sum of two Gaussian functions with shared width.
+    
+    Parameters
+    ----------
+    x : array_like
+        Input x values
+    mag1 : float
+        Magnitude of first Gaussian
+    cen1 : float
+        Center of first Gaussian
+    wid : float
+        Width (standard deviation) for both Gaussians
+    mag2 : float
+        Magnitude of second Gaussian
+    cen2 : float
+        Center of second Gaussian
+        
+    Returns
+    -------
+    array_like
+        Sum of two Gaussians at x
+    """
+    return 1 / np.sqrt(2 * np.pi) / wid * (
+        mag1 * np.exp(-((x - cen1) ** 2) / 2 / wid**2) + 
+        mag2 * np.exp(-((x - cen2) ** 2) / 2 / wid**2)
+    )
+
+
+def distfn(v, vg, ve, sigma, tm):
+    """
+    Distribution function modeling T1 decay during measurement.
+    
+    This function models the distribution of measurement outcomes when
+    T1 decay occurs during the measurement process.
+    
+    Parameters
+    ----------
+    v : array_like
+        Voltage values
+    vg : float
+        Ground state voltage
+    ve : float
+        Excited state voltage
+    sigma : float
+        Standard deviation of measurement noise
+    tm : float
+        Ratio of measurement time to T1 time (tm = t_meas/T1)
+        
+    Returns
+    -------
+    array_like
+        Probability distribution values
+    """
+    dv = ve - vg
+    return np.abs(
+        tm
+        / 2
+        / dv
+        * np.exp(tm * (tm * sigma**2 / 2 / dv**2 - (v - vg) / dv))
+        * (
+            erf((tm * sigma**2 / dv + ve - v) / np.sqrt(2) / sigma)
+            + erf((-tm * sigma**2 / dv + v - vg) / np.sqrt(2) / sigma)
+        )
+    )
+
+
+def excited_func(x, vg, ve, sigma, tm):
+    """
+    Fit function for excited state including T1 decay effects.
+    
+    This combines a Gaussian for the excited state with the T1 decay distribution.
+    
+    Parameters
+    ----------
+    x : array_like
+        Input x values
+    vg : float
+        Ground state voltage
+    ve : float
+        Excited state voltage
+    sigma : float
+        Standard deviation of measurement noise
+    tm : float
+        Ratio of measurement time to T1 time (tm = t_meas/T1)
+        
+    Returns
+    -------
+    array_like
+        Excited state distribution values
+    """
+    # Gaussian component for remaining excited population + T1 decay distribution
+    y = gaussian(x, 1, ve, sigma) * np.exp(-tm) + distfn(x, vg, ve, sigma, tm)
+    return y
+
+
+def fit_all(x, mag_g, vg, ve, sigma, tm):
+    """
+    Fit function for combined ground and excited state distributions.
+    
+    Parameters
+    ----------
+    x : array_like
+        Input x values
+    mag_g : float
+        Relative magnitude of ground state
+    vg : float
+        Ground state voltage
+    ve : float
+        Excited state voltage
+    sigma : float
+        Standard deviation of measurement noise
+    tm : float
+        Ratio of measurement time to T1 time (tm = t_meas/T1)
+        
+    Returns
+    -------
+    array_like
+        Combined distribution values
+    """
+    # Ground state component
+    yg = gaussian(x, mag_g, vg, sigma)
+    
+    # Excited state component with T1 decay
+    ye = gaussian(x, 1 - mag_g, ve, sigma) * np.exp(-tm) + (1 - mag_g) * distfn(
+        x, vg, ve, sigma, tm
+    )
+    
+    return ye + yg
+
+
+def fit_gaussian(d, nbins=200, p0=None, plot=False):
+    """
+    Fit a Gaussian distribution to data.
+    
+    Parameters
+    ----------
+    d : array_like
+        Input data
+    nbins : int, optional
+        Number of histogram bins, default is 200
+    p0 : list, optional
+        Initial parameter guess [center, width]
+    plot : bool, optional
+        Whether to plot the fit, default is False
+        
+    Returns
+    -------
+    tuple
+        Fitted parameters [center, width], bin centers, and histogram values
+    """
+    # Create histogram
+    v, hist = make_hist(d, nbins)
+    
+    # Set initial parameters if not provided
+    if p0 is None:
+        p0 = [np.mean(v * hist) / np.mean(hist), np.std(d)]
+    
+    # Fit Gaussian with fixed magnitude of 1
+    try:
+        params, _ = curve_fit(lambda x, a, b: gaussian(x, 1, a, b), v, hist, p0=p0)
+    except RuntimeError:
+        # If fitting fails, use initial guess
+        params = p0
+    
+    # Plot if requested
+    if plot:
+        plt.figure(figsize=(8, 5))
+        plt.plot(v, hist, "k.", label="Data")
+        plt.plot(v, gaussian(v, 1, *params), label="Fit")
+        plt.xlabel("Value")
+        plt.ylabel("Probability")
+        plt.title("Gaussian Fit")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+    
+    return params, v, hist
+
+
+#------------------------------------------------------------------------------
+# Single Shot Analysis Functions
+#------------------------------------------------------------------------------
+
 def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
     """
-    span: histogram limit is the mean +/- span
+    Analyze and visualize IQ data histograms for quantum state discrimination.
+    
+    This function:
+    1. Rotates IQ data to maximize separation along I-axis
+    2. Computes optimal threshold for state discrimination
+    3. Calculates readout fidelity
+    4. Optionally plots the results
+    
+    Parameters
+    ----------
+    data : dict
+        Dictionary containing 'Ig', 'Qg', 'Ie', 'Qe' arrays and optionally 'If', 'Qf'
+    plot : bool, optional
+        Whether to plot the results, default is True
+    span : float, optional
+        Histogram limit is the mean +/- span, default is auto-determined
+    ax : list of matplotlib.axes, optional
+        Axes for plotting, default is to create new axes
+    verbose : bool, optional
+        Whether to print detailed information, default is False
+    qubit : int, optional
+        Qubit index for plot title, default is 0
+        
+    Returns
+    -------
+    tuple
+        Parameters dictionary and figure handle (if plot=True)
+    
+    Notes
+    -----
+    The f state analysis is currently not fully implemented.
     """
-    # FIXME: f state analysis is broken
+    # Extract IQ data for ground and excited states
     Ig = data["Ig"]
     Qg = data["Qg"]
     Ie = data["Ie"]
     Qe = data["Qe"]
+    
+    # Check if f state data is available
     if "If" in data.keys():
         plot_f = True
         If = data["If"]
@@ -24,13 +364,16 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
     else:
         plot_f = False
 
+    # Number of bins for histograms
     numbins = 100
 
+    # Calculate median positions of each state
     xg, yg = np.median(Ig), np.median(Qg)
     xe, ye = np.median(Ie), np.median(Qe)
     if plot_f:
         xf, yf = np.median(If), np.median(Qf)
 
+    # Print unrotated data statistics if verbose
     if verbose:
         print("Unrotated:")
         print(
@@ -44,12 +387,13 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
                 f"If {xf:0.3f} +/- {np.std(If)} \t Qf {yf:0.3f} +/- {np.std(Qf):0.3f} \t Amp f {np.abs(xf+1j*yf):0.3f}"
             )
 
-    """Compute the rotation angle"""
+    # Compute the rotation angle to maximize separation along I-axis
     theta = -np.arctan2((ye - yg), (xe - xg))
     if plot_f:
+        # Use g-f separation for rotation if f state is available
         theta = -np.arctan2((yf - yg), (xf - xg))
 
-    """Rotate the IQ data"""
+    # Rotate the IQ data
     Ig_new = Ig * np.cos(theta) - Qg * np.sin(theta)
     Qg_new = Ig * np.sin(theta) + Qg * np.cos(theta)
 
@@ -60,11 +404,13 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
         If_new = If * np.cos(theta) - Qf * np.sin(theta)
         Qf_new = If * np.sin(theta) + Qf * np.cos(theta)
 
-    """Post-rotation means of each blob"""
+    # Calculate post-rotation median positions
     xg_new, yg_new = np.median(Ig_new), np.median(Qg_new)
     xe_new, ye_new = np.median(Ie_new), np.median(Qe_new)
     if plot_f:
         xf, yf = np.median(If_new), np.median(Qf_new)
+    
+    # Print rotated data statistics if verbose
     if verbose:
         print("Rotated:")
         print(
@@ -78,35 +424,42 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
                 f"If {xf:.3f} +/- {np.std(If)} \t Qf {yf:.3f} +/- {np.std(Qf):.3f} \t Amp f {np.abs(xf+1j*yf):.3f}"
             )
 
+    # Determine histogram span if not provided
     if span is None:
         span = (
             np.max(np.concatenate((Ie_new, Ig_new)))
             - np.min(np.concatenate((Ie_new, Ig_new)))
         ) / 2
+    
+    # Set histogram limits
     xlims = [(xg_new + xe_new) / 2 - span, (xg_new + xe_new) / 2 + span]
     ylims = [yg_new - span, yg_new + span]
 
-    """Compute the fidelity using overlap of the histograms"""
+    # Lists to store fidelities and thresholds
     fids = []
     thresholds = []
 
-    """X and Y ranges for histogram"""
-
+    # Create histograms for ground and excited states
     ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims, density=True)
     ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims, density=True)
     if plot_f:
         nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
 
+    # Compute optimal threshold and fidelity for g-e discrimination
     contrast = np.abs(
         ((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum()))
     )
     tind = contrast.argmax()
     thresholds.append(binsg[tind])
     fids.append(contrast[tind])
-    err_e = np.cumsum(ne)[tind]/ne.sum()
-    err_g = 1-np.cumsum(ng)[tind]/ng.sum()
+    
+    # Calculate error rates for each state
+    err_e = np.cumsum(ne)[tind]/ne.sum()  # Excited state misidentified as ground
+    err_g = 1-np.cumsum(ng)[tind]/ng.sum()  # Ground state misidentified as excited
 
+    # Compute thresholds and fidelities for f state if available
     if plot_f:
+        # g-f discrimination
         contrast = np.abs(
             ((np.cumsum(ng) - np.cumsum(nf)) / (0.5 * ng.sum() + 0.5 * nf.sum()))
         )
@@ -114,24 +467,32 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
         thresholds.append(binsg[tind])
         fids.append(contrast[tind])
 
+        # e-f discrimination
         contrast = np.abs(
             ((np.cumsum(ne) - np.cumsum(nf)) / (0.5 * ne.sum() + 0.5 * nf.sum()))
         )
         tind = contrast.argmax()
         thresholds.append(binsg[tind])
         fids.append(contrast[tind])
-    m = 0.7
-    a = 0.25
+    
+    # Plot settings
+    m = DEFAULT_MARKER_SIZE
+    a = DEFAULT_ALPHA
+    
+    # Create plots if requested
     if plot:
         if ax is None:
+            # Create new figure with 2x2 subplots
             fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 6))
-            ax = [axs[0,1],axs[1,0]]
+            ax = [axs[0,1], axs[1,0]]
             
-            # Plot unrotated data 
-            axs[0, 0].plot(Ig, Qg, ".", label="g", color=blue, alpha=a, markersize=m)
-            axs[0, 0].plot(Ie, Qe, ".", label="e", color=red, alpha=a, markersize=m)
+            # Plot unrotated IQ data
+            axs[0, 0].plot(Ig, Qg, ".", label="g", color=BLUE, alpha=a, markersize=m)
+            axs[0, 0].plot(Ie, Qe, ".", label="e", color=RED, alpha=a, markersize=m)
             if plot_f:
-                axs[0, 0].plot(If, Qf, ".", label="f", color="g", alpha=a, markersize=m)
+                axs[0, 0].plot(If, Qf, ".", label="f", color=GREEN, alpha=a, markersize=m)
+            
+            # Mark median positions
             axs[0, 0].plot(xg, yg, color="k", marker="o")
             axs[0, 0].plot(xe, ye, color="k", marker="o")
             if plot_f:
@@ -144,11 +505,11 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
             axs[0, 0].axis("equal")
             set_fig=True
 
-            # Plot log histogram         
+            # Plot log histogram
             bin_cent = (binsg[1:] + binsg[:-1]) / 2
-            axs[1,1].semilogy(bin_cent, ng, color=blue)
+            axs[1,1].semilogy(bin_cent, ng, color=BLUE)
             bin_cent = (binse[1:] + binse[:-1]) / 2
-            axs[1,1].semilogy(bin_cent, ne, color=red)
+            axs[1,1].semilogy(bin_cent, ne, color=RED)
             axs[1,1].set_title('Log Histogram')
             axs[1, 1].set_xlabel("I (ADC levels)")
             axs[0, 0].set_xlabel("I (ADC levels)")
@@ -158,14 +519,15 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
                 fig.suptitle(f"Single Shot Histogram Analysis Q{qubit}")
         else:
             set_fig=False
+            fig = None
         
-        # Plot rotated data
-        ax[0].plot(Ig_new, Qg_new, ".", label="g", color=blue, alpha=a, markersize=m)
-        ax[0].plot(Ie_new, Qe_new, ".", label="e", color=red, alpha=a, markersize=m)
+        # Plot rotated IQ data
+        ax[0].plot(Ig_new, Qg_new, ".", label="g", color=BLUE, alpha=a, markersize=m)
+        ax[0].plot(Ie_new, Qe_new, ".", label="e", color=RED, alpha=a, markersize=m)
         if plot_f:
-            ax[0].plot(If_new, Qf_new, ".", label="f", color="g", alpha=a, markersize=m)
-        #ax[0].plot(xg_new, yg_new, color="k", marker="o")
-        #ax[0].plot(xe_new, ye_new, color="k", marker="o")
+            ax[0].plot(If_new, Qf_new, ".", label="f", color=GREEN, alpha=a, markersize=m)
+        
+        # Add text annotation with state positions
         ax[0].text(0.95, 0.95, f'g: {xg_new:.2f}\ne: {xe_new:.2f}', 
                    transform=ax[0].transAxes, fontsize=10, 
                    verticalalignment='top', horizontalalignment='right', 
@@ -173,121 +535,103 @@ def hist(data, plot=True, span=None, ax=None, verbose=False, qubit=0):
 
         ax[0].set_xlabel('I (ADC levels)')
         lgnd=ax[0].legend(loc='lower right')
-        # lgnd.legendHandles[0].set_markersize(6)
-        # lgnd.legendHandles[1].set_markersize(6)
         ax[0].set_title("Angle: {:.2f}$^\circ$".format(theta * 180 / np.pi))
         ax[0].axis("equal")        
 
-        # Plot histogram 
+        # Plot histogram with fits
         ax[1].set_ylabel("Probability")
         ax[1].set_xlabel("I (ADC levels)")
-        #ax[1].legend(loc="upper right")
         ax[1].set_title(f"Histogram (Fidelity g-e: {100*fids[0]:.3}%)")
+        
+        # Plot threshold line
         ax[1].axvline(thresholds[0], color="0.2", linestyle="--")
-        ax[1].plot(data["vhg"], data["histg"], '.-',color=blue, markersize=0.5, linewidth=0.3)
-        ax[1].fill_between(data["vhg"], data["histg"], color=blue, alpha=0.3)
-        ax[1].fill_between(data["vhe"], data["histe"], color=red, alpha=0.3)
-        ax[1].plot(data["vhe"], data["histe"], '.-',color=red, markersize=0.5, linewidth=0.3)
-        ax[1].plot(data["vhg"], gaussian(data["vhg"], 1, *data['paramsg']), 'k', linewidth=1)
-        ax[1].plot(data["vhe"], excited_func(data["vhe"], data['vg'], data['ve'], data['sigma'], data['tm']), 'k', linewidth=1)
+        
+        # Plot histograms and fits
+        if 'vhg' in data and 'histg' in data:
+            ax[1].plot(data["vhg"], data["histg"], '.-', color=BLUE, markersize=0.5, linewidth=0.3)
+            ax[1].fill_between(data["vhg"], data["histg"], color=BLUE, alpha=0.3)
+            ax[1].fill_between(data["vhe"], data["histe"], color=RED, alpha=0.3)
+            ax[1].plot(data["vhe"], data["histe"], '.-', color=RED, markersize=0.5, linewidth=0.3)
+            
+            # Plot fitted curves
+            if 'paramsg' in data and 'vg' in data and 've' in data and 'sigma' in data and 'tm' in data:
+                ax[1].plot(data["vhg"], gaussian(data["vhg"], 1, *data['paramsg']), 'k', linewidth=1)
+                ax[1].plot(data["vhe"], excited_func(data["vhe"], data['vg'], data['ve'], data['sigma'], data['tm']), 'k', linewidth=1)
+                
+                # Add text annotation with fit parameters
+                sigma = data['sigma']
+                tm = data['tm']
+                txt = f"Threshold: {thresholds[0]:.2f}"
+                txt += f" \n Width: {sigma:.2f}"
+                txt += f" \n $T_m/T_1$: {tm:.2f}"
+                ax[1].text(0.025, 0.965, txt, 
+                       transform=ax[1].transAxes, fontsize=10, 
+                       verticalalignment='top', horizontalalignment='left', 
+                       bbox=dict(facecolor='none', edgecolor='black', alpha=0.5))
+        
+        # Plot f state if available
         if plot_f:
             nf, binsf, pf = ax[1].hist(
-                If_new, bins=numbins, range=xlims, color="g", label="f", alpha=0.5
+                If_new, bins=numbins, range=xlims, color=GREEN, label="f", alpha=0.5
             )
             ax[1].axvline(thresholds[1], color="0.2", linestyle="--")
             ax[1].axvline(thresholds[2], color="0.2", linestyle="--")
 
-                
-        sigma = data['sigma']
-        tm = data['tm']
-        txt = f"Threshold: {thresholds[0]:.2f}"
-        txt += f" \n Width: {sigma:.2f}"
-        txt += f" \n $T_m/T_1$: {tm:.2f}"
-        ax[1].text(0.025, 0.965, txt, 
-               transform=ax[1].transAxes, fontsize=10, 
-               verticalalignment='top', horizontalalignment='left', 
-               bbox=dict(facecolor='none', edgecolor='black', alpha=0.5))
-
         if set_fig:
             fig.tight_layout()
-        else:
-            fig=None
+        
         plt.show()
     else:
         fig = None
+        # Create histograms without plotting
         ng, binsg = np.histogram(Ig_new, bins=numbins, range=xlims)
         ne, binse = np.histogram(Ie_new, bins=numbins, range=xlims)
         if plot_f:
             nf, binsf = np.histogram(If_new, bins=numbins, range=xlims)
 
-    params = {'fids': fids, 'thresholds': thresholds, 'angle': theta * 180 / np.pi, 'ig':xg_new, 'ie':xe_new, 'err_e':err_e, 'err_g':err_g}
+    # Return parameters and figure handle
+    params = {
+        'fids': fids, 
+        'thresholds': thresholds, 
+        'angle': theta * 180 / np.pi, 
+        'ig': xg_new, 
+        'ie': xe_new, 
+        'err_e': err_e, 
+        'err_g': err_g
+    }
     return params, fig
 
-def gaussian(x, mag, cen, wid):
-    return mag / np.sqrt(2 * np.pi) / wid * np.exp(-((x - cen) ** 2) / 2 / wid**2)
 
-def two_gaussians(x, mag1, cen1, wid, mag2, cen2):
-    return 1 / np.sqrt(2 * np.pi) / wid * (mag1 *np.exp(-((x - cen1) ** 2) / 2 / wid**2) + mag2 * np.exp(-((x - cen2) ** 2) / 2 / wid**2))
-
-def make_hist(d, nbins=200):
-    hist, bin_edges = np.histogram(d, bins=nbins, density=True)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-    return bin_centers, hist
-
-# Histogram and fit ground state data
-def fit_gaussian(d, nbins=200, p0=None, plot=True):
-    v, hist = make_hist(d, nbins)
-    if p0 is None:
-        p0 = [np.mean(v * hist) / np.mean(hist), np.std(d)]
-    params, params_err = curve_fit(lambda x, a, b: gaussian(x, 1, a, b), v, hist, p0=p0)
-    if plot:
-        plt.plot(v, hist, "k.")
-        plt.plot(v, gaussian(v, 1, *params), label="g")
-    return params, v, hist
-
-# Tail from T1 decay
-# vg = ground state voltage, ve = excited state voltage, tm = measurement time/T1 time, sigma = SD of measurement noise
-def distfn(v, vg, ve, sigma, tm):
-    dv = ve - vg
-    return np.abs(
-        tm
-        / 2
-        / dv
-        * np.exp(tm * (tm * sigma**2 / 2 / dv**2 - (v - vg) / dv))
-        * (
-            erf((tm * sigma**2 / dv + ve - v) / np.sqrt(2) / sigma)
-            + erf((-tm * sigma**2 / dv + v - vg) / np.sqrt(2) / sigma)
-        )
-    )
-
-# Fit function for excited state
-def excited_func(x, vg, ve, sigma, tm):
-    y = gaussian(x, 1, ve, sigma) * np.exp(-tm) + distfn(x, vg, ve, sigma, tm)
-    return y
-
-# Fit for sum of excited and ground states (adds in fitting of relative magnitudes)
-def fit_all(x, mag_g, vg, ve, sigma, tm):
-    yg = gaussian(x, mag_g, vg, sigma)
-    ye = gaussian(x, 1 - mag_g, ve, sigma) * np.exp(-tm) + (1 - mag_g) * distfn(
-        x, vg, ve, sigma, tm
-    )
-    return ye + yg
-
-def rotate(x, y, theta):
-    return x * np.cos(theta) - y * np.sin(theta), x * np.sin(theta) + y * np.cos(theta)
-
-def full_rotate(d, theta):
-    
-    d["Ig"], d["Qg"] = rotate(d["Ig"], d["Qg"], theta)
-    d["Ie"], d["Qe"] = rotate(d["Ie"], d["Qe"], theta)
-    return d
-
-# Fit single shot data
 def fit_single_shot(d, plot=True, rot=True):
-    # rot: Rotate the data so that signal in I
-    data_rot = {}
+    """
+    Comprehensive analysis of single-shot readout data.
+    
+    This function:
+    1. Optionally rotates the IQ data
+    2. Fits Gaussians to ground state I and Q data
+    3. Fits excited state data including T1 decay effects
+    4. Returns processed data and fit parameters
+    
+    Parameters
+    ----------
+    d : dict
+        Dictionary containing 'Ig', 'Qg', 'Ie', 'Qe' arrays
+    plot : bool, optional
+        Whether to plot the results, default is True
+    rot : bool, optional
+        Whether to rotate the data, default is True
+        
+    Returns
+    -------
+    tuple
+        Processed data dictionary, parameters dictionary, ground state parameters, excited state parameters
+    """
+    # Make a deep copy to avoid modifying the original data
     d = deepcopy(d)
+    
+    # Rotate the data if requested
     if rot:
+        # Get rotation angle from histogram analysis
         params, _ = hist(d, plot=False, verbose=False)
         theta = np.pi * params['angle'] / 180
         data = full_rotate(d, theta)
@@ -295,46 +639,54 @@ def fit_single_shot(d, plot=True, rot=True):
         data = d
         theta = 0
 
-    # Fit the 3 gaussian data sets
+    # Fit Gaussians to the ground state I and Q data
     paramsg, vhg, histg = fit_gaussian(data["Ig"], nbins=100, p0=None, plot=False)
     paramsqg, vhqg, histqg = fit_gaussian(data["Qg"], nbins=100, p0=None, plot=False)
+    
+    # Fit Gaussian to excited state Q data
     paramsqe, vhqe, histqe = fit_gaussian(data["Qe"], nbins=100, p0=None, plot=False)
 
-    vqg = paramsqg[0]
-    vqe = paramsqe[0]
-    vg = paramsg[0]
-    sigma = paramsg[1]
+    # Extract parameters from fits
+    vqg = paramsqg[0]  # Q center for ground state
+    vqe = paramsqe[0]  # Q center for excited state
+    vg = paramsg[0]    # I center for ground state
+    sigma = paramsg[1] # Width of ground state distribution
 
-    # Fit the I excited state, including T1 decay.
-    # Use previously fit value for vg and sigma
+    # Fit the excited state I data, including T1 decay effects
     vhe, histe = make_hist(data["Ie"], nbins=100)
+    
+    # Initial guess for excited state center and T1 decay parameter
     p0 = [np.mean(vhe * histe) / np.mean(histe), 0.2]
-    paramse, params_err = curve_fit(
-        lambda x, ve, tm: excited_func(x, vg, ve, sigma, tm), vhe, histe, p0=p0
-    )
-    ve = paramse[0]
-    tm = paramse[1]
+    
+    # Fit using the excited_func with fixed ground state parameters
+    try:
+        paramse, params_err = curve_fit(
+            lambda x, ve, tm: excited_func(x, vg, ve, sigma, tm), vhe, histe, p0=p0
+        )
+    except RuntimeError:
+        # If fitting fails, use initial guess
+        paramse = p0
+    
+    # Extract excited state parameters
+    ve = paramse[0]  # I center for excited state
+    tm = paramse[1]  # T1 decay parameter (t_meas/T1)
     paramse2 = [vg, ve, sigma, tm]
-    # Theta from gaussian fit
+    
+    # Calculate correction angle from Gaussian fits
     theta_corr = -np.arctan2((vqe - vqg), (ve - vg))
 
-    #g_rot = rotate(data["Ig"], data["Qg"], theta_corr)
-    #e_rot = rotate(data["Ie"], data["Qe"], theta_corr)
-
+    # Rotate data for analysis (using zero angle here, actual rotation done earlier)
     g_rot = rotate(data['Ig'], data['Qg'], 0)
     e_rot = rotate(data['Ie'], data['Qe'], 0)
 
-    #pg = ['mag', 'cen', 'wid', 'mag', 'cen']
-    pg = [0.99, vg, sigma, 0.01, ve]
-    #print(pg)
+    # Try to fit two Gaussians to ground state data (for potential leakage detection)
+    pg = [0.99, vg, sigma, 0.01, ve]  # Initial parameters
     try: 
-        paramsg2, params_err = curve_fit(two_gaussians, vhg, histg, p0=pg) #@IgnoreException
+        paramsg2, params_err = curve_fit(two_gaussians, vhg, histg, p0=pg)
     except:
         paramsg2 = np.nan
-    #print(paramsg2)
-    #print(paramsg2-pg)
 
-
+    # Store rotated data and histograms in the data dictionary
     data["Ie_rot"] = e_rot[0]
     data["Qe_rot"] = e_rot[1]
     data["Ig_rot"] = g_rot[0]
@@ -349,8 +701,17 @@ def fit_single_shot(d, plot=True, rot=True):
     data["histqg"] = histqg
     data["vqe"] = vhqe
     data["histqe"] = histqe
+    
+    # Store fit parameters in the data dictionary
+    data["paramsg"] = paramsg
+    data["vg"] = vg
+    data["ve"] = ve
+    data["sigma"] = sigma
+    data["tm"] = tm
 
+    # Plot results if requested
     if plot:
+        plt.figure(figsize=(8, 5))
         plt.plot(vhg, histg, "k.-", markersize=0.5, linewidth=0.3)
         plt.plot(vhe, histe, "k.-", markersize=0.5, linewidth=0.3)
         plt.plot(vhg, gaussian(vhg, 1, *paramsg), label="g", linewidth=1)
@@ -358,5 +719,20 @@ def fit_single_shot(d, plot=True, rot=True):
         plt.ylabel("Probability")
         plt.title("Single Shot Histograms")
         plt.xlabel("Voltage")
-    p = {'theta': theta, 'vg': vg, 've': ve, 'sigma': sigma, 'tm': tm, 'vqg': vqg, 'vqe': vqe, 'theta_corr': theta_corr}
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+    
+    # Collect all parameters in a dictionary
+    p = {
+        'theta': theta,           # Initial rotation angle
+        'vg': vg,                 # Ground state I center
+        've': ve,                 # Excited state I center
+        'sigma': sigma,           # Width of distributions
+        'tm': tm,                 # T1 decay parameter
+        'vqg': vqg,               # Ground state Q center
+        'vqe': vqe,               # Excited state Q center
+        'theta_corr': theta_corr  # Correction angle from Gaussian fits
+    }
+    
     return data, p, paramsg, paramse2
