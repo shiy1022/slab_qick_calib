@@ -60,7 +60,7 @@ class QubitSpecProgram(QickProgram):
         q = cfg.expt.qubit[0]
         self.frequency = cfg.device.readout.frequency[q]
         self.gain = cfg.device.readout.gain[q]
-        self.readout_length = cfg.expt.length
+        self.readout_length = cfg.expt.readout_length
         self.phase = cfg.device.readout.phase[q]
         
         # Initialize with standard readout
@@ -544,12 +544,3 @@ class QubitSpecPower(QickExperiment2DSimple):
             fit=fit,
             **kwargs,
         )
-
-    def save_data(self, data=None):
-        """
-        Save the experiment data.
-        
-        Args:
-            data: Data to save (if None, use self.data)
-        """
-        super().save_data(data=data)

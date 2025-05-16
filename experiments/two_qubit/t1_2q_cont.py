@@ -308,9 +308,3 @@
 #         #ax.legend()
 
         
-
-
-
-#     def save_data(self, data=None):
-#         super().save_data(data=data)
-#         return self.fname

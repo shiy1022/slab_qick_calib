@@ -327,15 +327,3 @@ class StarkSpec(QickExperiment):
         #     caption_params=caption_params,  # Pass the new structured parameter list
         # )
 
-    def save_data(self, data=None):
-        """
-        Save the experiment data.
-        
-        Args:
-            data: Data to save (if None, use self.data)
-            
-        Returns:
-            Path to the saved data file
-        """
-        super().save_data(data=data)
-        return self.fname

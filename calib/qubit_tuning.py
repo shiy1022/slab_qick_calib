@@ -496,7 +496,7 @@ def chi_fig(ax, qi, progs):
     ax.set_xlabel('Frequency (MHz)')
 
 
-def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.25):
+def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=MAX_ERR, min_r2=MIN_R2):
     """
     Find qubit spectroscopy by iteratively scanning with different resolutions.
     
@@ -542,7 +542,7 @@ def find_spec(qi, cfg_dict, start="coarse", freq='ge', max_err=0.45, min_r2=0.25
     
     # Iteratively try to find spectroscopy
     while i < ntries and not all_done:        
-        print(level)
+        print(f'Performing {style[level]} scan')
         prog = meas.QubitSpec(cfg_dict, qi=qi, min_r2=min_r2, params=params, style=style[level])
         
         if prog.status:

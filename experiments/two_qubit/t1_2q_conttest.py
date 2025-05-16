@@ -375,8 +375,4 @@ class T1Cont2QExperiment(QickExperiment2Q):
                     i += 1
         
 
-        plt.show()
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname 
+        plt.show() 

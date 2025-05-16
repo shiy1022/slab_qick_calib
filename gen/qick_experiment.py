@@ -170,7 +170,7 @@ class QickExperiment(Experiment):
         fit=True,
         use_i=None,
         get_hist=True,
-        verbose=False,
+        verbose=True,
         inds=None,
         **kwargs,
     ):

@@ -251,9 +251,6 @@ class Rabi_2Q(QickExperiment2Q):
             caption_params=caption_params,
         )
 
-    def save_data(self, data=None):
-        super().save_data(data=data)
-
 # ====================================================== #
 
 class RabiChevron_2Q(QickExperiment2DSimple):
@@ -387,12 +384,6 @@ class RabiChevron_2Q(QickExperiment2DSimple):
             ax[1].set_xlabel('$\Delta$ Frequency (MHz)')
             ax[0].set_ylabel('Frequency (MHz)')
             ax[1].set_ylabel('Amplitude')
-
-
-
-    def save_data(self, data=None):
-        super().save_data(data=data)
-        return self.fname
 
 def chevron_freq(x, w0): 
     return np.sqrt(w0**2 + x**2)
