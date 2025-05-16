@@ -158,6 +158,7 @@ class QubitSpec(QickExperiment):
         style="medium",
         min_r2=None,
         max_err=None,
+        print=False,
     ):
         """
         Initialize the pulse probe spectroscopy experiment.
@@ -250,7 +251,10 @@ class QubitSpec(QickExperiment):
         
         # Check for unexpected parameters
         super().check_params(params_def)
-    
+
+        if print: 
+            super().print()
+            go=False
         # Run the experiment if requested
         if go:
             super().run(min_r2=min_r2, max_err=max_err, display=display, progress=progress)

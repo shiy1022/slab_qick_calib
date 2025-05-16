@@ -153,6 +153,7 @@ class RabiExperiment(QickExperiment):
         disp_kwargs=None,
         min_r2=None,
         max_err=None,
+        print=False
     ):
         
         if 'checkEF' in params and params['checkEF']:
@@ -222,6 +223,10 @@ class RabiExperiment(QickExperiment):
         
         if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
             disp_kwargs = {'plot_all': True}
+
+        if print: 
+            super().print()
+            go=False
         if go:
             super().run(display=display, progress=progress, min_r2=min_r2, max_err=max_err, disp_kwargs=disp_kwargs)
 

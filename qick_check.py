@@ -126,6 +126,7 @@ def check_adc(cfg_dict):
     
     # Get ADC sampling frequency
     fs = cfg_dict['soc']._get_ch_cfg(ro_ch=0)['fs']
+    print('ADC sampling frequency:', fs)
     
     # Calculate Nyquist frequency
     nyquist_freq = fs/2

@@ -157,7 +157,7 @@ class T1Experiment(QickExperiment):
         min_r2=None,
         max_err=None,
         display=True,
-        print=True,
+        print=False,
     ):
         """
         Initialize the T1 experiment

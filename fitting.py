@@ -183,66 +183,140 @@ def get_best_fit(
     Returns:
         List containing [best_fit, best_fit_err, *additional_params, best_measurement_type]
     """
-    fit_errs = [data[f'{prefix}_err_{check}'] for check in check_measures for prefix in prefixes]
-
-    # Fix the error matrix so "0" error is adjusted to inf
-    for fit_err_check in fit_errs:
-        for i, fit_err in enumerate(np.diag(fit_err_check)):
-            if fit_err == 0: 
-                fit_err_check[i][i] = np.inf
-
-    fits = [data[f'{prefix}_{check}'] for check in check_measures for prefix in prefixes]
+    # Collect fit parameters and error matrices
+    fits = []
+    fit_errors = []
     
+    for measure in check_measures:
+        for prefix in prefixes:
+            fits.append(data[f'{prefix}_{measure}'])
+            fit_errors.append(data[f'{prefix}_err_{measure}'])
+    
+    # Fix error matrices: replace zeros with infinity (indicating bad fit)
+    for error_matrix in fit_errors:
+        diagonal = np.diag(error_matrix)
+        zero_indices = np.where(diagonal == 0)[0]
+        for idx in zero_indices:
+            error_matrix[idx, idx] = np.inf
+    
+    # Use override if specified
     if override is not None and override in check_measures:
-        i_best = np.argwhere(np.array(check_measures) == override)[0][0]
-        print(i_best)
+        best_index = np.argwhere(np.array(check_measures) == override)[0][0]
     else:
+        # Calculate fit quality metrics
         if fitfunc is not None:
-            ydata = [data[check] for check in check_measures]
-            xdata = data['xpts']
-
-            # Calculate R² values
-            ss_res_checks = np.array([np.sum((fitfunc(xdata, *fit_check) - ydata_check)**2) 
-                                     for fit_check, ydata_check in zip(fits, ydata)])
-            ss_tot_checks = np.array([np.sum((np.mean(ydata_check) - ydata_check)**2) 
-                                     for ydata_check in ydata])
-            r2 = 1 - ss_res_checks / ss_tot_checks
-            
-            # Calculate normalized parameter errors
-            par_error_norm = []
-            for fit, fit_err_check in zip(fits, fit_errs):
-                par_error_norm.append(np.mean(np.sqrt(np.abs(np.diag(fit_err_check)))/np.abs(fit)))
-
-            par_error_norm = np.abs(par_error_norm)
-            
-            # Override r2 value if fit is bad
-            for icheck, fit_err_check in enumerate(fit_errs):
-                for i, fit_err in enumerate(np.diag(fit_err_check)):
-                    if fit_err == np.inf: 
-                        r2[icheck] = np.inf
-            
-            i_best = np.argmin(par_error_norm)            
+            # Method 1: Use both R² and normalized parameter errors
+            best_index = _find_best_fit_with_r2(data, fits, fit_errors, check_measures, fitfunc)
         else:
-            # Calculate normalized parameter errors
-            errs = [np.average(np.sqrt(np.abs(np.diag(fit_err))) / np.abs(fit)) 
-                   for fit, fit_err in zip(fits, fit_errs)]
-            
-            # Handle NaN errors
-            for i_err, err in enumerate(errs):
-                if err == np.nan: 
-                    errs[i_err] = np.inf
-            
-            i_best = np.argmin(errs)
-
-    # Collect results
-    best_data = [fits[i_best], fit_errs[i_best]]
-    best_meas = check_measures[i_best % len(check_measures)]  # Account for prefixes
-
-    for param in get_best_data_params:
-        best_data.append(data[f'{param}_{best_meas}'])
+            # Method 2: Use only normalized parameter errors
+            best_index = _find_best_fit_simple(fits, fit_errors)
     
-    best_data.append(best_meas)
-    return best_data
+    # Get the best measurement type (accounting for prefixes)
+    best_measure = check_measures[best_index % len(check_measures)]
+    
+    # Collect results
+    result = [fits[best_index], fit_errors[best_index]]
+    
+    # Add any additional requested parameters
+    for param in get_best_data_params:
+        result.append(data[f'{param}_{best_measure}'])
+    
+    # Add the measurement type
+    result.append(best_measure)
+    
+    return result
+
+
+def _find_best_fit_with_r2(
+    data: Dict[str, Any],
+    fits: List[Any],
+    fit_errors: List[np.ndarray],
+    check_measures: Tuple[str, ...],
+    fitfunc: Callable
+) -> int:
+    """
+    Find the best fit using R² values and normalized parameter errors.
+    
+    Args:
+        data: Dictionary containing fit data
+        fits: List of fit parameters
+        fit_errors: List of error matrices
+        check_measures: Tuple of measurement types
+        fitfunc: Function to use for R² calculation
+        
+    Returns:
+        Index of the best fit
+    """
+    # Get x and y data for R² calculation
+    xdata = data['xpts']
+    ydata = [data[measure] for measure in check_measures]
+    
+    # Calculate R² values
+    r2_values = []
+    for i, (fit, y) in enumerate(zip(fits[:len(check_measures)], ydata)):
+        residual_sum_sq = np.sum((fitfunc(xdata, *fit) - y)**2)
+        total_sum_sq = np.sum((np.mean(y) - y)**2)
+        r2 = 1 - residual_sum_sq / total_sum_sq
+        
+        # Set R² to infinity if any parameter has infinite error
+        if np.any(np.diag(fit_errors[i]) == np.inf):
+            r2 = np.inf
+        if np.any(np.isnan(fits)):
+            r2 = np.inf
+            
+        r2_values.append(r2)
+    
+    # Calculate normalized parameter errors
+    norm_errors = _calculate_normalized_errors(fits, fit_errors)
+    
+    # Return index of fit with lowest normalized error
+    return np.argmin(norm_errors)
+
+
+def _find_best_fit_simple(fits: List[Any], fit_errors: List[np.ndarray]) -> int:
+    """
+    Find the best fit using only normalized parameter errors.
+    
+    Args:
+        fits: List of fit parameters
+        fit_errors: List of error matrices
+        
+    Returns:
+        Index of the best fit
+    """
+    # Calculate normalized parameter errors
+    norm_errors = _calculate_normalized_errors(fits, fit_errors)
+    
+    # Return index of fit with lowest normalized error
+    return np.argmin(norm_errors)
+
+
+def _calculate_normalized_errors(fits: List[Any], fit_errors: List[np.ndarray]) -> np.ndarray:
+    """
+    Calculate normalized parameter errors for each fit.
+    
+    Args:
+        fits: List of fit parameters
+        fit_errors: List of error matrices
+        
+    Returns:
+        Array of normalized errors
+    """
+    norm_errors = []
+    
+    for fit, error_matrix in zip(fits, fit_errors):
+        # Calculate average of sqrt(|error|/|parameter|)
+        param_errors = np.sqrt(np.abs(np.diag(error_matrix)))
+        param_values = np.abs(fit)
+        norm_error = np.mean(param_errors / param_values)
+        
+        # Handle NaN errors
+        if np.isnan(norm_error):
+            norm_error = np.inf
+            
+        norm_errors.append(norm_error)
+    
+    return np.array(norm_errors)
 
 # ====================================================== #
 # Exponential Fit Functions

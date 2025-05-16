@@ -194,6 +194,7 @@ class T2Experiment(QickExperiment):
         min_r2=None,
         max_err=None,
         display=True,
+        print=False,
     ):
         """
         Initialize the T2 experiment.
@@ -291,7 +292,10 @@ class T2Experiment(QickExperiment):
         # For untuned qubits, show all data points by default
         if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
             disp_kwargs = {"plot_all": True}
-            
+        
+        if print: 
+            super().print()
+            go=False
         # Run the experiment if go=True
         if go:
             super().run(

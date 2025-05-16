@@ -197,7 +197,8 @@ class ResSpec(QickExperiment):
         qi=0,
         go=True,
         params={},
-        style="fine"
+        style="fine", 
+        print=False,
     ):
         """
         Initialize the resonator spectroscopy experiment.
@@ -275,6 +276,9 @@ class ResSpec(QickExperiment):
         # Set experiment configuration
         self.cfg.expt = params
 
+        if print: 
+            super().print()
+            go=False
         # Run the experiment if requested
         if go:
             if style == "coarse":
