@@ -820,7 +820,7 @@ def set_up_qubit(qi, cfg_dict):
         config.update_qubit(cfg_path, ('pulses', 'pi_ge', 'gain'), amp_rabi.data['pi_length'], qi)
 
     # Optimize readout
-    shot = meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots': 20000})            
+    shot = meas.HistogramExperiment(cfg_dict, qi=qi)            
     shot.update(cfg_path, fast=True)
     
     # Check if basic setup was successful
