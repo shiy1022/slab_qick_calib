@@ -5,6 +5,7 @@ from exp_handling.experiment import Experiment
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
 import slab_qick_calib.fitting as fitter
+import slab_qick_calib.calib.readout_helpers as helpers
 import time
 from scipy.optimize import curve_fit
 
@@ -377,7 +378,7 @@ class QickExperiment(Experiment):
             try:
                 ax.plot(
                     data["bin_centers"],
-                    two_gaussians_decay(data["bin_centers"], *data["hist_fit"]),
+                    helpers.two_gaussians_decay(data["bin_centers"], *data["hist_fit"]),
                     label="Fit",
                 )
             except:
@@ -606,7 +607,7 @@ class QickExperiment(Experiment):
             np.max(bin_centers) - v_rng / 3,
         ]
         try:
-            popt, pcov = curve_fit(two_gaussians, bin_centers, hist, p0=p0)
+            popt, pcov = curve_fit(helpers.two_gaussians, bin_centers, hist, p0=p0)
             vg = popt[1]
             ve = popt[3]
             if (
@@ -617,7 +618,7 @@ class QickExperiment(Experiment):
                 sigma = self.cfg.device.readout.sigma[self.cfg.expt.qubit[0]]
                 p0 = [popt[0], vg, ve]
                 popt, pcov = curve_fit( #@IgnoreException
-                    lambda x, mag_g, vg, ve: two_gaussians_decay(
+                    lambda x, mag_g, vg, ve: helpers.two_gaussians_decay(
                         x, mag_g, vg, ve, sigma, tm
                     ),
                     bin_centers,
@@ -1100,107 +1101,4 @@ class QickExperiment2DSimple(QickExperiment2D):
         return data
 
 
-# Utility functions for data analysis and fitting
 
-def gaussian(x, mag, cen, wid):
-    """
-    Gaussian function for fitting histogram peaks.
-
-    Args:
-        x: Input values
-        mag: Amplitude of the Gaussian
-        cen: Center position (mean)
-        wid: Width (standard deviation)
-
-    Returns:
-        Gaussian function values at input points
-    """
-    return mag / np.sqrt(2 * np.pi) / wid * np.exp(-((x - cen) ** 2) / 2 / wid**2)
-
-
-def two_gaussians(x, mag1, cen1, wid, cen2):
-    """
-    Sum of two Gaussian functions with shared width.
-
-    Used for fitting histograms with two peaks (ground and excited states).
-
-    Args:
-        x: Input values
-        mag1: Amplitude fraction of the first Gaussian
-        cen1: Center position of the first Gaussian (ground state)
-        wid: Width (standard deviation) shared by both Gaussians
-        cen2: Center position of the second Gaussian (excited state)
-
-    Returns:
-        Sum of two Gaussian functions at input points
-    """
-    return (
-        1
-        / np.sqrt(2 * np.pi)
-        / wid
-        * (
-            mag1 * np.exp(-((x - cen1) ** 2) / 2 / wid**2)
-            + (1 - mag1) * np.exp(-((x - cen2) ** 2) / 2 / wid**2)
-        )
-    )
-
-
-def distfn(v, vg, ve, sigma, tm):
-    """
-    Distribution function for qubit state decay during measurement.
-
-    This function models the distribution of measurement outcomes when
-    the qubit state decays during the measurement process.
-
-    Args:
-        v: Input values
-        vg: Ground state center
-        ve: Excited state center
-        sigma: Width (standard deviation)
-        tm: Measurement-induced relaxation time
-
-    Returns:
-        Distribution function values at input points
-    """
-    from scipy.special import erf
-
-    dv = ve - vg
-    return np.abs(
-        tm
-        / 2
-        / dv
-        * np.exp(tm * (tm * sigma**2 / 2 / dv**2 - (v - vg) / dv))
-        * (
-            erf((tm * sigma**2 / dv + ve - v) / np.sqrt(2) / sigma)
-            + erf((-tm * sigma**2 / dv + v - vg) / np.sqrt(2) / sigma)
-        )
-    )
-
-
-def two_gaussians_decay(x, mag_g, vg, ve, sigma, tm):
-    """
-    Model for histogram with two Gaussian peaks and measurement-induced decay.
-
-    This function combines two Gaussian peaks (ground and excited states)
-    with a decay model that accounts for qubit relaxation during measurement.
-
-    Args:
-        x: Input values
-        mag_g: Amplitude fraction of the ground state Gaussian
-        vg: Ground state center
-        ve: Excited state center
-        sigma: Width (standard deviation)
-        tm: Measurement-induced relaxation time
-
-    Returns:
-        Combined model values at input points
-    """
-    # Ground state contribution
-    yg = gaussian(x, mag_g, vg, sigma)
-
-    # Excited state contribution with decay
-    ye = gaussian(x, 1 - mag_g, ve, sigma) * np.exp(-tm) + (1 - mag_g) * distfn(
-        x, vg, ve, sigma, tm
-    )
-
-    return ye + yg

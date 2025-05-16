@@ -102,7 +102,7 @@ class QubitSpecProgram(QickProgram):
         super().measure(cfg)
 
 
-class StarkSpec(QickExperiment):
+class StarkSpec(QickExperiment2DSimple):
     """
     Main experiment class for Stark spectroscopy.
     
@@ -254,11 +254,13 @@ class StarkSpec(QickExperiment):
         
         # Configure Stark gain sweep
         self.cfg.expt.stark_gain = QickSweep1D(
-            "stark_loop", self.cfg.expt.max_stark_gain/self.cfg.expt.stark_rng, self.cfg.expt.max_stark_gain
+            "stark_loop", 0, self.cfg.expt.max_stark_gain
         )
 
         # Acquire data using the QubitSpecProgram
+        
         super().acquire(QubitSpecProgram, progress=progress, get_hist=False)
+        self.data['stark_gain']=np.linspace(self.cfg.expt.max_stark_gain/self.cfg.expt.stark_rng, self.cfg.expt.max_stark_gain, self.cfg.expt.stark_expts)
         
         return self.data
 
