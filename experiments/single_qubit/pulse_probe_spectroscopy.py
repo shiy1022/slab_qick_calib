@@ -210,7 +210,7 @@ class QubitSpec(QickExperiment):
         params_def2 = {
             "soft_avgs": self.soft_avgs,
             "final_delay": 10,
-            "length": 5,
+            "length": 10,
             'readout_length': self.cfg.device.readout.readout_length[qi],
             "pulse_type": "const",
             "checkEF": False,

@@ -208,7 +208,6 @@ class HistogramExperiment(QickExperiment):
         go=True,
         check_f=False,
         params={},
-        style="",
         display=True,
     ):
         # Set default prefix if not provided

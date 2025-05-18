@@ -15,7 +15,7 @@ import numpy as np
 from qick import *
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
+from gen.qick_experiment import QickExperiment, QickExperiment2DSweep
 from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
@@ -102,7 +102,7 @@ class QubitSpecProgram(QickProgram):
         super().measure(cfg)
 
 
-class StarkSpec(QickExperiment2DSimple):
+class StarkSpec(QickExperiment2DSweep):
     """
     Main experiment class for Stark spectroscopy.
     
@@ -194,6 +194,7 @@ class StarkSpec(QickExperiment2DSimple):
             "stark_expts": 20,
             "df_stark": 0,
             "max_stark_gain": 1,
+            'df':0,
             "stark_rng": 10,
             "pulse_type": "const",
             "qubit": [qi],
@@ -206,7 +207,7 @@ class StarkSpec(QickExperiment2DSimple):
         params = {**params_def, **params}
 
         # Calculate start frequency
-        params_def["start"] = self.cfg.device.qubit.f_ge[qi] - params["span"] / 2
+        params_def["start"] = self.cfg.device.qubit.f_ge[qi] - params["span"] / 2 +params['df']
         params = {**params_def, **params}
         
         # Set Stark pulse frequency
@@ -228,7 +229,7 @@ class StarkSpec(QickExperiment2DSimple):
     
         # Run the experiment if requested
         if go:
-            super().run(min_r2=min_r2, max_err=max_err, display=display, progress=progress, analyze=False)
+            super().run(min_r2=min_r2, max_err=max_err, display=display, progress=progress)
 
     def acquire(self, progress=False):
         """
@@ -261,7 +262,7 @@ class StarkSpec(QickExperiment2DSimple):
         
         super().acquire(QubitSpecProgram, progress=progress, get_hist=False)
         self.data['stark_gain']=np.linspace(self.cfg.expt.max_stark_gain/self.cfg.expt.stark_rng, self.cfg.expt.max_stark_gain, self.cfg.expt.stark_expts)
-        
+        self.data['ypts']=self.data['stark_gain']
         return self.data
 
     def analyze(self, data=None, fit=True, **kwargs):
@@ -276,15 +277,15 @@ class StarkSpec(QickExperiment2DSimple):
         Returns:
             Analyzed data with fit parameters
         """
-        if fit:
-            # Fit the data to a Lorentzian model
-            fitterfunc = fitter.fitlor
-            fitfunc = fitter.lorfunc
-            super().analyze(fitfunc, fitterfunc, use_i=False)
-            
-            # Store the fitted qubit frequency
-            data["new_freq"] = data["best_fit"][2]
-            
+    
+        # Fit the data to a Lorentzian model
+        self.fitterfunc = fitter.fitlor
+        self.fitfunc = fitter.lorfunc
+        super().analyze(self.fitfunc, self.fitterfunc, use_i=True)
+        
+        # Store the fitted qubit frequency
+#        data["new_freq"] = data["best_fit"][2]
+        
         return self.data
 
     def display(
@@ -303,29 +304,23 @@ class StarkSpec(QickExperiment2DSimple):
             **kwargs: Additional arguments for the display
         """
         # Display functionality is currently disabled
-        pass
         
-        # Example of how display could be implemented:
-        # fitfunc = fitter.lorfunc
-        # xlabel = "Qubit Frequency (MHz)"
-        # 
-        # title = f"Spectroscopy Q{self.cfg.expt.qubit[0]} (Gain {self.cfg.expt.gain})"
-        # 
-        # # Define which fit parameters to display in caption
-        # # Index 2 is frequency, index 3 is kappa
-        # caption_params = [
-        #     {"index": 2, "format": "$f$: {val:.6} MHz"},
-        #     {"index": 3, "format": "$\kappa$: {val:.3} MHz"},
-        # ]
-        #
-        # super().display(
-        #     ax=ax,
-        #     plot_all=plot_all,
-        #     title=title,
-        #     xlabel=xlabel,
-        #     fit=fit,
-        #     show_hist=False,
-        #     fitfunc=fitfunc,
-        #     caption_params=caption_params,  # Pass the new structured parameter list
-        # )
+        #Example of how display could be implemented:
+        xlabel = "Qubit Frequency (MHz)"
+        
+        title = f"Stark Spectroscopy Q{self.cfg.expt.qubit[0]} (Gain {self.cfg.expt.gain})"
+        
+        # Define which fit parameters to display in caption
+        # Index 2 is frequency, index 3 is kappa
+        
+        super().display(
+            ax=ax,
+            plot_all=plot_all,
+            title=title,
+            xlabel=xlabel,
+            fit=fit,
+            show_hist=False,
+            fitfunc=self.fitfunc,
+            caption_params=[],  # Pass the new structured parameter list
+        )
 

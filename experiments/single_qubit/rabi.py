@@ -208,8 +208,8 @@ class RabiExperiment(QickExperiment):
             params_def["start"] = 2*cfg_dict['soc'].cycles2us(1)
         
         if style == "temp":
-            params["reps"] = 100 * params["reps"]
-            params["soft_avgs"] = 40 * params["soft_avgs"]
+            params["reps"] = 40 * params["reps"]
+            params["soft_avgs"] = 20 * params["soft_avgs"]
             params["pulse_ge"] = False
         
         self.cfg.expt = {**params_def, **params}

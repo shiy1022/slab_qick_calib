@@ -135,11 +135,13 @@ class QickExperiment(Experiment):
 
         # Process I/Q data to get amplitude and phase
         # Shape: Readout channels / Readouts in Program / Loops / I and Q
-        amps = np.abs(iq_list[0][0].dot([1, 1j]))
-        phases = np.angle(iq_list[0][0].dot([1, 1j]))
-        avgi = iq_list[0][0][:, 0]
-        avgq = iq_list[0][0][:, 1]
-
+        iq = iq_list[0][0]
+        amps = np.abs(iq.dot([1, 1j]))
+        phases = np.angle(iq.dot([1, 1j]))
+        avgi = np.squeeze(iq[..., 0])
+        avgq = np.squeeze(iq[..., 1])
+        
+        
         # Generate histogram if requested
         if get_hist:
             v, hist = self.make_hist(prog, single=single)
@@ -1110,4 +1112,145 @@ class QickExperiment2DSimple(QickExperiment2D):
         return data
 
 
+class QickExperiment2DSweep(QickExperiment):
 
+
+    def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
+        """
+        Analyze 2D experiment data.
+
+        This method fits each row of the 2D data (each y value) to the
+        specified model function, creating a set of fit parameters for each row.
+
+        Args:
+            fitfunc: Function to fit data to
+            fitterfunc: Function that performs the fitting
+            data: Data dictionary to analyze
+            fit: Whether to perform fitting
+            **kwargs: Additional arguments passed to the fitter
+
+        Returns:
+            Data dictionary with added fit results
+        """
+        if data is None:
+            data = self.data
+
+        # Define which data sets to fit (focus on I quadrature)
+        ydata_lab = ["amps", "avgi", "avgq"]
+        ydata_lab = ["avgi"]  # Typically only fit I quadrature for speed
+
+        # Fit each row (y value) separately
+        for i, ydata in enumerate(ydata_lab):
+            data["fit_" + ydata] = []
+            data["fit_err_" + ydata] = []
+
+            # Iterate through each y value
+            for j in range(len(data["ypts"])):
+                # Fit this row to the model function
+                fit_pars, fit_err, init = fitterfunc(
+                    data["xpts"], data[ydata][j], fitparams=None
+                )
+                # Store fit parameters and errors
+                data["fit_" + ydata].append(fit_pars)
+                data["fit_err_" + ydata].append(fit_err)
+
+        return data
+
+    def display(
+        self,
+        data=None,
+        ax=None,
+        plot_both=False,
+        plot_amps=False,
+        title="",
+        xlabel="",
+        ylabel="",
+        **kwargs,
+    ):
+        """
+        Display 2D experiment results.
+
+        This method creates 2D color plots (heatmaps) showing the measurement
+        results as a function of both swept parameters. It can display:
+        - Single quadrature (I)
+        - Both quadratures (I and Q)
+        - Amplitude and phase
+
+        Args:
+            data: Data dictionary to display
+            ax: Matplotlib axis to plot on
+            plot_both: Whether to plot both I and Q quadratures
+            plot_amps: Whether to plot amplitude and phase instead of I/Q
+            title: Plot title
+            xlabel: X-axis label
+            ylabel: Y-axis label
+            **kwargs: Additional arguments for plotting
+        """
+        if data is None:
+            data = self.data
+
+        # Get x and y sweep values for the 2D plot
+        x_sweep = data["xpts"]
+        y_sweep = data["ypts"]
+
+        # Determine whether to save the figure
+        if ax is None:
+            savefig = True
+        else:
+            savefig = False
+
+        # Configure plot layout based on what to display
+        if plot_both:
+            # Create 2-panel figure for I and Q
+            fig, ax = plt.subplots(2, 1, figsize=(8, 10))
+            ydata_lab = ["avgi", "avgq"]
+            ydata_labs = ["I (ADC level)", "Q (ADC level)"]
+            fig.suptitle(title)
+        elif plot_amps:
+            # Create 2-panel figure for amplitude and phase
+            fig, ax = plt.subplots(2, 1, figsize=(8, 10))
+            ydata_lab = ["amps", "phases"]
+            ydata_labs = ["Amplitude (ADC level)", "Phase (radians)"]
+            fig.suptitle(title)
+        else:
+            # Create single panel figure for I quadrature
+            if ax is None:
+                fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+            ax.set_title(title)
+            ydata_lab = ["avgi"]
+            ax = [ax]
+            ydata_labs = ["I (ADC level)"]
+
+        # Create 2D color plot for each data set
+        for i, ydata in enumerate(ydata_lab):
+            # Create heatmap using pcolormesh
+            ax[i].pcolormesh(
+                x_sweep, y_sweep, data[ydata], cmap="viridis", shading="auto"
+            )
+            # Add colorbar with label
+            plt.colorbar(ax[i].collections[0], ax=ax[i], label=ydata_labs[i])
+            # Set axis labels
+            ax[i].set_xlabel(xlabel)
+            ax[i].set_ylabel(ylabel)
+
+            # Use log scale for y-axis if specified in configuration
+            if "log" in self.cfg.expt and self.cfg.expt.log:
+                ax[i].set_yscale("log")
+
+        # Save figure if created in this method
+        if savefig:
+            fig.tight_layout()
+
+            file_path = Path(self.fname)
+    
+            # Get the parent directory
+            parent_dir = file_path.parent
+            
+            # Get the filename and change its extension to .png
+            new_filename = file_path.name.rsplit('.', 1)[0] + '.png'
+            # Create the full output path and save the figure
+            output_path = parent_dir / 'images' / new_filename
+
+
+            fig.savefig(output_path)
+            plt.show()
