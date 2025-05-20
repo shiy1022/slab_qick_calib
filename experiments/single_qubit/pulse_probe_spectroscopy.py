@@ -484,9 +484,9 @@ class QubitSpecPower(QickExperiment2DSimple):
         self.param = {"label": "qubit_pulse", "param": "freq", "param_type": "pulse"}
         
         # Set up frequency sweep
-        self.cfg.expt.frequency = QickSweep1D(
-            "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
-        )
+        # self.cfg.expt.frequency = QickSweep1D(
+        #     "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
+        # )
 
         # Acquire data
         super().acquire(ysweep, progress=progress)

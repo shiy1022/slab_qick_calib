@@ -53,8 +53,8 @@ class RamseyStarkExperiment(QickExperiment):
             "df": 70,
             "acStark": True,
             "checkEF": False,
-            "checkZZ": False,
             'active_reset': self.cfg.device.readout.active_reset[qi],
+            'experiment_type': 'ramsey',
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
@@ -91,7 +91,7 @@ class RamseyStarkExperiment(QickExperiment):
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.step*self.cfg.expt.expts
         )
 
-        data = super().acquire(meas.RamseyProgram, progress=progress)
+        data = super().acquire(meas.T2Program, progress=progress)
         return data
 
     def analyze(self, data=None, fit=True, **kwargs):
@@ -186,7 +186,7 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         self.cfg.expt = params
 
         if go:
-            super().run(min_r2=min_r2, max_err=max_err)
+            super().run(min_r2=min_r2, max_err=max_err, progress=progress)
 
     def acquire(self, progress=False):
 

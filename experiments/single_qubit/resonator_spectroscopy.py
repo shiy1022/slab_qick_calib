@@ -707,13 +707,13 @@ class ResSpecPower(QickExperiment2DSimple):
         
         # Create a ResSpec experiment but don't run it
         exp_name = ResSpec 
-        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, style='coarse', params=params)
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
         # Run the experiment if requested
         if go:
-            self.run(analyze=False, display=False, progress=True, save=True)
+            self.run(analyze=False, display=False, progress=False, save=True)
             self.analyze(fit=True, lowgain=None, highgain=None)
             self.display(fit=True)
 
@@ -958,6 +958,7 @@ class ResSpec2D(QickExperiment2DSimple):
         self.data['amps'] = np.mean(self.data['amps'], axis=0)
         
         # Process phase data
+        self.data['phase_raw']=self.data['phases']
         phs = self.data['phases'] - self.cfg.device.readout.phase_inc*self.data['xpts']
         phs = np.unwrap(phs)
         phs = np.mean(phs, axis=0)
@@ -1018,7 +1019,7 @@ class ResSpec2D(QickExperiment2DSimple):
         if plot_both:
             axes[1].set_xlabel("Readout Frequency (MHz)")
             axes[1].set_ylabel("Phase (radians)")
-            axes[1].plot(data["xpts"][1:-1], data["phase_fix"], ".-")
+            axes[1].plot(data["xpts"][1:-1], data["phases"][1:-1], ".-")
         
         # Finalize and show plot
         plt.tight_layout()
@@ -1048,7 +1049,7 @@ def get_homophase(params):
         numpy.ndarray: An array containing the calculated frequency list with equal phase spacing.
     """
     nlin = 3
-    kappa_inc = 1.2
+    kappa_inc = 1.1
 
     N = params["expts"] - nlin * 2
     df = params["span"]
