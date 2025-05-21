@@ -251,7 +251,10 @@ class RabiExperiment(QickExperiment):
             self.cfg.expt['gain'] = QickSweep1D(
                 "sweep_loop", self.cfg.expt.start, self.cfg.expt['max_gain']
             )
-            self.cfg.expt['length'] = self.cfg.expt.sigma * self.cfg.expt.sigma_inc
+            if self.cfg.expt.type == 'gauss':       
+                self.cfg.expt['length'] = self.cfg.expt.sigma * self.cfg.expt.sigma_inc
+            else:
+                self.cfg.expt['length'] = self.cfg.expt.sigma
         elif self.cfg.expt.sweep == "length":
             # Length sweep configuration
             param_pulse = 'total_length'

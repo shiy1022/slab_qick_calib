@@ -244,6 +244,7 @@ class T1StarkPowerExperiment(QickExperiment2DSimple):
             "end_gain": self.cfg.device.qubit.max_gain,
             "expts_gain": 20,
             "start_gain": 0.15,
+            "end_wait":0.5,
             "qubit": [qi],
         }
         self.expt = T1StarkExperiment(cfg_dict, qi=qi, go=False, params=params, acStark=acStark, style=style)
@@ -356,6 +357,7 @@ class T1StarkFreqExperiment(QickExperiment2DSimple):
             "span_f": 200,
             "expts_f": 30,
             "start_df": 10,
+            "end_wait":0.5,
         }
         params = {**params_def, **params}
         params["start_f"] = self.cfg.device.qubit.f_ge[qi] + params["start_df"]
@@ -471,6 +473,7 @@ class T1StarkPowerSingle(QickExperiment):
             "max_gain":1,
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
             "df": 70,
+            "end_wait":0.5,
         }
         params = {**params_def, **params}
         if style == "fine":

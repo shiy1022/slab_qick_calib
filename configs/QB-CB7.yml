@@ -1,9 +1,9 @@
 aliases: {soc: bf1_soc}
 device:
   qubit:
-    T1: [11.6, 11.23, 30]
-    T2e: [23.2, 22.46, 60]
-    T2r: [11.6, 6.79, 30]
+    T1: [19.47, 11.23, 30]
+    T2e: [38.93, 22.46, 60]
+    T2r: [19.47, 6.79, 30]
     f_ef: [3827.9248, 5302.662, 3750]
     f_ge: [3964.852, 5506.532, 6500]
     kappa: [-4.4271, 0.3209, 0]
@@ -17,10 +17,10 @@ device:
         sigma_inc: [5, 4, 5]
         type: [gauss, gauss, gauss]
       pi_ge:
-        gain: [0.2193, 0.0459, 0.15]
+        gain: [0.2709, 0.0459, 0.15]
         sigma: [0.07, 0.07, 0.1]
         sigma_inc: [5, 4, 5]
-        type: [gauss, const, gauss]
+        type: [const, gauss, gauss]
     spec_gain: [1, 1, 1]
     temp: [36.419, 80.2568, 0]
     tuned_up: [true, false, false]
@@ -28,7 +28,7 @@ device:
     active_reset: [false, false, false]
     chi: [-0.767, -1.9174, 0]
     fidelity: [0.5556, 0.0487, 0]
-    final_delay: [69.6, 67.37, 180]
+    final_delay: [116.79, 67.37, 180]
     frequency: [5379.269, 5923.5287, 6653.3975]
     gain: [0.0522, 0.027, 0.001]
     kappa: [0.4845, 0.4844, 0.5509]

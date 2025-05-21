@@ -272,11 +272,17 @@ class QickProgram(AveragerProgramV2):
             style = "flat_top"
 
             # Create Gaussian ramp for rise/fall
+            if "ramp_sigma" not in pulse:
+                pulse.ramp_sigma = 0.02
+            if "ramp_sigma_inc" not in pulse:
+                pulse.ramp_sigma_inc = 5
+            ramp_length = pulse.ramp_sigma * pulse.ramp_sigma_inc
+            
             self.add_gauss(
                 ch=self.qubit_ch,
                 name="ramp",
-                sigma=0.02,  # Width of rise/fall
-                length=0.2,  # Length of rise/fall
+                sigma=pulse.ramp_sigma,  # Width of rise/fall
+                length=ramp_length,  # Length of rise/fall
                 even_length=True,
             )
             pulse_args["envelope"] = "ramp"  # Use Gaussian envelope for edges
