@@ -168,7 +168,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True,
     make_summary_figure(cfg_dict, progs, qi)
 
 
-def measure_params(qi, cfg_dict, update=True, readout=True, display=False, max_t1=MAX_T1):
+def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=False, max_t1=MAX_T1):
     """
     Measure and return key parameters for a qubit.
     
@@ -198,37 +198,38 @@ def measure_params(qi, cfg_dict, update=True, readout=True, display=False, max_t
     cfg_path = cfg_dict['cfg_file']
     err_dict = {}
     
-    # Step 1: Resonator spectroscopy
-    rspec = meas.ResSpec(cfg_dict, qi=qi, params={'span':'kappa'}, 
-                         display=display, progress=False)
-    if update: 
-        rspec.update(cfg_path, freq=readout, fast=True, verbose=False)        
-    
-    if not rspec.status:
-        # Handle failed resonator spectroscopy
-        rspec.data['kappa'] = np.nan
-        rspec.data['fit'] = [np.nan, np.nan, np.nan]
-        rspec.display(debug=True)
-        print('Resonator spectroscopy failed')
-    
-    # Step 2: Single shot measurement
-    shot = meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':10000}, 
-                                   display=display, progress=False)
-    if update: 
-        shot.update(cfg_path, fast=True, verbose=False)
+    if not fast:
+        # Step 1: Resonator spectroscopy
+        rspec = meas.ResSpec(cfg_dict, qi=qi, params={'span':'kappa'}, 
+                            display=display, progress=False)
+        if update: 
+            rspec.update(cfg_path, freq=readout, fast=True, verbose=False)        
+        
+        if not rspec.status:
+            # Handle failed resonator spectroscopy
+            rspec.data['kappa'] = np.nan
+            rspec.data['fit'] = [np.nan, np.nan, np.nan]
+            rspec.display(debug=True)
+            print('Resonator spectroscopy failed')
+        
+        # Step 2: Single shot measurement
+        shot = meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':10000}, 
+                                    display=display, progress=False)
+        if update: 
+            shot.update(cfg_path, fast=True, verbose=False)
 
-    # Step 3: Amplitude Rabi
-    amp_rabi = meas.RabiExperiment(cfg_dict, qi=qi, params={'start':0.003}, 
-                                  display=display, progress=False, style='fast')
-    if update and amp_rabi.status:
-        config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), 
-                           amp_rabi.data['pi_length'], qi, verbose=False)
-    
-    if not amp_rabi.status:
-        amp_rabi.data['pi_length'] = np.nan
-        print('Amp Rabi failed')
-    
-    err_dict['rabi_err'] = np.sqrt(amp_rabi.data['fit_err_avgi'][1][1])
+        # Step 3: Amplitude Rabi
+        amp_rabi = meas.RabiExperiment(cfg_dict, qi=qi, params={'start':0.003}, 
+                                    display=display, progress=False, style='fast')
+        if update and amp_rabi.status:
+            config.update_qubit(cfg_path, ('pulses','pi_ge','gain'), 
+                            amp_rabi.data['pi_length'], qi, verbose=False)
+        
+        if not amp_rabi.status:
+            amp_rabi.data['pi_length'] = np.nan
+            print('Amp Rabi failed')
+        
+        err_dict['rabi_err'] = np.sqrt(amp_rabi.data['fit_err_avgi'][1][1])
 
     # Step 4: T2 Ramsey
     t2r = meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
@@ -293,31 +294,52 @@ def measure_params(qi, cfg_dict, update=True, readout=True, display=False, max_t
     
     err_dict['t2e_err'] = np.sqrt(t2e.data['fit_err_avgi'][3][3])
 
-    # Compile all measured parameters into a dictionary
-    qubit_dict = {
-        't1': t1.data['new_t1_i'], 
-        't2r': t2r.data['best_fit'][3], 
-        't2e': t2e.data['best_fit'][3], 
-        'f_ge': t2r.data['new_freq'], 
-        'fidelity': shot.data['fids'][0],
-        'phase': shot.data['angle'], 
-        'kappa': rspec.data['kappa'], 
-        'frequency': rspec.data['freq_min'],
-        'pi_length': amp_rabi.data['pi_length']
-    }
-    
-    # Add error values
-    qubit_dict.update(err_dict)
-    
-    # Add R² values for fit quality assessment
-    r2_dict = {
-        't1_r2': t1.data['r2'], 
-        't2r_r2': t2r.data['r2'], 
-        't2e_r2': t2e.data['r2'], 
-        'rspec_r2': rspec.data['r2'], 
-        'amp_rabi_r2': amp_rabi.data['r2']
-    }
-    qubit_dict.update(r2_dict)
+    if not fast:
+        # Compile all measured parameters into a dictionary
+        qubit_dict = {
+            't1': t1.data['new_t1_i'], 
+            't2r': t2r.data['best_fit'][3], 
+            't2e': t2e.data['best_fit'][3], 
+            'f_ge': t2r.data['new_freq'], 
+            'fidelity': shot.data['fids'][0],
+            'phase': shot.data['angle'], 
+            'kappa': rspec.data['kappa'], 
+            'frequency': rspec.data['freq_min'],
+            'pi_length': amp_rabi.data['pi_length']
+        }
+        
+        # Add error values
+        qubit_dict.update(err_dict)
+        
+        # Add R² values for fit quality assessment
+        r2_dict = {
+            't1_r2': t1.data['r2'], 
+            't2r_r2': t2r.data['r2'], 
+            't2e_r2': t2e.data['r2'], 
+            'rspec_r2': rspec.data['r2'], 
+            'amp_rabi_r2': amp_rabi.data['r2']
+        }
+        qubit_dict.update(r2_dict)
+    else:
+        # Compile all measured parameters into a dictionary
+        qubit_dict = {
+            't1': t1.data['new_t1_i'], 
+            't2r': t2r.data['best_fit'][3], 
+            't2e': t2e.data['best_fit'][3], 
+            'f_ge': t2r.data['new_freq'], 
+        }
+        
+        # Add error values
+        qubit_dict.update(err_dict)
+        
+        # Add R² values for fit quality assessment
+        r2_dict = {
+            't1_r2': t1.data['r2'], 
+            't2r_r2': t2r.data['r2'], 
+            't2e_r2': t2e.data['r2'], 
+        }
+        qubit_dict.update(r2_dict)
+
     
     # Round all values to 7 significant figures
     for key in qubit_dict:
@@ -327,7 +349,7 @@ def measure_params(qi, cfg_dict, update=True, readout=True, display=False, max_t
     return qubit_dict
 
 
-def time_tracking(qubit_list, cfg_dict, total_time=12, display=False):
+def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True):
     """
     Track qubit parameters over time.
     
@@ -374,7 +396,7 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False):
             print(f"Starting run {i}, for qubit {qi}. Time elapsed {elapsed:.2f} hrs")
             
             # Measure qubit parameters
-            d = measure_params(qi, cfg_dict, display=display)
+            d = measure_params(qi, cfg_dict, display=display, fast=fast)
             d['time'] = tm 
             d['elapsed'] = elapsed
             

@@ -172,6 +172,7 @@ class RabiExperiment(QickExperiment):
             "soft_avgs": self.soft_avgs,
             "checkEF": False,
             "pulse_ge": True,
+            "num_osc":2.5,
             "sweep": "amp",
             'active_reset': self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
@@ -199,12 +200,12 @@ class RabiExperiment(QickExperiment):
         params = {**params_def, **params}
         
         if params["sweep"]=="amp":
-            params_def['max_gain'] = params['gain'] * 5
+            params_def['max_gain'] = params['gain'] * params['num_osc']*2
             params_def['start']=0.003 # This is currently the minimum gain value that is linear 
             params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
             
         elif params["sweep"]=="length":
-            params_def["max_length"] = 5 * params["sigma"]
+            params_def["max_length"] = 2*params['num_osc'] * params["sigma"]
             params_def["start"] = 2*cfg_dict['soc'].cycles2us(1)
         
         if style == "temp":
