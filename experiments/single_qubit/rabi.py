@@ -76,7 +76,7 @@ class RabiProgram(QickProgram):
         super().make_pulse(pulse, "qubit_pulse")
 
         # If checking EF transition and using ge pulse, create a pi pulse
-        if cfg.expt.checkEF and cfg.expt.pulse_ge:
+        if (cfg.expt.checkEF and cfg.expt.pulse_ge) or cfg.expt.active_reset:
             super().make_pi_pulse(q, cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):

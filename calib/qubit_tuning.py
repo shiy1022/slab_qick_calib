@@ -168,7 +168,7 @@ def tune_up_qubit(qi, cfg_dict, update=True, first_time=False, readout=True,
     make_summary_figure(cfg_dict, progs, qi)
 
 
-def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=False, max_t1=MAX_T1):
+def measure_params(qi, cfg_dict, update=True, readout=True, fast=False,check_fid=True, display=False, max_t1=MAX_T1):
     """
     Measure and return key parameters for a qubit.
     
@@ -211,13 +211,13 @@ def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=
             rspec.data['fit'] = [np.nan, np.nan, np.nan]
             rspec.display(debug=True)
             print('Resonator spectroscopy failed')
-        
+    if not fast or check_fid:
         # Step 2: Single shot measurement
         shot = meas.HistogramExperiment(cfg_dict, qi=qi, params={'shots':10000}, 
                                     display=display, progress=False)
         if update: 
             shot.update(cfg_path, fast=True, verbose=False)
-
+    if not fast:
         # Step 3: Amplitude Rabi
         amp_rabi = meas.RabiExperiment(cfg_dict, qi=qi, params={'start':0.003}, 
                                     display=display, progress=False, style='fast')
@@ -276,23 +276,24 @@ def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=
     
     err_dict['t1_err'] = np.sqrt(t1.data['fit_err_avgi'][2][2])
 
-    # Step 6: T2 Echo measurement
-    t2e = meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False, 
-                           params={'experiment_type':'echo'}, style='fast')
-    if update and t2e.status: 
-        config.update_qubit(cfg_path, 'T2e', t2e.data['best_fit'][3], qi, 
-                           rng_vals=[1, max_t1], sig=2, verbose=False)
-    
-    if not t2e.status:
-        # Try to recover from failed T2E measurement
-        print('Refitting')
-        t2e.analyze(refit=True, verbose=True)
+    if not fast:
+        # Step 6: T2 Echo measurement
+        t2e = meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False, 
+                            params={'experiment_type':'echo'}, style='fast')
+        if update and t2e.status: 
+            config.update_qubit(cfg_path, 'T2e', t2e.data['best_fit'][3], qi, 
+                            rng_vals=[1, max_t1], sig=2, verbose=False)
+        
         if not t2e.status:
-            t2e.data['best_fit'] = [np.nan, np.nan, np.nan, np.nan]
-            t2e.display(debug=True)
-            print('T2 Echo failed')
-    
-    err_dict['t2e_err'] = np.sqrt(t2e.data['fit_err_avgi'][3][3])
+            # Try to recover from failed T2E measurement
+            print('Refitting')
+            t2e.analyze(refit=True, verbose=True)
+            if not t2e.status:
+                t2e.data['best_fit'] = [np.nan, np.nan, np.nan, np.nan]
+                t2e.display(debug=True)
+                print('T2 Echo failed')
+        
+        err_dict['t2e_err'] = np.sqrt(t2e.data['fit_err_avgi'][3][3])
 
     if not fast:
         # Compile all measured parameters into a dictionary
@@ -307,7 +308,7 @@ def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=
             'frequency': rspec.data['freq_min'],
             'pi_length': amp_rabi.data['pi_length']
         }
-        
+
         # Add error values
         qubit_dict.update(err_dict)
         
@@ -325,9 +326,11 @@ def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=
         qubit_dict = {
             't1': t1.data['new_t1_i'], 
             't2r': t2r.data['best_fit'][3], 
-            't2e': t2e.data['best_fit'][3], 
             'f_ge': t2r.data['new_freq'], 
         }
+        if check_fid:
+            qubit_dict['fidelity'] = shot.data['fids'][0]
+            qubit_dict['phase'] = shot.data['angle']
         
         # Add error values
         qubit_dict.update(err_dict)
@@ -336,7 +339,6 @@ def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=
         r2_dict = {
             't1_r2': t1.data['r2'], 
             't2r_r2': t2r.data['r2'], 
-            't2e_r2': t2e.data['r2'], 
         }
         qubit_dict.update(r2_dict)
 
@@ -348,6 +350,109 @@ def measure_params(qi, cfg_dict, update=True, readout=True, fast=False, display=
     
     return qubit_dict
 
+
+def measure_cohere(qi, cfg_dict, update=True, display=False, max_t1=MAX_T1):
+    """
+    Measure and return key parameters for a qubit.
+    
+    This function performs a series of measurements to characterize a qubit's properties,
+    including coherence times, frequencies, and readout fidelity.
+    
+    Parameters
+    ----------
+    qi : int
+        Qubit index
+    cfg_dict : dict
+        Configuration dictionary containing experiment settings
+    update : bool, optional
+        Whether to update the configuration file with new parameters
+    display : bool, optional
+        Whether to display plots during measurements
+    max_t1 : float, optional
+        Maximum T1 time in microseconds
+        
+    Returns
+    -------
+    dict
+        Dictionary containing measured qubit parameters
+    """
+    cfg_path = cfg_dict['cfg_file']
+    err_dict = {}
+
+    # Step 1: T2 Ramsey
+    t2r = meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
+    if t2r.status and update:
+        # Update qubit frequency and T2r time
+        config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
+        config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, 
+                           rng_vals=[1, max_t1], sig=2, verbose=False)
+    
+    if not t2r.status:
+        # Try to recover from failed T2 measurement
+        t2r.display(debug=True, refit=True)
+        print(t2r.data['r2'])
+        print(t2r.data['fit_err_par'])
+
+        # Try to find qubit frequency with spectroscopy
+        find_spec(qi, cfg_dict, start="fine")
+        t2r = meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False)
+        if t2r.status and update:
+            config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], qi, verbose=False)
+            config.update_qubit(cfg_path, 'T2r', t2r.data['best_fit'][3], qi, 
+                               rng_vals=[1, max_t1], sig=2, verbose=False)
+            print('Recentered qubit frequency')
+        
+        if not t2r.status:
+            # Handle persistently failed T2 measurement
+            t2r.display(debug=True)
+            t2r.data['best_fit'] = [np.nan, np.nan, np.nan, np.nan]
+            t2r.data['new_freq'] = np.nan
+            print('T2 Ramsey failed')
+    
+    err_dict['t2r_err'] = np.sqrt(t2r.data['fit_err_avgi'][3][3])
+    err_dict['fge_err'] = np.sqrt(t2r.data['fit_err_avgi'][1][1])
+
+    # Step 2: T1 measurement
+    t1 = meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
+    if update: 
+        t1.update(cfg_path, rng_vals=[1, max_t1], verbose=False)
+    
+    if not t1.status:
+        t1.data['new_t1_i'] = np.nan
+        t1.display(debug=True)
+        print('T1 failed')
+    
+    err_dict['t1_err'] = np.sqrt(t1.data['fit_err_avgi'][2][2])
+
+    
+    # Compile all measured parameters into a dictionary
+    qubit_dict = {
+        't1': t1.data['new_t1_i'], 
+        't1_off': t1.data['best_fit'][0],
+        't1_amp': t1.data['best_fit'][1],
+        't2r_off': t2r.data['best_fit'][4], 
+        't2r_amp': t2r.data['best_fit'][0], 
+        't2r': t2r.data['best_fit'][3], 
+        'f_ge': t2r.data['new_freq'], 
+    }
+    
+    # Add error values
+    qubit_dict.update(err_dict)
+    
+    # Add R² values for fit quality assessment
+    r2_dict = {
+        't1_r2': t1.data['r2'], 
+        't2r_r2': t2r.data['r2'], 
+    }
+    qubit_dict.update(r2_dict)
+
+    
+    # Round all values to 7 significant figures
+    for key in qubit_dict:
+        if isinstance(qubit_dict[key], (int, float)) and not np.isnan(qubit_dict[key]):
+            qubit_dict[key] = round(qubit_dict[key], 7)
+    
+    return qubit_dict
 
 def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True):
     """
@@ -378,7 +483,7 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True)
     base_path = '\\'.join(cfg_dict['expt_path'].split('\\')[:-2]) + '\\Tracking\\'
     tracking_id = f'{datetime.now().strftime("%Y_%m_%d_%H_%M")}_{total_time:.1f}hrs'
     tracking_path = os.path.join(base_path, tracking_id)
-    os.mkdir(tracking_path)
+    os.makedirs(tracking_path, exist_ok=True)
     os.mkdir(os.path.join(tracking_path, 'images'))
     cfg_dict['expt_path'] = tracking_path
     
@@ -396,7 +501,10 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True)
             print(f"Starting run {i}, for qubit {qi}. Time elapsed {elapsed:.2f} hrs")
             
             # Measure qubit parameters
-            d = measure_params(qi, cfg_dict, display=display, fast=fast)
+            if fast:
+                d = measure_cohere(qi, cfg_dict, display=display)
+            else:
+                d = measure_params(qi, cfg_dict, display=display, fast=False,  check_fid=False)
             d['time'] = tm 
             d['elapsed'] = elapsed
             

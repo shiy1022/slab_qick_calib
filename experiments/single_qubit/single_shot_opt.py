@@ -294,8 +294,8 @@ class SingleShotOptExperiment(QickExperiment):
         print(
                 f"Optimal params: \n Freq (MHz) {fpts[imax[0]]:.3f} \n Gain (DAC units) {gainpts[imax[1]]:.3f} \n Readout length (us) {lenpts[imax[2]]:.3f}"
             )
-       
-        if low_gain:
+        self.do_more= self.check_edges()
+        if low_gain and not self.do_more:
             min_accept = max_fid * perc_fid
             
             # Find values above threshold
@@ -318,6 +318,10 @@ class SingleShotOptExperiment(QickExperiment):
         self.data["freq"] = fpts[imax[0]]
         self.data["gain"] = gainpts[imax[1]]
         self.data["length"] = lenpts[imax[2]]
+
+        
+        if self.data['gain']==1: # change to max_gain 
+            self.do_more=False
 
         return imax
 
@@ -559,9 +563,7 @@ class SingleShotOptExperiment(QickExperiment):
             ax[1].set_ylabel('$\sigma$')
             fig.tight_layout()
 
-        self.do_more= self.check_edges()
-        if self.data['gain']==1: # change to max_gain 
-            self.do_more=False
+        
         
     
     def check_edges(self):

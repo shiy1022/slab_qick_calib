@@ -99,7 +99,7 @@ class T2Program(QickProgram):
             super().make_pulse(pulse, "stark_pulse")
 
         # Create π pulse for Echo or EF check
-        if cfg.expt.checkEF or cfg.expt.experiment_type == "echo":
+        if cfg.expt.checkEF or cfg.expt.experiment_type == "echo" or cfg.expt.active_reset:
             super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
 
     def _body(self, cfg):
@@ -142,8 +142,8 @@ class T2Program(QickProgram):
             for i in range(cfg.expt.num_pi):
                 self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)  # π pulse
                 self.delay_auto(
-                    t=cfg.expt.wait_time / (cfg.expt.num_pi + 1) + 0.01, tag=f"wait{i}"
-                )  # Wait time plus small buffer
+                    t=cfg.expt.wait_time / (cfg.expt.num_pi + 1)+0.01, tag=f"wait{i}"
+                )  # Wait time 
 
         # Second π/2 pulse (readout)
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
@@ -486,10 +486,9 @@ class T2Experiment(QickExperiment):
         q = self.cfg.expt.qubit[0]
         
         # Set experiment name based on type
-        if self.cfg.expt.experiment_type == "echo":
-            name = "Echo "
-        else:
-            name = ""
+        name = 'Echo ' if self.cfg.expt.experiment_type == "echo" else ""
+        if self.cfg.expt.num_pi>1:
+            name += f"{self.cfg.expt.num_pi} π pulses "
             
         # Set x-axis label
         xlabel = "Wait Time ($\mu$s)"
