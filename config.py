@@ -274,6 +274,7 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
         "pop": init_array(0),
         "temp": init_array(0),
         "tuned_up": init_array(False),
+        "rescale": init_array(False),
         "low_gain": 0.003,
         "max_gain": 1,
     })

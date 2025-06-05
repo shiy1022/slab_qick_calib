@@ -178,8 +178,8 @@ class QubitSpec(QickExperiment):
         # Currently no control of readout time; may want to change for simultaneious readout
         
         # Set prefix based on whether we're checking EF transition
-        ef = "ef" if "checkEF" in params and params["checkEF"] else ""
-        prefix = f"qubit_spectroscopy_{ef}_{style}_qubit{qi}"
+        ef = "ef_" if "checkEF" in params and params["checkEF"] else ""
+        prefix = f"qubit_spectroscopy_{ef}{style}_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
         # Define default parameters
@@ -404,8 +404,8 @@ class QubitSpecPower(QickExperiment2DSimple):
             max_err: Maximum error for fit quality
         """
         # Set prefix based on whether we're checking EF transition
-        ef = "ef" if "checkEF" in params and params["checkEF"] else ""
-        prefix += style + f"qubit_spectroscopy_power_{ef}qubit{qi}"
+        ef = "ef_" if "checkEF" in params and params["checkEF"] else ""
+        prefix = f"qubit_spectroscopy_power_{ef}{style}_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
 
         # Set style-specific parameters
@@ -443,9 +443,6 @@ class QubitSpecPower(QickExperiment2DSimple):
 
         # Set experiment configuration
         self.cfg.expt = params
-
-        # Check for unexpected parameters
-        super().check_params(params_def)
 
         # Run the experiment if requested
         if go:

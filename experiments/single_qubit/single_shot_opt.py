@@ -1,19 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
-import copy
 import seaborn as sns
-from exp_handling.datamanagement import AttrDict
 from tqdm import tqdm_notebook as tqdm
 from gen.qick_experiment import QickExperiment
-from gen.qick_program import QickProgram
 import experiments as meas
 
 import slab_qick_calib.config as config
 blue = "#4053d3"
 red = "#b51d14"
 int_rgain = True
-import slab_qick_calib.calib.readout_helpers as helpers
 
 class SingleShotOptExperiment(QickExperiment):
     """
@@ -382,6 +378,11 @@ class SingleShotOptExperiment(QickExperiment):
                     return data[:, i[0], i[1]].reshape(-1)
 
         m = 0.5
+        imname = self.fname.split("\\")[-1]
+        folder = self.fname[0 : -len(imname)]
+        imname = imname[0:-3] 
+               
+
         if ndims == 1:
             row, col = smart_ax(npts[0])
             fig, ax = plt.subplots(row, col, figsize=(col * 3, row * 3))
@@ -406,6 +407,11 @@ class SingleShotOptExperiment(QickExperiment):
                 )
 
                 ax[i].set_title(f"{labs[inds[0]]} {data[sweep_var[0]][i]:.2f}")
+            fig.savefig(
+                folder
+                + "images\\"
+                + f"{imname}_raw_{k}.png"
+            )
 
         elif ndims == 2:
             fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1] * 3, npts[0] * 3))
@@ -437,6 +443,11 @@ class SingleShotOptExperiment(QickExperiment):
             plt.figtext(
                 0.0, 0.5, labs[inds[0]], verticalalignment="center", rotation="vertical"
             )
+            fig.savefig(
+                folder
+                + "images\\"
+                + f"{imname}_raw_{k}.png"
+            )
         else:
             for k in range(npts[2]):
                 fig, ax = plt.subplots(
@@ -462,20 +473,12 @@ class SingleShotOptExperiment(QickExperiment):
                         )
                 fig.suptitle(title)
                 fig.tight_layout()
-                imname = self.fname.split("\\")[-1]
                 fig.savefig(
-                    self.fname[0 : -len(imname)]
+                    folder
                     + "images\\"
-                    + imname[0:-3]
-                    + f"_raw_{k}.png"
+                    + f"{imname}_raw_{k}.png"
                 )
 
-                fig.suptitle(title)
-                fig.tight_layout()
-                imname = self.fname.split("\\")[-1]
-                fig.savefig(
-                    self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + f"_raw_{k}.png"
-                )
 
         title = f"Single Shot Optimization Q{self.cfg.expt.qubit[0]}"
         fig = plt.figure(figsize=(9, 5.5))
@@ -535,8 +538,7 @@ class SingleShotOptExperiment(QickExperiment):
         plt.xlabel(xlabel)
         plt.ylabel(f"Fidelity [%]")
         plt.legend(title=leg_title)
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
+        fig.savefig(folder + "images\\" + imname + ".png")
         plt.show()
 
         if plot_pars:
@@ -564,8 +566,6 @@ class SingleShotOptExperiment(QickExperiment):
             fig.tight_layout()
 
         
-        
-    
     def check_edges(self):
         do_more=False
         fid = self.data["fid"]

@@ -151,6 +151,7 @@ class T1Experiment(QickExperiment):
         go=True,
         params={},
         prefix=None,
+        fname=None,
         progress=True,
         style="",
         disp_kwargs=None,
@@ -179,7 +180,7 @@ class T1Experiment(QickExperiment):
         if prefix is None:
             prefix = f"t1_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, fname=fname, progress=progress, qi=qi)
 
         # Define default parameters
         params_def = {
@@ -220,6 +221,9 @@ class T1Experiment(QickExperiment):
         # For untuned qubits, show all data points by default
         if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
             disp_kwargs = {"plot_all": True}
+                # For untuned qubits, show all data points by default
+        if self.cfg.device.qubit.rescale[qi] or disp_kwargs is not None and "rescale" in disp_kwargs:
+            disp_kwargs = {"rescale": True}
 
         # Run the experiment if go=True
         if print: 

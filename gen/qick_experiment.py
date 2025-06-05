@@ -79,7 +79,7 @@ class QickExperiment(Experiment):
             * self.cfg.device.readout.soft_avgs_base
         )
 
-    def acquire(self, prog_name, progress=True, get_hist=True, single=True):
+    def acquire(self, prog_name, progress=True, get_hist=True, single=True, compact=False):
         """
         Acquire measurement data by running the specified quantum program.
 
@@ -103,8 +103,8 @@ class QickExperiment(Experiment):
         """
         # Set appropriate final delay based on whether active reset is enabled
         if "active_reset" in self.cfg.expt and self.cfg.expt.active_reset:
-            # final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]]
-            final_delay = 10
+            final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]] # Not sure if this is about needed "wait" time for last readout, but seems necessary
+            #final_delay = 10
         else:
             final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
 
@@ -147,14 +147,22 @@ class QickExperiment(Experiment):
             v, hist = self.make_hist(prog, single=single)
 
         # Compile data dictionary
-        data = {
-            "xpts": xpts,
-            "avgi": avgi,
-            "avgq": avgq,
-            "amps": amps,
-            "phases": phases,
-            "start_time": current_time,
-        }
+        if compact: 
+            data = {
+                "xpts": xpts,
+                "avgi": avgi,
+                "avgq": avgq,
+                "start_time": current_time,
+            }
+        else:
+            data = {
+                "xpts": xpts,
+                "avgi": avgi,
+                "avgq": avgq,
+                "amps": amps,
+                "phases": phases,
+                "start_time": current_time,
+            }
         if get_hist:
             data["bin_centers"] = v
             data["hist"] = hist
@@ -407,6 +415,7 @@ class QickExperiment(Experiment):
 
         Args:
             prog: QickProgram instance to collect shots from
+            single: Whether to collect shots for the entire experiment together, or separately for each point in the sweep
 
         Returns:
             Tuple of (bin_centers, hist) containing histogram data

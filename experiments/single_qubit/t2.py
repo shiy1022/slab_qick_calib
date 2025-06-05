@@ -188,6 +188,7 @@ class T2Experiment(QickExperiment):
         go=True,
         params={},
         prefix=None,
+        fname=None,
         progress=True,
         style="",
         disp_kwargs=None,
@@ -226,7 +227,7 @@ class T2Experiment(QickExperiment):
             prefix = f"{name}_{ef}qubit{qi}"
 
         # Initialize parent class
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, fname=fname, progress=progress, qi=qi)
 
         # Define default parameters
         params_def = {
