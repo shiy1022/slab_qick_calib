@@ -265,7 +265,8 @@ def measure_params(qi, cfg_dict, update=True, readout=True, fast=False,check_fid
     err_dict['fge_err'] = np.sqrt(t2r.data['fit_err_avgi'][1][1])
 
     # Step 5: T1 measurement
-    t1 = meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
+    #t1 = meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
+    t1 = meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, params={'span':300})
     if update: 
         t1.update(cfg_path, rng_vals=[1, max_t1], verbose=False)
     
@@ -378,7 +379,7 @@ def measure_cohere(qi, cfg_dict, update=True, display=False, max_t1=MAX_T1):
     """
     cfg_path = cfg_dict['cfg_file']
     err_dict = {}
-
+ 
     # Step 1: T2 Ramsey
     t2r = meas.T2Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
     if t2r.status and update:
@@ -413,7 +414,8 @@ def measure_cohere(qi, cfg_dict, update=True, display=False, max_t1=MAX_T1):
     err_dict['fge_err'] = np.sqrt(t2r.data['fit_err_avgi'][1][1])
 
     # Step 2: T1 measurement
-    t1 = meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
+    #t1 = meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, style='fast')
+    t1 = meas.T1Experiment(cfg_dict, qi=qi, display=display, progress=False, params={'span':300})
     if update: 
         t1.update(cfg_path, rng_vals=[1, max_t1], verbose=False)
     
@@ -453,6 +455,24 @@ def measure_cohere(qi, cfg_dict, update=True, display=False, max_t1=MAX_T1):
             qubit_dict[key] = round(qubit_dict[key], 7)
     
     return qubit_dict
+
+
+def measure_setup(qi, cfg_dict):
+    cfg_dict['cfg_file']=None
+
+def measure_fast(qi, cfg_dict, i, t2r=None, t1=None, t1_val=30, t2_val=30):
+    if t1 is None:
+        t1 = meas.T1Experiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+    else:
+        t1.fname = os.path.join(t1.fname.split('\\')[0:-1], f't1_qubit{qi}_{i:%5d}')
+        t1.span = 3.7*t1_val
+
+    if t2r is None:
+        t2r = meas.T2Experiment(cfg_dict, qi=qi, display=False, progress=False, style='fast')
+        t2r.span = 3*t2_val
+
+
+    return t1, t2r
 
 def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True):
     """
@@ -502,7 +522,8 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True)
             
             # Measure qubit parameters
             if fast:
-                d = measure_cohere(qi, cfg_dict, display=display)
+                #d = measure_cohere(qi, cfg_dict, display=display)
+                d = measure_params(qi, cfg_dict, display=display, fast=True,  check_fid=False)
             else:
                 d = measure_params(qi, cfg_dict, display=display, fast=False,  check_fid=False)
             d['time'] = tm 

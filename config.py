@@ -441,3 +441,41 @@ def init_config_res(file_name, num_qubits, type="full", aliases="Qick001"):
         modified_file.write(cfg_yaml)
     
     return cfg_yaml
+
+
+def save_single_qubit_config(file_name, qubit_index, new_file_name):
+    """
+    Save a configuration file that contains only the ith element from each field
+    in the configuration that has length greater than 1.
+    
+    Args:
+        file_name: Path to the original configuration file
+        qubit_index: Index of the qubit to extract
+        new_file_name: Path to save the new configuration file
+    
+    Returns:
+        The saved configuration as an AttrDict
+    """
+    # Load the original configuration
+    cfg = load(file_name)
+    
+    def extract_single_element(data):
+        """
+        Recursively extract the ith element from fields with length > 1.
+        """
+        if isinstance(data, list):
+            return data[qubit_index] if len(data) > 1 else data
+        elif isinstance(data, dict):
+            return {key: extract_single_element(value) for key, value in data.items()}
+        else:
+            return data
+    
+    # Extract the single qubit configuration
+    single_qubit_cfg = extract_single_element(cfg.to_dict())
+    
+    # Save the new configuration
+    cfg_yaml = yaml.safe_dump(single_qubit_cfg, default_flow_style=None)
+    with open(new_file_name, "w") as modified_file:
+        modified_file.write(cfg_yaml)
+    
+    return AttrDict(single_qubit_cfg)

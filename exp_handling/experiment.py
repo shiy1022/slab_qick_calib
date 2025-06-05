@@ -28,7 +28,7 @@ class NpEncoder(json.JSONEncoder):
 class Experiment:
     """Base class for all experiments"""
 
-    def __init__(self, path='', prefix='data', config_file=None, liveplot_enabled=False, im=None, **kwargs):
+    def __init__(self, path='', prefix='data', fname=None, config_file=None, liveplot_enabled=False, im=None, **kwargs):
         """ Initializes experiment class
             @param path - directory where data will be stored
             @param prefix - prefix to use when creating data files
@@ -59,9 +59,12 @@ class Experiment:
         # if liveplot_enabled:
         #     self.plotter = LivePlotClient()
         # self.dataserver= dataserver_client()
-        self.fname = os.path.join(path, get_next_filename(path, prefix, suffix='.h5'))
-
-        self.load_config()
+        if fname is not None:
+            self.fname = os.path.join(path,fname)
+        else:
+            self.fname = os.path.join(path, get_next_filename(path, prefix, suffix='.h5'))
+        if config_file is not None:
+            self.load_config()
 
     def load_config(self):
         if self.config_file is None:

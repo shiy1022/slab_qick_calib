@@ -190,17 +190,6 @@ class T1ContProgram(QickProgram):
                     self.pulse(ch=self.lo_ch, name="mix_pulse", t=0.0)
                 self.delay_auto(0.01)
 
-    def collect_shots(self, offset=0):
-        """
-        Collect shot data from the experiment.
-        
-        Args:
-            offset: Offset for data collection
-            
-        Returns:
-            Shot data
-        """
-        return super().collect_shots(offset=0)
 
 
 class T1ContExperiment(QickExperiment):
@@ -430,10 +419,6 @@ class T1ContExperiment(QickExperiment):
         if data is None:
             data = self.data
         
-        # Note: For a full analysis, we would fit to an exponential decay:
-        # fitparams=[y-offset, amp, x-offset, decay rate]
-        # But this is currently done visually in the display method
-        
         return data
 
     def display(
@@ -565,10 +550,10 @@ class T1ContExperiment(QickExperiment):
 
         # Plot calculated T1 values over time
         fig, ax = plt.subplots(1, 1, figsize=(15, 4))
-        t1m = -1 / np.log(pt1)  # Calculate T1 from normalized decay
+        t1m = -1 / np.log(pt1)*self.cfg.expt.wait_time  # Calculate T1 from normalized decay
         ax.plot(times, t1m, 'k.-', linewidth=0.1, markersize=m, label='T1 Data')
         ax.set_xlabel('Time (s)')
-        ax.set_ylabel('$T_1/$tau')
+        ax.set_ylabel('$T_1$')
 
         # Create combined plot with all data types
         fig2, ax = plt.subplots(1, 1, figsize=(14, 4))
@@ -590,16 +575,3 @@ class T1ContExperiment(QickExperiment):
         # Commented out legend code
         # ax[3].legend()
         # ax.legend()
-
-    def save_data(self, data=None):
-        """
-        Save the experiment data to disk.
-        
-        Args:
-            data: Data dictionary to save (uses self.data if None)
-            
-        Returns:
-            Filename where data was saved
-        """
-        super().save_data(data=data)
-        return self.fname
