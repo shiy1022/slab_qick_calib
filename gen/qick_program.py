@@ -338,7 +338,8 @@ class QickProgram(AveragerProgramV2):
         pulse = {key: value[q] for key, value in cfg.device.qubit.pulses[name].items()}
         # Set pulse frequency and phase
         pulse["freq"] = freq[q]
-        pulse["phase"] = 0  # Zero phase for X-rotation
+        if "phase" not in pulse:
+            pulse["phase"] = 0  # Zero phase for X-rotation
         # Create the pulse using the make_pulse method
         self.make_pulse(pulse, name)
         return pulse
@@ -445,6 +446,7 @@ class QickProgram(AveragerProgramV2):
         Args:
             i: Number of reset iterations to perform
         """
+        # Not tested, and not sure qick allows it 
         n=0
         cfg = AttrDict(self.cfg)        
         # Wait for readout to complete
@@ -543,28 +545,28 @@ class QickProgram2Q(AveragerProgramV2):
 
         # Get qubit indices from configuration
         self.qubits = cfg.expt.qubit
-
+        soc = cfg.hw.soc  # Hardware configuration
         # Configure hardware channels for all qubits (as arrays)
         self.adc_ch = [
-            cfg.hw.soc.adcs.readout.ch[q] for q in self.qubits
+            soc.adcs.readout.ch[q] for q in self.qubits
         ]  # ADC channels
         self.res_ch = [
-            cfg.hw.soc.dacs.readout.ch[q] for q in self.qubits
+            soc.dacs.readout.ch[q] for q in self.qubits
         ]  # Resonator channels
         self.res_ch_type = [
-            cfg.hw.soc.dacs.readout.type[q] for q in self.qubits
+            soc.dacs.readout.type[q] for q in self.qubits
         ]  # Resonator types
         self.qubit_ch = [
-            cfg.hw.soc.dacs.qubit.ch[q] for q in self.qubits
+            soc.dacs.qubit.ch[q] for q in self.qubits
         ]  # Qubit drive channels
         self.qubit_ch_type = [
-            cfg.hw.soc.dacs.qubit.type[q] for q in self.qubits
+            soc.dacs.qubit.type[q] for q in self.qubits
         ]  # Qubit types
         self.res_nqz = [
-            cfg.hw.soc.dacs.readout.nyquist[q] for q in self.qubits
+            soc.dacs.readout.nyquist[q] for q in self.qubits
         ]  # Resonator Nyquist zones
         self.qubit_nqz = [
-            cfg.hw.soc.dacs.qubit.nyquist[q] for q in self.qubits
+            soc.dacs.qubit.nyquist[q] for q in self.qubits
         ]  # Qubit Nyquist zones
         self.trig_offset = [
             cfg.device.readout.trig_offset[q] for q in self.qubits

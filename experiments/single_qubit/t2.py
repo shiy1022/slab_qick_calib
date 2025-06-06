@@ -99,8 +99,15 @@ class T2Program(QickProgram):
             super().make_pulse(pulse, "stark_pulse")
 
         # Create π pulse for Echo or EF check
-        if cfg.expt.checkEF or cfg.expt.experiment_type == "echo" or cfg.expt.active_reset:
+        if cfg.expt.experiment_type == "cpmg":
+            cfg.device.qubit.pulses.pi_ge.phase = 90*np.ones(len(cfg.device.qubit.f_ge))
             super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+        elif cfg.expt.checkEF or cfg.expt.experiment_type == "echo" or cfg.expt.active_reset:
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+        
+        if cfg.expt.checkEF and cfg.expt.experiment_type == 'echo': 
+            # Create π pulse for EF transition check
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
 
     def _body(self, cfg):
         """
@@ -136,14 +143,17 @@ class T2Program(QickProgram):
         else:
             # Standard Ramsey or Echo sequence
             # For Echo, divide wait time by (num_pi + 1) to get segments between pulses
-            self.delay_auto(t=cfg.expt.wait_time / (cfg.expt.num_pi + 1), tag="wait")
+            self.delay_auto(t=cfg.expt.wait_time / cfg.expt.num_pi/2, tag="wait")
             
             # Apply π pulses for Echo protocol (or multiple-pulse Echo)
-            for i in range(cfg.expt.num_pi):
+            for i in range(cfg.expt.num_pi-1):
                 self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)  # π pulse
                 self.delay_auto(
-                    t=cfg.expt.wait_time / (cfg.expt.num_pi + 1)+0.01, tag=f"wait{i}"
+                    t=cfg.expt.wait_time / cfg.expt.num_pi +0.01, tag=f"wait{i}"
                 )  # Wait time 
+            self.delay_auto(
+                t=cfg.expt.wait_time / cfg.expt.num_pi/2 +0.01, tag=f"wait{i+1}"
+            )
 
         # Second π/2 pulse (readout)
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
