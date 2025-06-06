@@ -69,7 +69,8 @@ class QickProgram(AveragerProgramV2):
         self.res_ch = cfg.hw.soc.dacs.readout.ch[q]  # DAC channel for resonator drive
         self.res_ch_type = cfg.hw.soc.dacs.readout.type[q]  # Resonator channel type (full, mux, int)
         self.res_nqz = cfg.hw.soc.dacs.readout.nyquist[q]  # Nyquist zone for resonator (1 for <5 GHz, 2 for >5 GHz)
-        
+        self.type = cfg.hw.soc.dacs.readout.type[q]  # Type of readout channel
+
         self.trig_offset = cfg.device.readout.trig_offset[q]  # Trigger timing offset
         if 'qubit' in cfg.hw.soc.dacs:
             self.qubit_ch = cfg.hw.soc.dacs.qubit.ch[q]  # DAC channel for qubit drive
@@ -78,9 +79,7 @@ class QickProgram(AveragerProgramV2):
 
         # Configure standard readout parameters if specified
         if readout == "standard":
-            self.readout_length = cfg.device.readout.readout_length[
-                q
-            ]  # Readout pulse length
+            self.readout_length = cfg.device.readout.readout_length[q]  # Readout pulse length
             self.frequency = cfg.device.readout.frequency[q]  # Readout frequency
             self.gain = cfg.device.readout.gain[q]  # Readout amplitude
             self.phase = cfg.device.readout.phase[q]  # Readout phase
@@ -117,43 +116,58 @@ class QickProgram(AveragerProgramV2):
 
         if 'aves' in cfg.expt: 
             self.add_loop("ave_loop", cfg.expt.aves)
-        # Set up resonator readout channel
-        self.declare_gen(
-            ch=self.res_ch, nqz=self.res_nqz
-        )  # Declare resonator signal generator
-        self.declare_readout(
-            self.adc_ch, length=self.readout_length
-        )  # Configure ADC for readout
+        if self.type == 'full':
+            # Set up resonator readout channel
+            self.declare_gen(
+                ch=self.res_ch, nqz=self.res_nqz
+            )  # Declare resonator signal generator
+            self.declare_readout(
+                self.adc_ch, length=self.readout_length
+            )  # Configure ADC for readout
 
-        # Configure readout settings
-        self.add_readoutconfig(
-            ch=self.adc_ch, name="readout", freq=self.frequency, gen_ch=self.res_ch
-        )
+        
+            # Configure readout settings
+            self.add_readoutconfig(
+                ch=self.adc_ch, name="readout", freq=self.frequency, gen_ch=self.res_ch
+            )
 
-        # Create readout pulse
-        if readout=='long':
-            self.add_pulse(
-            ch=self.res_ch,
-            name="readout_pulse",
-            style="const",  # Constant amplitude pulse
-            ro_ch=self.adc_ch,  # Associated readout channel
-            length=1,
-            freq=self.frequency,
-            phase=self.phase,
-            gain=self.gain,
-            mode='periodic',
-        )
-        else:
-            self.add_pulse(
-            ch=self.res_ch,
-            name="readout_pulse",
-            style="const",  # Constant amplitude pulse
-            ro_ch=self.adc_ch,  # Associated readout channel
-            length=self.readout_length,
-            freq=self.frequency,
-            phase=self.phase,
-            gain=self.gain,
-        )
+            # Create readout pulse
+            if readout=='long':
+                self.add_pulse(
+                ch=self.res_ch,
+                name="readout_pulse",
+                style="const",  # Constant amplitude pulse
+                ro_ch=self.adc_ch,  # Associated readout channel
+                length=1,
+                freq=self.frequency,
+                phase=self.phase,
+                gain=self.gain,
+                mode='periodic',
+            )
+            else:
+                self.add_pulse(
+                ch=self.res_ch,
+                name="readout_pulse",
+                style="const",  # Constant amplitude pulse
+                ro_ch=self.adc_ch,  # Associated readout channel
+                length=self.readout_length,
+                freq=self.frequency,
+                phase=self.phase,
+                gain=self.gain,
+            )
+        elif self.type == 'mux':
+            self.declare_readout(ch=self.adc_ch, length=self.readout_length, freq=self.frequency, phase=self.phase, gen_ch=self.res_ch)
+            self.declare_gen(ch=self.res_ch, nqz=self.res_nqz, ro_ch=self.adc_ch, 
+                             mux_freqs=[self.frequency], 
+                             mux_gains=[self.gain], 
+                             mux_phases=[self.phase])
+            
+
+            self.add_pulse(ch=self.res_ch, name="readout_pulse", 
+                        style="const", 
+                        length=self.readout_length,
+                        mask=[0],
+                        )
         
         if 'qubit' in cfg.hw.soc.dacs:
             # Set up qubit control channel
@@ -207,7 +221,7 @@ class QickProgram(AveragerProgramV2):
         )
         # Perform active reset if enabled
         if cfg.expt.active_reset:
-            self.reset(2)  # Reset qubit state 3 times
+            self.reset(3)  # Reset qubit state 2 times
 
     def make_pulse(self, pulse, name):
         """
