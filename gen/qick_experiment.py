@@ -44,7 +44,7 @@ class QickExperiment(Experiment):
     specific experiment types (e.g., T1, T2, Rabi oscillations).
     """
 
-    def __init__(self, cfg_dict=None, qi=0, prefix="QickExp", progress=None):
+    def __init__(self, cfg_dict=None, qi=0, prefix="QickExp", fname=None,progress=None):
         """
         Initialize the QickExperiment with hardware configuration and experiment parameters.
 
@@ -66,6 +66,7 @@ class QickExperiment(Experiment):
             soccfg=soccfg,
             path=path,
             prefix=prefix,
+            fname=fname,
             config_file=config_file,
             progress=progress,
             im=im,
@@ -512,7 +513,6 @@ class QickExperiment(Experiment):
         for key, value in self.cfg.expt.items():
             print(f"{key}: {value}")
         
-
     def get_status(self, max_err=1, min_r2=0.1):
         # Determine if experiment was successful based on fit quality
         if (
@@ -601,7 +601,6 @@ class QickExperiment(Experiment):
         #     self.data["freq_init"] = self.data["init"]
         #     self.data["freq_fit"][0] = freq_offset + self.data["fit"][0]
         #     self.data["freq_init"][0] = freq_offset + self.data["init"][0]
-
     
     def scale_ge(self):
         """

@@ -26,6 +26,7 @@ device:
     tuned_up: [true, true, true]
   readout:
     active_reset: [true, true, true]
+    rescale: [true, true, true]
     chi: [-0.4154, -0.8309, -2.1411]
     fidelity: [0.8756, 0.8993, 0.9023]
     final_delay: [221.7, 553.29, 234.75]
@@ -59,6 +60,6 @@ hw:
         nyquist: [1, 1, 1]
         type: [full, full, full]
       readout:
-        ch: [0, 0, 0]
+        ch: [2, 0, 0]
         nyquist: [2, 2, 2]
         type: [full, full, full]

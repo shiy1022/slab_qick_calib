@@ -28,6 +28,7 @@ from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
+from analysis import time_series
 
 class T1ContProgram(QickProgram):
     """
@@ -419,6 +420,30 @@ class T1ContExperiment(QickExperiment):
         if data is None:
             data = self.data
         
+        nexp = self.cfg.expt.n_g + self.cfg.expt.n_e + self.cfg.expt.n_t1
+        n_t1 = self.cfg.expt.n_t1
+        pi_time = 0.4  # Approximate π pulse time in μs
+        # Calculate total pulse sequence length
+        if self.cfg.expt.active_reset:
+            # With active reset
+            n_reset = 3
+            pulse_length = (
+                self.cfg.expt.readout * (self.cfg.expt.n_g + n_reset * (self.cfg.expt.n_e + n_t1)) +
+                self.cfg.expt.wait_time * n_t1 +
+                nexp * pi_time
+            )
+        else:
+            # Without active reset
+            pulse_length = (
+                self.cfg.expt.readout * nexp +
+                self.cfg.expt.wait_time * n_t1 +
+                self.cfg.expt.final_delay * (self.cfg.expt.n_e + n_t1) +
+                nexp * pi_time
+            )
+            
+        # Convert to seconds
+        self.pulse_length = pulse_length / 1e6
+        
         return data
 
     def display(
@@ -448,31 +473,7 @@ class T1ContExperiment(QickExperiment):
             
         # Get qubit index and calculate sequence parameters
         qubit = self.cfg.expt.qubit[0]
-        nexp = self.cfg.expt.n_g + self.cfg.expt.n_e + self.cfg.expt.n_t1
-        n_t1 = self.cfg.expt.n_t1
-        pi_time = 0.4  # Approximate π pulse time in μs
-        
-        # Calculate total pulse sequence length
-        if self.cfg.expt.active_reset:
-            # With active reset
-            n_reset = 3
-            pulse_length = (
-                self.cfg.expt.readout * (self.cfg.expt.n_g + n_reset * (self.cfg.expt.n_e + n_t1)) +
-                self.cfg.expt.wait_time * n_t1 +
-                nexp * pi_time
-            )
-        else:
-            # Without active reset
-            pulse_length = (
-                self.cfg.expt.readout * nexp +
-                self.cfg.expt.wait_time * n_t1 +
-                self.cfg.expt.final_delay * (self.cfg.expt.n_e + n_t1) +
-                nexp * pi_time
-            )
-            
-        # Convert to seconds
-        pulse_length = pulse_length / 1e6
-        
+
         # Set smoothing parameters
         navg = 100  # Number of points to average
         nred = int(np.floor(navg / 10))  # Reduction factor for plotting
@@ -480,8 +481,8 @@ class T1ContExperiment(QickExperiment):
         # Plot histogram of ground and excited states if requested
         if show_hist:
             fig2, ax = plt.subplots(1, 1, figsize=(3, 3))
-            ax.hist(data['avgi_e'].flatten(), bins=50, alpha=0.6, color='r', label='Excited State', density=True)
-            ax.hist(data['avgi_g'].flatten(), bins=50, alpha=0.6, color='b', label='Ground State', density=True)
+            ax.hist(data['avgi_e'].flatten(), bins=50, alpha=0.6, label='Excited State', density=True)
+            ax.hist(data['avgi_g'].flatten(), bins=50, alpha=0.6, label='Ground State', density=True)
             # Commented out fit plot
             # try:
             #     ax.plot(data['bin_centers'], two_gaussians_decay(data['bin_centers'], *data['hist_fit']), label='Fit')
@@ -495,11 +496,11 @@ class T1ContExperiment(QickExperiment):
         
         # Plot raw I/Q data for all measurement types
         fig, ax = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
-        
+        fig.suptitle(f"Qubit {qubit} Continuous T1 Measurement Raw Data")
         # Plot excited state data
         for i in range(len(data['avgi_e'])):
-            ax[0].plot(data['avgi_e'][i], 'b.', markersize=m)
-            ax[1].plot(data['avgq_e'][i], 'b.', markersize=m)
+            ax[0].plot(data['avgi_e'][i], '.', markersize=m)
+            ax[1].plot(data['avgq_e'][i], '.', markersize=m)
 
         # Plot ground state data
         for i in range(len(data['avgi_g'])):
@@ -508,8 +509,8 @@ class T1ContExperiment(QickExperiment):
             
         # Plot T1 measurement data
         for i in range(len(data['avgi_t1'])):
-            ax[0].plot(data['avgi_t1'][i], 'r.', markersize=m)
-            ax[1].plot(data['avgq_t1'][i], 'r.', markersize=m)
+            ax[0].plot(data['avgi_t1'][i], '.', markersize=m)
+            ax[1].plot(data['avgq_t1'][i], '.', markersize=m)
 
         # Flatten and transpose data for time series analysis
         t1_data = data['avgi_t1'].transpose().flatten()
@@ -523,7 +524,7 @@ class T1ContExperiment(QickExperiment):
         smoothed_t1_data = uniform_filter1d(t1_data, size=navg*self.cfg.expt.n_t1)
         smoothed_t1_data = smoothed_t1_data[::nred*self.cfg.expt.n_t1]
         npts = len(smoothed_t1_data)
-        times = np.arange(npts) * pulse_length * nred
+        times = np.arange(npts) * self.pulse_length * nred
         ax[0].plot(times, smoothed_t1_data, 'k.-', linewidth=0.1, markersize=m, label='Smoothed T1 Data')
         
         # Smooth ground state data and plot
@@ -540,7 +541,7 @@ class T1ContExperiment(QickExperiment):
         dv = smoothed_e_data - smoothed_g_data  # Signal difference between |e⟩ and |g⟩
         pt1 = (smoothed_t1_data - smoothed_g_data) / dv  # Normalized T1 signal
         ax[3].plot(times, pt1, 'k.-', linewidth=0.1, markersize=m, label='Normalized T1 Data')
-        ax[3].axhline(np.exp(-1), color='r', linestyle='--', label='$e^{-1}$')  # e^-1 line for T1 reference
+        ax[3].axhline(np.exp(-1), linestyle='--', label='$e^{-1}$')  # e^-1 line for T1 reference
 
         # Set y-axis labels
         ax[0].set_ylabel('I (ADC), $T =T_1$')
@@ -550,18 +551,20 @@ class T1ContExperiment(QickExperiment):
 
         # Plot calculated T1 values over time
         fig, ax = plt.subplots(1, 1, figsize=(15, 4))
+        fig.suptitle(f"Qubit {qubit} Continuous T1 Estimate")
         t1m = -1 / np.log(pt1)*self.cfg.expt.wait_time  # Calculate T1 from normalized decay
         ax.plot(times, t1m, 'k.-', linewidth=0.1, markersize=m, label='T1 Data')
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('$T_1$')
 
-        # Create combined plot with all data types
+        # Create combined plot with all data types, mostly for checking jumps
         fig2, ax = plt.subplots(1, 1, figsize=(14, 4))
+        fig2.suptitle(f"Qubit {qubit} Continuous T1 Measurement Combined Data")
         ax.plot(times, smoothed_t1_data, 'k.-', linewidth=0.1, markersize=m, label='Smoothed T1 Data')
         ax2 = ax.twinx()
-        ax2.plot(times, smoothed_e_data, 'b.-', linewidth=0.1, markersize=m, label='Smoothed e Data')
+        ax2.plot(times, smoothed_e_data, '.-', linewidth=0.1, markersize=m, label='Smoothed e Data')
         ax3 = ax.twinx()
-        ax3.plot(times, smoothed_g_data, 'r.-', linewidth=0.1, markersize=m, label='Smoothed g Data')
+        ax3.plot(times, smoothed_g_data, '.-', linewidth=0.1, markersize=m, label='Smoothed g Data')
 
         # Save figure if requested
         if savefig:
@@ -575,3 +578,9 @@ class T1ContExperiment(QickExperiment):
         # Commented out legend code
         # ax[3].legend()
         # ax.legend()
+        time_series.analyze_qubit_psd(t1_data, fs = 1 /self.pulse_length*self.cfg.expt.n_t1, nperseg=int(2**np.floor(np.log2(7e6))/4))
+    
+    def psd(self): 
+        t1_data = self.data['avgi_t1'].transpose().flatten()
+
+        time_series.analyze_qubit_psd(t1_data, fs = 1 /self.pulse_length*self.cfg.expt.n_t1, nperseg=2048)

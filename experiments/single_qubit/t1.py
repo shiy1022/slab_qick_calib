@@ -222,7 +222,7 @@ class T1Experiment(QickExperiment):
         if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
             disp_kwargs = {"plot_all": True}
                 # For untuned qubits, show all data points by default
-        if self.cfg.device.qubit.rescale[qi] or disp_kwargs is not None and "rescale" in disp_kwargs:
+        if self.cfg.device.readout.rescale[qi] or disp_kwargs is not None and "rescale" in disp_kwargs:
             disp_kwargs = {"rescale": True}
 
         # Run the experiment if go=True
@@ -330,7 +330,6 @@ class T1Experiment(QickExperiment):
         caption_params = [
             {"index": 2, "format": "$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"},
         ]
-        fitfunc = fitter.expfunc
 
         # Call parent class display method
         super().display(

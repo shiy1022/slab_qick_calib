@@ -143,17 +143,21 @@ class T2Program(QickProgram):
         else:
             # Standard Ramsey or Echo sequence
             # For Echo, divide wait time by (num_pi + 1) to get segments between pulses
-            self.delay_auto(t=cfg.expt.wait_time / cfg.expt.num_pi/2, tag="wait")
-            
-            # Apply π pulses for Echo protocol (or multiple-pulse Echo)
-            for i in range(cfg.expt.num_pi-1):
-                self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)  # π pulse
+            if cfg.expt.num_pi > 0:
+                self.delay_auto(t=cfg.expt.wait_time / cfg.expt.num_pi/2, tag="wait")
+                
+                # Apply π pulses for Echo protocol (or multiple-pulse Echo)
+                for i in range(cfg.expt.num_pi):
+                    self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)  # π pulse
+                    if i < cfg.expt.num_pi - 1:
+                        self.delay_auto(
+                            t=cfg.expt.wait_time / cfg.expt.num_pi +0.01, tag=f"wait{i}"
+                        )  # Wait time 
                 self.delay_auto(
-                    t=cfg.expt.wait_time / cfg.expt.num_pi +0.01, tag=f"wait{i}"
-                )  # Wait time 
-            self.delay_auto(
-                t=cfg.expt.wait_time / cfg.expt.num_pi/2 +0.01, tag=f"wait{i+1}"
-            )
+                    t=cfg.expt.wait_time / cfg.expt.num_pi/2 +0.01, tag=f"wait{i+1}"
+                )
+            else:
+                self.delay_auto(t=cfg.expt.wait_time , tag="wait")
 
         # Second π/2 pulse (readout)
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)

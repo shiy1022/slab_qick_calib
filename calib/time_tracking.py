@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import experiments as meas
 import slab_qick_calib.config as config
 from calib import tuneup
+from copy import deepcopy
 from calib import qubit_tuning 
 # Configure matplotlib
 plt.rcParams['legend.handlelength'] = 0.5
@@ -277,10 +278,10 @@ def measure_setup(qi, cfg_dict):
     t1, t2r = measure_fast(qi, cfg_dict, i, t1, t2r)
     
 def measure_fast(qi, cfg_dict, i, tdir, t1_val, t2_val):
-    fname = os.path.join(tdir, f't1_qubit{qi}_{i:%5d}')
+    fname = os.path.join(tdir, f't1_qubit{qi}_{i:05d}')
     t1 = meas.T1Experiment(cfg_dict, qi=qi, fname=fname, display=False, progress=False, style='fast', params={'span':3.7*t1_val})
 
-    fname = os.path.join(tdir, f't2r_qubit{qi}_{i:%5d}')
+    fname = os.path.join(tdir, f't2r_qubit{qi}_{i:05d}')
     t2r = meas.T2Experiment(cfg_dict, qi=qi, fname=fname, display=False, progress=False, style='fast', params={'span':3.2*t2_val})
     
     qubit_dict = set_up_dict(t1, t2r)
@@ -331,6 +332,7 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True)
     tracking_path = os.path.join(base_path, tracking_id)
     os.makedirs(tracking_path, exist_ok=True)
     os.mkdir(os.path.join(tracking_path, 'images'))
+    cfg_dict = deepcopy(cfg_dict)  # Avoid modifying original cfg_dict
     cfg_dict['expt_path'] = tracking_path
     
     # Initialize timing variables
@@ -353,7 +355,7 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True)
                     t1_val = auto_cfg['device']['qubit']['T1'][qi]
                     t2_val = auto_cfg['device']['qubit']['T2r'][qi]
 
-                cfg_dict['cfg_file']=None
+                #cfg_dict['cfg_file']=None
                 d = measure_fast(qi, cfg_dict, i, tracking_path, t1_val, t2_val)
                 t1_val = d['t1']
                 t2_val = d['t2r']

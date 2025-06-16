@@ -433,7 +433,6 @@ class QickProgram(AveragerProgramV2):
                 # Small delay before next iteration
                 self.delay_auto(0.01)
 
-
     def cond_reset(self, i):
         """
         Perform active qubit reset.
@@ -498,7 +497,6 @@ class QickProgram(AveragerProgramV2):
         )
         self.label(f"NOPULSE1")
         self.label(f"NOPULSE0")
-
 
 
 class QickProgram2Q(AveragerProgramV2):
