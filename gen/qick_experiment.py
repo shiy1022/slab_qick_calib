@@ -127,7 +127,7 @@ class QickExperiment(Experiment):
             self.im[self.cfg.aliases.soc],
             soft_avgs=self.cfg.expt.soft_avgs,
             threshold=None,
-            load_pulses=True,
+            #load_pulses=True,
             progress=progress,
         )
 
@@ -715,7 +715,6 @@ class QickExperimentLoop(QickExperiment):
                 self.im[self.cfg.aliases.soc],
                 soft_avgs=self.cfg.expt.soft_avgs,
                 threshold=None,
-                load_pulses=True,
                 progress=False,
             )
             
@@ -859,7 +858,6 @@ class QickExperiment2D(QickExperimentLoop):
                 self.im[self.cfg.aliases.soc],
                 soft_avgs=self.cfg.expt.soft_avgs,
                 threshold=None,
-                load_pulses=True,
                 progress=False,
             )
 

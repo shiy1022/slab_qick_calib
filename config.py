@@ -326,7 +326,8 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
     soc = {
         "adcs": {
             "readout": {
-                "ch": init_array(0)
+                "ch": init_array(0),
+                "type": init_array("dyn"),
             }
         },
         "dacs": {

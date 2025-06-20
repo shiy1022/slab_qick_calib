@@ -393,7 +393,8 @@ class MemoryProgram(QickProgram):
     def _body(self, cfg):
 
         cfg = AttrDict(self.cfg)
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         if cfg.expt.pulse_e:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
@@ -950,10 +951,6 @@ class RepMeasExperiment(QickExperiment):
 
         self.data['reset_e'] = reset_level/e_level
         self.data['reset_g'] = reset_level/g_level
-
-
-
-        
 
         
         ax[0].legend()

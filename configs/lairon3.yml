@@ -1,0 +1,66 @@
+aliases: {soc: Qick105}
+device:
+  qubit:
+    T1: [87.08, 84.99, 61.45]
+    T2e: [37.97, 41.13, 36.88]
+    T2r: [36.01, 45.65, 22.94]
+    f_ef: [3247.7156, 4361.0968, 5298.7098]
+    f_ge: [3390.2165, 4582.4874, 5548.3083]
+    kappa: [0.8525, 0.2276, 20.3627]
+    low_gain: 0.003
+    max_gain: 1
+    pop: [0.0025, 0.0064, 0.0035]
+    pulses:
+      pi_ef:
+        gain: [0.1682, 0.5108, 0.1246]
+        sigma: [0.1, 0.1, 0.1]
+        sigma_inc: [5, 5, 5]
+        type: [gauss, gauss, gauss]
+      pi_ge:
+        gain: [0.1239, 0.2128, 0.4875]
+        sigma: [0.1, 0.1, 0.1]
+        sigma_inc: [5, 5, 5]
+        type: [gauss, gauss, gauss]
+    spec_gain: [1, 1, 10]
+    temp: [27.08, 43.5699, 46.9897]
+    tuned_up: [true, true, true]
+  readout:
+    active_reset: [false, true, false]
+    chi: [-0.4154, -0.8309, -2.1411]
+    fidelity: [0.694, 0.8216, 0.7769]
+    final_delay: [522.49, 509.97, 368.69]
+    frequency: [5375.7407, 5915.6206, 6623.2538]
+    gain: [0.03, 0.0336, 0.0472]
+    kappa: [0.4852, 0.4206, 0.6452]
+    lamb: [-1.7144, -2.1091, -5.3084]
+    max_gain: 1
+    phase: [-144.6401, 99.946, -131.6961]
+    qe: [1.5014, 1.6237, 1.1012]
+    qi: [4.2265, 10.5046, 15.1271]
+    readout_length: [14.7, 12.6, 16.372]
+    reps: [1, 1, 1]
+    reps_base: 100
+    rescale: [false, false, false]
+    reset_e: [0, 0, 0]
+    reset_g: [0, 0, 0]
+    sigma: [1.1146, 1.1506, 0.8399]
+    soft_avgs: [1, 1, 1]
+    soft_avgs_base: 1
+    threshold: [2.0554, 3.4966, 2.0369]
+    tm: [0.19, 0.1945, 0.284]
+    trig_offset: [0.3, 0.3, 0.3]
+hw:
+  soc:
+    adcs:
+      readout:
+        ch: [1, 1, 1]
+        type: [dyn, dyn, dyn]
+    dacs:
+      qubit:
+        ch: [0, 0, 0]
+        nyquist: [1, 1, 1]
+        type: [full, full, full]
+      readout:
+        ch: [1, 1, 0]
+        nyquist: [2, 2, 2]
+        type: [full, full, full]

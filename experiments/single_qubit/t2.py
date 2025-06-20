@@ -124,7 +124,8 @@ class T2Program(QickProgram):
         cfg = AttrDict(self.cfg)
         
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # For EF transition check in Ramsey: Apply π pulse to excite |g⟩ to |e⟩ first
         if hasattr(cfg.expt, "checkEF") and cfg.expt.checkEF:
@@ -345,11 +346,17 @@ class T2Experiment(QickExperiment):
         )
 
         # Run the T2Program to acquire data
+        
         super().acquire(T2Program, progress=progress)
 
         # Adjust x-axis values to account for echo protocol
         # For echo, the effective wait time is longer due to the π pulses
-        self.data["xpts"] = (self.cfg.expt.num_pi + 1) * self.data["xpts"]
+        if self.cfg.expt.num_pi ==0:
+            coef = self.cfg.expt.num_pi
+        else:
+            coef = self.cfg.expt.num_pi + 1  # For echo, we have num_pi + 1 segments
+        self.data["xpts"] = coef * self.data["xpts"]
+    
 
         return self.data
 

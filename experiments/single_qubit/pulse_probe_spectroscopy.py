@@ -93,7 +93,8 @@ class QubitSpecProgram(QickProgram):
         cfg = AttrDict(self.cfg)
         
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # If checking EF transition, apply first pi pulse to excite |g> to |e>
         if cfg.expt.checkEF:

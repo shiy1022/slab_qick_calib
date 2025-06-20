@@ -446,7 +446,7 @@ class SingleShotOptExperiment(QickExperiment):
             fig.savefig(
                 folder
                 + "images\\"
-                + f"{imname}_raw_{k}.png"
+                + f"{imname}_raw.png"
             )
         else:
             for k in range(npts[2]):
@@ -542,7 +542,6 @@ class SingleShotOptExperiment(QickExperiment):
         plt.show()
 
         if plot_pars:
-
             tmv = self.data['tm'][0]
             tmv[tmv<0.001]=np.nan
             sns.set_palette('coolwarm', len(tmv))

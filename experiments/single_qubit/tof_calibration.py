@@ -77,7 +77,9 @@ class LoopbackProgram(QickProgram):
             cfg: Configuration dictionary
         """
         cfg = AttrDict(cfg)
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        #if self.type=='full':
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
         if cfg.expt.check_e:
             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
             self.delay_auto(t=0.01, tag="wait")

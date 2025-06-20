@@ -42,7 +42,8 @@ class T1MultiProgram(QickProgram):
     def _body(self, cfg):
 
         cfg = AttrDict(self.cfg)
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # First, the T1 experiment
         self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)

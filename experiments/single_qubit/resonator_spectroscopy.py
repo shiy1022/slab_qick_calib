@@ -135,7 +135,8 @@ class ResSpecProgram(QickProgram):
         cfg = AttrDict(self.cfg)
         
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
         
         # Apply pi pulses if measuring in excited state
         if cfg.expt.pulse_e:

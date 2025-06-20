@@ -92,7 +92,8 @@ class T1Program(QickProgram):
         """
         cfg = AttrDict(self.cfg)
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # Apply π pulse to excite qubit from |0⟩ to |1⟩
         self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)

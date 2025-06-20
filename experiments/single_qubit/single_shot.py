@@ -108,7 +108,8 @@ class HistogramProgram(QickProgram):
         """
         cfg = AttrDict(self.cfg)
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
         
         # Apply pi pulse to prepare excited state if requested
         if cfg.expt.pulse_e:
@@ -297,7 +298,6 @@ class HistogramExperiment(QickExperiment):
         iq_list = histpro.acquire(
             self.im[self.cfg.aliases.soc],
             threshold=None,
-            load_pulses=True,
             progress=progress,
         )
         
@@ -341,7 +341,6 @@ class HistogramExperiment(QickExperiment):
             iq_list = histpro.acquire(
                 self.im[self.cfg.aliases.soc],
                 threshold=None,
-                load_pulses=True,
                 progress=progress,
             )
             

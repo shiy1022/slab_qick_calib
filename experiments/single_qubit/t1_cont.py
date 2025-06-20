@@ -88,7 +88,8 @@ class T1ContProgram(QickProgram):
         cfg = AttrDict(self.cfg)
 
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
         
         # First, perform n_g ground state measurements
         self.delay_auto(t=0.01, tag=f"readout0_delay_1")
@@ -329,7 +330,6 @@ class T1ContExperiment(QickExperiment):
             self.im[self.cfg.aliases.soc],
             soft_avgs=self.cfg.expt.soft_avgs,
             threshold=None,
-            load_pulses=True,
             progress=progress,
         )
         

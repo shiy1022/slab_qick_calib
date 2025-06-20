@@ -89,7 +89,8 @@ class QubitSpecProgram(QickProgram):
         cfg = AttrDict(self.cfg)
         
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # Apply qubit and Stark pulses simultaneously
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)

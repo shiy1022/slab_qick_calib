@@ -89,7 +89,8 @@ class RabiProgram(QickProgram):
         cfg = AttrDict(self.cfg)
         
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == 'dyn':
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # If checking EF transition with ge pulse, apply first pi pulse
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
