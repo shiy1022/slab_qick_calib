@@ -261,7 +261,7 @@ class ResSpec(QickExperiment):
         params = {**params_def, **params}
         
         # Set long_pulse flag based on pulse length
-        if params["length"] > 100:  # This is currently true; may change in the future
+        if params["length"] > 100:  # Can't be set directly to be greater than 100 on dynamic generator; may need to adapt for other generators. 
             params['long_pulse'] = True
 
         # Handle special case for span

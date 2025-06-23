@@ -160,6 +160,7 @@ class T1Experiment(QickExperiment):
         max_err=None,
         display=True,
         print=False,
+        check_params=True,
     ):
         """
         Initialize the T1 experiment
@@ -181,7 +182,7 @@ class T1Experiment(QickExperiment):
         if prefix is None:
             prefix = f"t1_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, fname=fname, progress=progress, qi=qi)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, fname=fname, progress=progress, qi=qi, check_params=check_params)
 
         # Define default parameters
         params_def = {
@@ -215,27 +216,13 @@ class T1Experiment(QickExperiment):
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
 
-        # Configure active reset if enabled
-        if self.cfg.expt.active_reset:
-            super().configure_reset()
-
-        # For untuned qubits, show all data points by default
-        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
-            disp_kwargs = {"plot_all": True}
-                # For untuned qubits, show all data points by default
-        if self.cfg.device.readout.rescale[qi] or disp_kwargs is not None and "rescale" in disp_kwargs:
-            disp_kwargs = {"rescale": True}
-
-        # Run the experiment if go=True
-        if print: 
-            super().print()
-            go=False
         if go:
-            super().run(
+            super().qubit_run(qi=qi,
                 display=display,
                 progress=progress,
                 min_r2=min_r2,
                 max_err=max_err,
+                print=print,
                 disp_kwargs=disp_kwargs,
             )
 
@@ -409,7 +396,7 @@ class T1_2D(QickExperiment2DSimple):
 
         # Merge default parameters with user-provided parameters
         exp_name = T1Experiment
-        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params, check_params=False)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
@@ -491,4 +478,3 @@ class T1_2D(QickExperiment2DSimple):
             fit=fit,
             **kwargs,
         )
-

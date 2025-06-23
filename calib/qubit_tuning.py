@@ -186,39 +186,70 @@ def make_summary_figure(cfg_dict, progs, qi):
     None
     """
     auto_cfg = config.load(cfg_dict['cfg_file'])
-    fig, ax = plt.subplots(3, 3, figsize=(14, 9))
     
-    # Display all measurement results
-    progs['amp_rabi'].display(ax=[ax[0, 0]])
-    progs['t1'].display(ax=[ax[0, 1]])
-    progs['t2r'].display(ax=[ax[1, 0]])
-    progs['t2e'].display(ax=[ax[1, 1]])
-    progs['shot'].display(ax=[ax[0, 2], ax[1, 2]])
-    progs['rspec'].display(ax=[ax[2, 0]])
-
-    # Add readout parameters caption
-    cap = f'Length: {auto_cfg.device.readout.readout_length[qi]:0.2f} $\mu$s'
-    cap += f'\nGain: {auto_cfg.device.readout.gain[qi]}'
-    ax[0, 2].text(0.02, 0.05, cap, transform=ax[0, 2].transAxes, fontsize=10,
-                 verticalalignment='bottom', horizontalalignment='left', 
-                 bbox=dict(facecolor='white', alpha=0.8))
-
-    # Display chi measurement
-    chi_fig(ax[2, 1], qi, progs)
+    # Close any existing figures to avoid conflicts
+    plt.close('all')
     
-    # Display qubit spectroscopy
-    progs['qspec'].display(ax=[ax[2, 2]], plot_all=False)
-    ax[2, 2].set_title(f'Qubit Freq: {auto_cfg.device.qubit.f_ge[qi]:0.2f} MHz')
-    ax[2, 2].axvline(x=auto_cfg.device.qubit.f_ge[qi], color='k', linestyle='--')
+    # Create figure with explicit figure number for better control
+    fig = plt.figure(figsize=(15, 12))
+    
+    # Create subplots manually to ensure proper control
+    ax = []
+    for i in range(3):
+        row = []
+        for j in range(3):
+            subplot_ax = fig.add_subplot(3, 3, i*3 + j + 1)
+            row.append(subplot_ax)
+        ax.append(row)
+    
+    # Display all measurement results with explicit axis control
+    # Force each display to use the provided axes without creating new figures
+    
+    # Temporarily disable interactive mode to prevent premature display
+    plt.ioff()
+    
+    try:
+        progs['amp_rabi'].display(ax=[ax[0][0]])
+        progs['t1'].display(ax=[ax[0][1]])
+        progs['t2r'].display(ax=[ax[1][0]])
+        progs['t2e'].display(ax=[ax[1][1]])
+        progs['shot'].display(ax=[ax[0][2], ax[1][2]])
+        progs['rspec'].display(ax=[ax[2][0]])
 
-    fig.tight_layout()
+        # Add readout parameters caption
+        cap = f'Length: {auto_cfg.device.readout.readout_length[qi]:0.2f} $\mu$s'
+        cap += f'\nGain: {auto_cfg.device.readout.gain[qi]}'
+        ax[0][2].text(0.02, 0.05, cap, transform=ax[0][2].transAxes, fontsize=10,
+                     verticalalignment='bottom', horizontalalignment='left', 
+                     bbox=dict(facecolor='white', alpha=0.8))
+
+        # Display chi measurement
+        chi_fig(ax[2][1], qi, progs)
+        
+        # Display qubit spectroscopy
+        progs['qspec'].display(ax=[ax[2][2]], plot_all=False)
+        ax[2][2].set_title(f'Qubit Freq: {auto_cfg.device.qubit.f_ge[qi]:0.2f} MHz')
+        ax[2][2].axvline(x=auto_cfg.device.qubit.f_ge[qi], color='k', linestyle='--')
+
+    finally:
+        # Re-enable interactive mode
+        plt.ion()
+
+    # Adjust layout with more padding to ensure all subplots are visible
+    fig.tight_layout(pad=2.0)
+    
+    # Make sure this specific figure is current and displayed
+    plt.figure(fig.number)
     plt.show()
     
     # Save figure
     datestr = datetime.now().strftime("%Y%m%d_%H%M")
     fname = cfg_dict['expt_path'] + f'images\\summary\\qubit{qi}_tuneup_{datestr}.png'
     print(fname)
-    fig.savefig(fname)
+    fig.savefig(fname, dpi=150, bbox_inches='tight')
+    
+    # Return the figure object for potential further use
+    return fig
 
 
 def chi_fig(ax, qi, progs):

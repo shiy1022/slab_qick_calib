@@ -13,7 +13,7 @@ The module includes:
 
 import numpy as np
 from qick import *
-
+import matplotlib.pyplot as plt
 from exp_handling.datamanagement import AttrDict
 from gen.qick_experiment import QickExperiment, QickExperiment2DSweep
 from gen.qick_program import QickProgram
@@ -195,6 +195,7 @@ class StarkSpec(QickExperiment2DSweep):
             "stark_expts": 30,
             "df_stark": 0,
             "max_stark_gain": 1,
+            "min_stark_gain": 0,
             'df':0,
             "stark_rng": 15,
             "pulse_type": "const",
@@ -256,7 +257,7 @@ class StarkSpec(QickExperiment2DSweep):
         
         # Configure Stark gain sweep
         self.cfg.expt.stark_gain = QickSweep1D(
-            "stark_loop", 0, self.cfg.expt.max_stark_gain
+            "stark_loop", self.cfg.expt.min_stark_gain, self.cfg.expt.max_stark_gain
         )
 
         # Acquire data using the QubitSpecProgram
@@ -283,6 +284,25 @@ class StarkSpec(QickExperiment2DSweep):
         self.fitterfunc = fitter.fitlor
         self.fitfunc = fitter.lorfunc
         super().analyze(self.fitfunc, self.fitterfunc, use_i=True)
+
+
+        from scipy.optimize import curve_fit
+
+        f = [self.data['fit_avgi'][i][2] for i in range(len(self.data['fit_avgi']))]
+        # fit frequency
+
+        # Fit the data
+        try:
+            popt, pcov = curve_fit(quadratic, self.data['stark_gain'], f)
+            self.popt = popt
+            Delta = self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]-self.cfg.device.readout.frequency[self.cfg.expt.qubit[0]]
+            ng2 = popt[0]/2*Delta
+            self.ng2= ng2
+            print(f"ng2: {ng2}")
+            self.f=f
+        except:
+            pass
+        
         
         # Store the fitted qubit frequency
 #        data["new_freq"] = data["best_fit"][2]
@@ -325,3 +345,14 @@ class StarkSpec(QickExperiment2DSweep):
             caption_params=[],  # Pass the new structured parameter list
         )
 
+        # Plot the fitted curve
+        x_fit = np.linspace(min(self.data['stark_gain']), max(self.data['stark_gain']), 100)
+        y_fit = quadratic(x_fit, *self.popt)
+        plt.plot(self.data['stark_gain'], self.f,'o')
+        plt.plot(x_fit, y_fit, label='Quadratic Fit')
+        plt.legend()
+
+# Define a quadratic function
+@staticmethod
+def quadratic(x, a, c):
+    return a * x**2  + c

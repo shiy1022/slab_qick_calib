@@ -1,13 +1,13 @@
-aliases: {soc: Qick105}
+aliases: {soc: Qick233}
 device:
   qubit:
     T1: [30, 30]
     T2e: [60, 60]
     T2r: [30, 30]
     f_ef: [3800, 3800]
-    f_ge: [7000, 5000]
+    f_ge: [9000, 11000]
     kappa: [0, 0]
-    low_gain: 0.03
+    low_gain: 0.95
     max_gain: 1
     pop: [0, 0]
     pulses:
@@ -22,7 +22,7 @@ device:
         sigma_inc: [5, 5]
         type: [gauss, gauss]
     rescale: [false, false]
-    spec_gain: [1, 1]
+    spec_gain: [64, 1]
     temp: [0, 0]
     tuned_up: [false, false]
   readout:
@@ -33,7 +33,7 @@ device:
     frequency: [7724.2605, 7000]
     gain: [0.03, 0.05]
     kappa: [0.1938, 0.5]
-    lamb: [2.2352, 0]
+    lamb: [1.0551, -0.3445]
     max_gain: 1
     phase: [0, 0]
     qe: [18.6129, 0]
@@ -48,7 +48,7 @@ device:
     soft_avgs_base: 1
     threshold: [10, 10]
     tm: [0, 0]
-    trig_offset: [0.29658564814814814, 0.29658564814814814]
+    trig_offset: [0.48177083333333337, 0.48177083333333337]
 hw:
   soc:
     adcs:
@@ -57,8 +57,8 @@ hw:
         type: [dyn, dyn, dyn]
     dacs:
       qubit:
-        ch: [0, 0, 0]
-        nyquist: [1, 1, 1]
+        ch: [1, 1, 1]
+        nyquist: [2, 2, 2]
         type: [full, full, full]
       readout:
         ch: [0, 0, 0]

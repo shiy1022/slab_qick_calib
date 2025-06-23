@@ -109,6 +109,9 @@ class T2Program(QickProgram):
             # Create π pulse for EF transition check
             super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
 
+        for i in range(1000):
+            self.nop()
+
     def _body(self, cfg):
         """
         Define the main body of the pulse sequence.
@@ -155,7 +158,7 @@ class T2Program(QickProgram):
                             t=cfg.expt.wait_time / cfg.expt.num_pi +0.01, tag=f"wait{i}"
                         )  # Wait time 
                 self.delay_auto(
-                    t=cfg.expt.wait_time / cfg.expt.num_pi/2 +0.01, tag=f"wait{i+1}"
+                     t=cfg.expt.wait_time / cfg.expt.num_pi/2 +0.01, tag=f"wait{i+1}"
                 )
             else:
                 self.delay_auto(t=cfg.expt.wait_time , tag="wait")
@@ -301,24 +304,13 @@ class T2Experiment(QickExperiment):
         # Check for unexpected parameters
         super().check_params(params_def)
         
-        # Configure active reset if enabled
-        if self.cfg.expt.active_reset:
-            super().configure_reset()
-
-        # For untuned qubits, show all data points by default
-        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
-            disp_kwargs = {"plot_all": True}
-        
-        if print: 
-            super().print()
-            go=False
-        # Run the experiment if go=True
         if go:
-            super().run(
+            super().qubit_run(qi=qi,
                 display=display,
                 progress=progress,
                 min_r2=min_r2,
                 max_err=max_err,
+                print=print,
                 disp_kwargs=disp_kwargs,
             )
 
@@ -352,9 +344,9 @@ class T2Experiment(QickExperiment):
         # Adjust x-axis values to account for echo protocol
         # For echo, the effective wait time is longer due to the π pulses
         if self.cfg.expt.num_pi ==0:
-            coef = self.cfg.expt.num_pi
+            coef = 1
         else:
-            coef = self.cfg.expt.num_pi + 1  # For echo, we have num_pi + 1 segments
+            coef = self.cfg.expt.num_pi   # For echo, we have num_pi + 1 segments
         self.data["xpts"] = coef * self.data["xpts"]
     
 
@@ -482,6 +474,7 @@ class T2Experiment(QickExperiment):
         savefig=True,
         refit=False,
         show_hist=False,
+        rescale=False,
         **kwargs,
     ):
         """
@@ -549,4 +542,5 @@ class T2Experiment(QickExperiment):
             fitfunc=self.fitfunc,
             caption_params=caption_params,
             savefig=savefig,
+            rescale=rescale,
         )

@@ -44,7 +44,7 @@ class QickExperiment(Experiment):
     specific experiment types (e.g., T1, T2, Rabi oscillations).
     """
 
-    def __init__(self, cfg_dict=None, qi=0, prefix="QickExp", fname=None,progress=None):
+    def __init__(self, cfg_dict=None, qi=0, prefix="QickExp", fname=None, progress=None, check_params=True):
         """
         Initialize the QickExperiment with hardware configuration and experiment parameters.
 
@@ -57,6 +57,7 @@ class QickExperiment(Experiment):
             prefix: Prefix for saved data files
             progress: Whether to show progress bars during execution
             qi: Qubit index to use for the experiment
+            check_params: Whether to check for unexpected parameters (default True)
         """
         soccfg = cfg_dict["soc"]
         path = cfg_dict["expt_path"]
@@ -71,6 +72,9 @@ class QickExperiment(Experiment):
             progress=progress,
             im=im,
         )
+        # Store the check_params parameter for use in child classes
+        self._check_params = check_params
+        
         # Calculate repetitions and averages based on qubit-specific settings
         self.reps = int(
             self.cfg.device.readout.reps[qi] * self.cfg.device.readout.reps_base
@@ -441,6 +445,39 @@ class QickExperiment(Experiment):
                 bin_centers.append((bin_edges0[:-1] + bin_edges0[1:]) / 2)
         return bin_centers, hist
 
+    def qubit_run(self,qi=0, progress=True,
+        analyze=True,
+        display=True,
+        save=True,
+        print=False,
+        min_r2=0.1,
+        max_err=1,
+        disp_kwargs=None,
+        **kwargs,):
+        # Configure active reset if enabled
+        if self.cfg.expt.active_reset:
+            self.configure_reset()
+
+        # For untuned qubits, show all data points by default
+        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
+            disp_kwargs = {"plot_all": True}
+                # For untuned qubits, show all data points by default
+        if self.cfg.device.readout.rescale[qi] or disp_kwargs is not None and "rescale" in disp_kwargs:
+            disp_kwargs = {"rescale": True}
+
+        # Run the experiment if go=True
+        if print: 
+            self.print()
+        else:
+            self.run(analyze=analyze,
+                display=display,
+                save=save,
+                progress=progress,
+                min_r2=min_r2,
+                max_err=max_err,
+                disp_kwargs=disp_kwargs,
+            )
+
     def run(
         self,
         progress=True,
@@ -472,6 +509,8 @@ class QickExperiment(Experiment):
             disp_kwargs: Display options dictionary
             **kwargs: Additional arguments passed to the analyze method
         """
+        
+
         # Set default values for fit quality thresholds
         if min_r2 is None:
             min_r2 = 0.1
@@ -560,9 +599,10 @@ class QickExperiment(Experiment):
         return xpts
 
     def check_params(self, params_def):
-        unexpected_params = set(self.cfg.expt.keys()) - set(params_def.keys())
-        if unexpected_params:
-            print(f"Unexpected parameters found in params: {unexpected_params}")
+        if self._check_params:
+            unexpected_params = set(self.cfg.expt.keys()) - set(params_def.keys())
+            if unexpected_params:
+                print(f"Unexpected parameters found in params: {unexpected_params}")
 
     def configure_reset(self):
         qi = self.cfg.expt.qubit[0]
@@ -613,31 +653,33 @@ class QickExperiment(Experiment):
         p0 = [
             0.5,
             np.min(bin_centers) + v_rng / 3,
+            0.5,
             v_rng / 10,
             np.max(bin_centers) - v_rng / 3,
         ]
         try:
             popt, pcov = curve_fit(helpers.two_gaussians, bin_centers, hist, p0=p0)
             vg = popt[1]
-            ve = popt[3]
-            if (
-                "tm" in self.cfg.device.readout
-                and self.cfg.device.readout.tm[self.cfg.expt.qubit[0]] != 0
-            ):
-                tm = self.cfg.device.readout.tm[self.cfg.expt.qubit[0]]
-                sigma = self.cfg.device.readout.sigma[self.cfg.expt.qubit[0]]
-                p0 = [popt[0], vg, ve]
-                popt, pcov = curve_fit( #@IgnoreException
-                    lambda x, mag_g, vg, ve: helpers.two_gaussians_decay(
-                        x, mag_g, vg, ve, sigma, tm
-                    ),
-                    bin_centers,
-                    hist,
-                    p0=p0,
-                )
-                popt = np.concatenate((popt, [sigma, tm]))
+            ve = popt[4]
+            dv= ve - vg
+            # if (
+            #     "tm" in self.cfg.device.readout
+            #     and self.cfg.device.readout.tm[self.cfg.expt.qubit[0]] != 0
+            # ):
+            #     tm = self.cfg.device.readout.tm[self.cfg.expt.qubit[0]]
+            #     sigma = self.cfg.device.readout.sigma[self.cfg.expt.qubit[0]]
+            #     p0 = [popt[0], vg, ve]
+            #     popt, pcov = curve_fit( #@IgnoreException
+            #         lambda x, mag_g, vg, ve: helpers.two_gaussians_decay(
+            #             x, mag_g, vg, ve, sigma, tm
+            #         ),
+            #         bin_centers,
+            #         hist,
+            #         p0=p0,
+            #     )
+            #     popt = np.concatenate((popt, [sigma, tm]))
 
-            dv = popt[2] - popt[1]
+            # dv = popt[2] - popt[1]
             self.data["scale_data"] = (self.data["avgi"] - popt[1]) / dv
             self.data["hist_fit"] = popt
         except:
