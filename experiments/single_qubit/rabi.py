@@ -13,17 +13,17 @@ The module includes:
 - RabiChevronExperiment: 2D version that sweeps both frequency and amplitude/length
 """
 
+import copy
 import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
+from qick.asm_v2 import QickSweep1D
+from scipy.optimize import curve_fit
 
 from exp_handling.datamanagement import AttrDict
 from gen.qick_experiment import QickExperiment, QickExperiment2DSimple, QickExperimentLoop
 from gen.qick_program import QickProgram
 import slab_qick_calib.fitting as fitter
-from qick.asm_v2 import QickSweep1D
-from scipy.optimize import curve_fit
-import copy
 
 # ====================================================== #
 
@@ -176,15 +176,18 @@ class RabiExperiment(QickExperiment):
             "checkEF": False,
             "pulse_ge": True,
             "num_osc":2.5,
+            "n_pulses": 1,
             "sweep": "amp",
             'active_reset': self.cfg.device.readout.active_reset[qi],
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
             'loop':False,
+            'temp': 40, 
         }        
 
-        min_gain=2**-15
-        # Apply style modifications
+        min_gain = 2**-15  # Minimum DAC gain value for linear operation
+        
+        # Apply style modifications for different experiment modes
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
         elif style == "fast":
@@ -192,38 +195,45 @@ class RabiExperiment(QickExperiment):
 
         params = {**params_def, **params}
         
-        # Pulse params
+        # Configure pulse parameters based on transition type (GE or EF)
         if params['checkEF']:
-            cfg_qub = self.cfg.device.qubit.pulses.pi_ef
+            qubit_pulse_config = self.cfg.device.qubit.pulses.pi_ef
             params_def["freq"] = self.cfg.device.qubit.f_ef[qi]
         else:
-            cfg_qub = self.cfg.device.qubit.pulses.pi_ge
-            params_def["freq"] = self.cfg.device.qubit.f_ge[qi]
-        for key in cfg_qub:
-            params_def[key] = cfg_qub[key][qi]
+            qubit_pulse_config = self.cfg.device.qubit.pulses.pi_ge
+            params_def["freq"] = self.cfg.device.qubit.f_ge[qi]       
+        # Copy pulse parameters from device config, usually contains sigma, gain, sigma_inc, type
+        for key in qubit_pulse_config:
+            params_def[key] = qubit_pulse_config[key][qi]
+            
+        # Override pulse type if specified
         if 'pulse_type' in params: 
             params_def['type'] = params['pulse_type']
         params = {**params_def, **params}
         
-        if params["sweep"]=="amp":
-            params_def['max_gain'] = params['gain'] * params['num_osc']*2
-            params_def['start']=0.003 # This is currently the minimum gain value that is linear 
-            params_def["max_gain"]=np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain])
-            
-        elif params["sweep"]=="length":
-            params_def["max_length"] = 2*params['num_osc'] * params["sigma"]
-            params_def["start"] = 3*cfg_dict['soc'].cycles2us(1)
-
+        # Configure sweep range based on sweep type
+        if params["sweep"] == "amp":
+            # Amplitude sweep: set max gain to cover desired number of oscillations
+            params_def['max_gain'] = params['gain'] * params['num_osc'] * 2
+            params_def['start'] = 0.003  # Minimum gain value that maintains linearity
+            params_def["max_gain"] = np.min([params_def["max_gain"], self.cfg.device.qubit.max_gain]) # Do not exceed max_gain of RFSoC
+        elif params["sweep"] == "length":
+            # Length sweep: set max length to cover desired number of oscillations
+            params_def["max_length"] = 2 * params['num_osc'] * params["sigma"]
+            params_def["start"] = 3 * cfg_dict['soc'].cycles2us(1)  # Minimum allowed length
         
+        # Special configuration for temperature-dependent measurements
         if style == "temp":
             params["reps"] = 40 * params["reps"]
-            params["soft_avgs"] = 20 * params["soft_avgs"]
+            params["soft_avgs"] = 20 * params["soft_avgs"] * 1.5**(params["temp"]/40)
             params["pulse_ge"] = False
         
         self.cfg.expt = {**params_def, **params}
-        if params['sweep']=='amp':
-            gain_spc =self.cfg.expt['max_gain']/self.cfg.expt['expts']
-            if gain_spc < min_gain:
+        
+        # Ensure minimum gain spacing for amplitude sweeps to avoid DAC resolution issues
+        if params['sweep'] == 'amp':
+            gain_spacing = self.cfg.expt['max_gain'] / self.cfg.expt['expts']
+            if gain_spacing < min_gain:
                 self.cfg.expt['max_gain'] = min_gain * self.cfg.expt['expts']
         super().check_params(params_def)
         if go:
@@ -251,20 +261,21 @@ class RabiExperiment(QickExperiment):
         
         # Configure the sweep based on whether we're sweeping amplitude or length
         # Note: 2d scans will break if you use gain/length to store the max_vals of gain/length when making qicksweep
+        # Pulse definition takes length and sigma as parameters; which works for gauss and const pulses. 
         if self.cfg.expt.sweep == "amp":
             # Amplitude sweep configuration
-            param_pulse = 'gain'
+            param_pulse = 'gain' # Parameter used to get xvals from QICK
             self.cfg.expt['gain'] = QickSweep1D(
                 "sweep_loop", self.cfg.expt.start, self.cfg.expt['max_gain']
             )
             if self.cfg.expt.type == 'gauss':       
                 self.cfg.expt['length'] = self.cfg.expt.sigma * self.cfg.expt.sigma_inc
-            else:
+            elif self.cfg.expt.type == 'const':
                 self.cfg.expt['length'] = self.cfg.expt.sigma
         elif self.cfg.expt.sweep == "length":
             # Length sweep configuration
-            param_pulse = 'total_length'
-            if self.cfg.expt.type == 'gauss':
+            param_pulse = 'total_length' # Parameter used to get xvals from QICK
+            if self.cfg.expt.type == 'gauss': # This does not work with QICK sweeps right now 
                 # For Gaussian pulses, sweep sigma
                 par = 'sigma'
                 # self.cfg.expt['length'] = QickSweep1D(
@@ -693,7 +704,205 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             freq = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
             amp = [data["fit_avgi"][i][0] for i in range(len(data["ypts"]))]
             
-            # Fit the chevron pattern
+            # Fit the chevron pattern (for length rabi)
+            try:
+                p, _ = curve_fit(chevron_freq, data["ypts"]-qubit_freq, freq)
+                p2, _ = curve_fit(chevron_amp, data["ypts"]-qubit_freq, amp)
+                data["chevron_freq"] = p
+                data["chevron_amp"] = p2
+            except:
+                # Silently fail if the fit doesn't converge
+                pass
+                
+        return data
+
+    def display(self, data=None, fit=True, plot_both=False, **kwargs):
+        """
+        Display the results of the RabiChevronExperiment.
+        
+        Args:
+            data: Data to display (if None, use self.data)
+            fit: Whether to show the fit
+            plot_both: Whether to plot both amplitude and phase
+            **kwargs: Additional arguments for the display
+        """
+        if data is None:
+            data = self.data
+            
+        # Set up plot title and labels
+        if self.cfg.expt.checkEF: 
+            title = 'EF'
+        else: 
+            title = ''
+            
+        if self.cfg.expt.sweep == "amp":
+            title = 'Amplitude'
+            param = 'sigma'
+            xlabel = "Gain / Max Gain"
+        else:
+            title = 'Length'
+            param = 'gain'
+            xlabel = "Pulse Length ($\mu$s)"
+            
+        title += f" Rabi Q{self.cfg.expt.qubit[0]} (Pulse {param} {self.cfg.expt[param]})"
+
+        xlabel = xlabel
+        ylabel = "Frequency (MHz)"
+
+        # Display the 2D plot
+        super().display(
+            title=title,
+            xlabel=xlabel,
+            ylabel=ylabel,
+            data=data,
+            fit=fit,
+            plot_both=plot_both,
+            **kwargs,
+        )
+
+        # If fit is enabled, also display the frequency and amplitude vs. detuning
+        if fit: 
+            fig, ax = plt.subplots(2, 1, figsize=(6, 6))
+            qubit_freq = self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]
+            freq = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
+            amp = [data["fit_avgi"][i][0] for i in range(len(data["ypts"]))]
+            
+            # Plot frequency vs. detuning
+            ax[0].plot(data["ypts"]-qubit_freq, freq)
+            ax[0].set_ylabel('Frequency (MHz)')
+            
+            # Plot amplitude vs. detuning
+            ax[1].plot(data["ypts"]-qubit_freq, amp)
+            ax[1].set_xlabel('$\Delta$ Frequency (MHz)')
+            ax[1].set_ylabel('Amplitude')
+
+
+class Rabi2D(QickExperiment2DSimple):
+    """
+    2D Rabi experiment that sweeps both length.
+    
+    Experimental Config:
+    expt = dict(
+        start_gain: qubit gain [dac level]
+        step_gain: gain step [dac level]
+        expts_gain: number steps
+        reps: number averages per expt
+        soft_avgs: number repetitions of experiment sweep
+        sigma: gaussian sigma for pulse length [us] (default: from pi_ge in config)
+        pulse_type: 'gauss' or 'const'
+    )
+    """
+
+    def __init__(
+        self,
+        cfg_dict,
+        qi=0,
+        go=True,
+        params={},
+        style="",
+        prefix=None,
+        progress=False,
+    ):  
+        """
+        Initialize the RabiChevronExperiment.
+        
+        Args:
+            cfg_dict: Configuration dictionary
+            qi: Qubit index
+            go: Whether to run the experiment immediately
+            params: Additional parameters to override defaults
+            style: Style of experiment
+            prefix: Prefix for data files
+            progress: Whether to show progress bar
+        """
+        # Determine prefix based on parameters
+        if 'type' in params:
+            pre = params['type']
+        else:
+            pre = "amp"
+        if 'checkEF' in params and params['checkEF']: 
+            ef = "ef"
+        else: 
+            ef = ""
+        prefix = f"{pre}_rabi_chevron_{ef}_qubit{qi}"         
+
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress)
+
+        # Default parameters
+        params_def = {
+            'span_y': 1,
+            'expts_y': 30,
+            'start_y':0,
+            'sweep': 'length',
+            'loop': True,
+            'yval': 'gain'
+        }
+        params = {**params_def, **params}
+       
+        # Create a RabiExperiment instance but don't run it yet
+        self.expt = RabiExperiment(cfg_dict, qi=qi, go=False, params=params, style=style)
+        self.cfg.expt = {**self.expt.cfg.expt, **params}
+        
+        # Run the experiment if requested
+        if go:
+            super().run(progress=progress)
+        
+
+    def acquire(self, progress=False, debug=False):
+        """
+        Acquire data for the RabiChevronExperiment.
+        
+        Args:
+            progress: Whether to show progress bar
+            debug: Whether to print debug information
+            
+        Returns:
+            Acquired data
+        """
+        # Create frequency points for the sweep
+        ypts = np.linspace(
+            self.cfg.expt["start_y"], 
+            self.cfg.expt["start_y"] + self.cfg.expt["span_y"], 
+            self.cfg.expt["expts_y"]
+        )
+        
+        # Set up the y-sweep (frequency sweep)
+        ysweep = [{"pts": ypts, "var": "yvar"}]
+        
+        # Acquire data
+        super().acquire(ysweep, progress=progress)
+        
+        return self.data
+
+    def analyze(self, data=None, fit=True, **kwargs):
+        """
+        Analyze the acquired data.
+        
+        Args:
+            data: Data to analyze (if None, use self.data)
+            fit: Whether to fit the data
+            **kwargs: Additional arguments for the fit
+            
+        Returns:
+            Analyzed data with fit parameters
+        """
+        if data is None:
+            data = self.data
+
+        if fit:
+            # Fit the data to a sinusoidal function for each frequency
+            fitterfunc = fitter.fitsin
+            fitfunc = fitter.sinfunc
+            data = super().analyze(
+                fitfunc=fitfunc, fitterfunc=fitterfunc, fit=fit, **kwargs
+            )
+            
+            # Extract qubit frequency and fit parameters
+            qubit_freq = self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]
+            freq = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
+            amp = [data["fit_avgi"][i][0] for i in range(len(data["ypts"]))]
+            
+            # Fit the chevron pattern (for length rabi)
             try:
                 p, _ = curve_fit(chevron_freq, data["ypts"]-qubit_freq, freq)
                 p2, _ = curve_fit(chevron_amp, data["ypts"]-qubit_freq, amp)
