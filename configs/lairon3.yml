@@ -5,7 +5,7 @@ device:
     T2e: [27.34, 20.68, 47.49]
     T2r: [50.03, 35.82, 38.86]
     f_ef: [3247.7156, 4361.0968, 5298.7098]
-    f_ge: [3390.2112, 4582.4255, 5547.9089]
+    f_ge: [3390.2112, 4518.6179, 5547.9089]
     kappa: [0.8525, 0.2276, 20.3627]
     low_gain: 0.003
     max_gain: 1
@@ -21,24 +21,24 @@ device:
         sigma: [0.1, 0.1, 0.1]
         sigma_inc: [5, 5, 5]
         type: [gauss, gauss, gauss]
-    spec_gain: [1, 1, 10]
+    spec_gain: [8, 8, 160]
     temp: [27.08, 43.5699, 46.9897]
     tuned_up: [true, true, true]
   readout:
     active_reset: [false, false, false]
     chi: [-0.4792, -0.8307, -1.6933]
     fidelity: [0.6464, 0.7996, 0.8256]
-    final_delay: [450.64, 411.56, 328.58]
-    frequency: [5375.8194, 5915.3819, 6623.1278]
+    final_delay: [100.64, 411.56, 328.58]
+    frequency: [5374.4418, 5914.1511, 6620.6246]
     gain: [0.026, 0.0269, 0.0354]
-    kappa: [0.5067, 0.6937, 0.7018]
-    lamb: [-1.7144, -2.1091, -5.3084]
+    kappa: [0.745, 0.5965, 0.8451]
+    lamb: [-0.5516, -0.4983, 0.5192]
     max_gain: 1
     phase: [69.3253, -159.8725, -122.906]
-    qe: [1.0609, 1.4534, 1.3726]
-    qi: [104070133.8706, 2.0636, 3.0212]
+    qe: [0.9255, 1.4182, 2.376]
+    qi: [3.2714, 3.2956, 1.1688]
     readout_length: [17.64, 10.08, 4.4204]
-    reps: [1, 2, 2]
+    reps: [1, 1, 1]
     reps_base: 100
     rescale: [false, false, false]
     reset_e: [0, 0, 0]
@@ -48,7 +48,7 @@ device:
     soft_avgs_base: 1
     threshold: [2.1024, 1.8578, 3.0981]
     tm: [0.3536, 0.0688, 0.1018]
-    trig_offset: [0.3, 0.3, 0.3]
+    trig_offset: [0.4, 0.4, 0.4]
 hw:
   soc:
     adcs:
@@ -57,10 +57,10 @@ hw:
         type: [dyn, dyn, dyn]
     dacs:
       qubit:
-        ch: [0, 0, 0]
+        ch: [1, 1, 1]
         nyquist: [1, 1, 1]
         type: [full, full, full]
       readout:
-        ch: [1, 1, 1]
+        ch: [0, 0, 0]
         nyquist: [2, 2, 2]
         type: [full, full, full]
