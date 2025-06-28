@@ -1,0 +1,22 @@
+device:
+  qubit:
+    nqubits: 3
+    Ec: [null, null, null]
+    Ej: [null, null, null]
+    Delta: [null, null, null]
+    Sum: [null, null, null]
+    alpha: [null, null, null]
+    T1_purcell: [null, null, null]
+    T1_mean: [null, null, null]
+    T1_max: [null, null, null]
+    T2E_mean: [null, null, null]
+    T2E_max: [null, null, null]
+    T2R_mean: [null, null, null]
+    T2R_max: [null, null, null]
+    T1mean_nopurcell: [null, null, null]
+    T1max_nopurcell: [null, null, null]
+    g_lamb: [null, null, null]
+    g_chi: [null, null, null]
+    kappa_low: [null, null, null]
+    Q1_mean: [null, null, null]
+    Q1_max: [null, null, null]

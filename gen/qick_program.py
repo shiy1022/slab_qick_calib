@@ -317,7 +317,7 @@ class QickProgram(AveragerProgramV2):
                 even_length=True,
             )
             pulse_args["envelope"] = "ramp"  # Use Gaussian envelope for edges
-            pulse_args["length"] = length  # Total pulse length
+            pulse_args["length"] = length  # Total pulse length (this is of the flat part?)
 
         else:
             # Default: Constant amplitude pulse

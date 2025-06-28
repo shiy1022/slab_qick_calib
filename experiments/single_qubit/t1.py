@@ -114,16 +114,6 @@ class T1Program(QickProgram):
         super().measure(cfg)
 
 
-    def reset(self, i):
-        """
-        Reset the program state for the next iteration
-
-        Args:
-            i: Current iteration index
-        """
-        super().reset(i)
-
-
 class T1Experiment(QickExperiment):
     """
     T1Experiment: Main class for running T1 relaxation time measurements

@@ -332,7 +332,7 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True)
     tracking_path = os.path.join(base_path, tracking_id)
     os.makedirs(tracking_path, exist_ok=True)
     os.mkdir(os.path.join(tracking_path, 'images'))
-    cfg_dict = deepcopy(cfg_dict)  # Avoid modifying original cfg_dict
+    #cfg_dict = deepcopy(cfg_dict)  # Avoid modifying original cfg_dict
     cfg_dict['expt_path'] = tracking_path
     
     # Initialize timing variables

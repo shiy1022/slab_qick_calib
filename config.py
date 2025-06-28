@@ -481,3 +481,4 @@ def save_single_qubit_config(file_name, qubit_index, new_file_name):
         modified_file.write(cfg_yaml)
     
     return AttrDict(single_qubit_cfg)
+

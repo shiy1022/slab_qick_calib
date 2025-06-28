@@ -100,8 +100,9 @@ class RabiProgram(QickProgram):
             self.delay_auto(t=0.01, tag="wait ef")
 
         # Apply the main qubit pulse (variable amplitude or length)
-        self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
-        self.delay_auto(t=0.01, tag="wait")
+        for i in range(cfg.expt.n_pulses):
+            self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
+            self.delay_auto(t=0.01)
 
         # If checking EF transition with ge pulse, apply second pi pulse
         if cfg.expt.checkEF and cfg.expt.pulse_ge:
@@ -225,7 +226,7 @@ class RabiExperiment(QickExperiment):
         # Special configuration for temperature-dependent measurements
         if style == "temp":
             params["reps"] = 40 * params["reps"]
-            params["soft_avgs"] = 20 * params["soft_avgs"] * 1.5**(params["temp"]/40)
+            params["soft_avgs"] = int(np.ceil(20 * params["soft_avgs"] * 1.5**(params["temp"]/40)))
             params["pulse_ge"] = False
         
         self.cfg.expt = {**params_def, **params}
@@ -272,6 +273,8 @@ class RabiExperiment(QickExperiment):
                 self.cfg.expt['length'] = self.cfg.expt.sigma * self.cfg.expt.sigma_inc
             elif self.cfg.expt.type == 'const':
                 self.cfg.expt['length'] = self.cfg.expt.sigma
+            elif self.cfg.expt.type == 'flat_top':
+                self.cfg.expt['length'] = self.cfg.expt.sigma
         elif self.cfg.expt.sweep == "length":
             # Length sweep configuration
             param_pulse = 'total_length' # Parameter used to get xvals from QICK
@@ -283,6 +286,7 @@ class RabiExperiment(QickExperiment):
             else:
                 # For other pulse types, sweep length directly
                 par = 'length'
+            
             self.cfg.expt[par] = QickSweep1D(
                 "sweep_loop", self.cfg.expt.start, self.cfg.expt.max_length
             )
@@ -703,7 +707,10 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             qubit_freq = self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]
             freq = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
             amp = [data["fit_avgi"][i][0] for i in range(len(data["ypts"]))]
-            
+            data['chevron_freqs'] = freq
+            data['chevron_amps'] = amp
+
+            data['best_freq']=data['freq_pts'][np.argmax(data['chevron_amps'])]
             # Fit the chevron pattern (for length rabi)
             try:
                 p, _ = curve_fit(chevron_freq, data["ypts"]-qubit_freq, freq)
@@ -775,6 +782,8 @@ class RabiChevronExperiment(QickExperiment2DSimple):
             ax[1].plot(data["ypts"]-qubit_freq, amp)
             ax[1].set_xlabel('$\Delta$ Frequency (MHz)')
             ax[1].set_ylabel('Amplitude')
+
+            plt.show()
 
 
 class Rabi2D(QickExperiment2DSimple):
