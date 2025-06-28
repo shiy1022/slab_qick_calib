@@ -684,7 +684,7 @@ class ResSpecPower(QickExperiment2DSimple):
             "rng": 100,                # Dynamic range for logarithmic gain sweep
             "max_gain": self.cfg.device.qubit.max_gain, # Maximum gain used in log sweep
             "span": 15,                # Frequency span in MHz
-            "expts": 200,              # Number of frequency points
+            "expts": 300,              # Number of frequency points
             "start_gain": 0.003,       # Minimum gain value for linear sweep
             "step_gain": 0.05,         # Gain step for linear sweep
             "expts_gain": 20,          # Number of gain points
@@ -790,20 +790,33 @@ class ResSpecPower(QickExperiment2DSimple):
             i_highgain = np.argmin(np.abs(data["gain_pts"] - highgain))
             i_lowgain = np.argmin(np.abs(data["gain_pts"] - lowgain))
             
+            
+            # Fit to hanger model (for transmission resonators)
+            fit_highpow, fit_err, init = fitter.fithanger(data["xpts"], data["amps"][i_highgain])
+            fhi, Qi, Qe, phi, scale, slope = fit_highpow
+            kappa_hi = fhi * (1 / Qi + 1 / Qe) * 1e-4
+
+            fit_lowpow, fit_err, init = fitter.fithanger(data["xpts"], data["amps"][i_lowgain])
+            flo, Qi, Qe, phi, scale, slope = fit_lowpow
+            kappa_lo = flo * (1 / Qi + 1 / Qe) * 1e-4
+            
+               
             # Fit high and low gain data to Lorentzian model
-            fit_highpow, err, pinit = fitter.fitlor(
-                data["xpts"], data["amps"][i_highgain]
-            )
-            fit_lowpow, err, pinitlow = fitter.fitlor(
-                data["xpts"], data["amps"][i_lowgain]
-            )
+            # fit_highpow, err, pinit = fitter.fitlor(
+            #
+            # )
+            # fit_lowpow, err, pinitlow = fitter.fitlor(
+            #     data["xpts"], data["amps"][i_lowgain]
+            # )
             
             # Store fit results
             data["fit"] = [fit_highpow, fit_lowpow]
             data["fit_gains"] = [highgain, lowgain]
             
             # Calculate Lamb shift (difference in resonator frequency)
-            data["lamb_shift"] = fit_highpow[2] - fit_lowpow[2]
+            data["lamb_shift"] = fhi-flo
+            data['freq']= [fhi, flo]
+            data['kappa']= [kappa_hi, kappa_lo]
 
         return data
 
@@ -838,20 +851,20 @@ class ResSpecPower(QickExperiment2DSimple):
             
         # Show fit results if requested
         if fit and "fit" in data:
-            fit_highpow, fit_lowpow = data["fit"]
+            fhi, flo = data["freq"]
             highgain, lowgain = data["fit_gains"]
             
             # Show vertical lines at fitted resonator frequencies
-            plt.axvline(fit_highpow[2], linewidth=1, color="0.2")
-            plt.axvline(fit_lowpow[2], linewidth=1, color="0.2")
+            plt.axvline(fhi, linewidth=1, color="0.2")
+            plt.axvline(flo, linewidth=1, color="0.2")
             
             # Show horizontal lines at high and low gain values
             plt.plot(x_sweep, [highgain] * len(x_sweep), linewidth=1, color="0.2")
             plt.plot(x_sweep, [lowgain] * len(x_sweep), linewidth=1, color="0.2")
             
             # Print fit results
-            print(f"High power peak [MHz]: {fit_highpow[2]:.4f}")
-            print(f"Low power peak [MHz]: {fit_lowpow[2]:.4f}")
+            print(f"High power peak [MHz]: {fhi:.4f}")
+            print(f"Low power peak [MHz]: {flo:.4f}")
             print(f'Lamb shift [MHz]: {data["lamb_shift"]:.4f}')
 
         # Set plot labels and title
