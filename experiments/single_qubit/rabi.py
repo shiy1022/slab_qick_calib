@@ -11,6 +11,7 @@ The module includes:
 - RabiExperiment: Main experiment class for amplitude or length Rabi oscillations
 - ReadoutCheck: Class for checking readout parameters
 - RabiChevronExperiment: 2D version that sweeps both frequency and amplitude/length
+- Rabi2D: 2D version that sweeps both length and gain
 """
 
 import copy
@@ -841,7 +842,9 @@ class RabiChevronExperiment(QickExperiment2DSimple):
 
 class Rabi2D(QickExperiment2DSimple):
     """
-    2D Rabi experiment that sweeps both length.
+    2D Rabi experiment that sweeps both length and gain.
+    This experiment performs a 2D sweep of both qubit pulse length and gain
+    to map out the Rabi oscillations.
 
     Experimental Config:
     expt = dict(

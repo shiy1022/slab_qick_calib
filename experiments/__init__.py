@@ -2,6 +2,7 @@ import importlib, inspect
 import os, os.path
 import sys
 
+
 """
 module_path: parent directory path with . as subfile dividers
 f: filename to import modules from
@@ -23,11 +24,15 @@ def import_modules_from_files(module_path, f):
 
 path = __path__[0]
 thismodule = sys.modules[__name__]
+print(thismodule)
+print(path)
 files = os.listdir(path)
 files = [f for f in files if not f.endswith(".ini")]
-module_path = os.path.split(path)[-1]
+module_path = __name__
+# module_path = os.path.join("slab_qick_calib", module_path)
 for f in files:
     fpath = os.path.join(path, f)
+    print(fpath)
     if f[0] == "_" or f[0] == ".":
         continue
     if os.path.isdir(fpath):

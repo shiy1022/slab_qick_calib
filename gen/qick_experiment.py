@@ -22,11 +22,12 @@ It extends the base Experiment class with specialized functionality for:
 - Fitting experimental results to theoretical models
 - Visualizing and saving experiment data
 
-The module contains four main classes:
+The module contains five main classes:
 - QickExperiment: Base class for single-shot quantum experiments
 - QickExperimentLoop: Extension for loop-based experiments (parameter sweeps)
 - QickExperiment2D: Extension for 2D parameter sweeps (e.g., parameter vs. time)
 - QickExperiment2DSimple: Simplified version of 2D experiments
+- QickExperiment2DSweep: Extension for 2D parameter sweeps with a different analysis method
 
 These classes work with the QickProgram classes to implement complete quantum experiments.
 """
@@ -156,8 +157,8 @@ class QickExperiment(Experiment):
         iq = iq_list[0][0]
         amps = np.abs(iq.dot([1, 1j]))
         phases = np.angle(iq.dot([1, 1j]))
-        avgi = np.squeeze(iq[, 0])
-        avgq = np.squeeze(iq[, 1])
+        avgi = np.squeeze(iq[..., 0])
+        avgq = np.squeeze(iq[..., 1])
 
         # Generate histogram if requested
         if get_hist:
@@ -1179,6 +1180,12 @@ class QickExperiment2DSimple(QickExperiment2D):
 
 
 class QickExperiment2DSweep(QickExperiment):
+    """
+    Extension of QickExperiment for 2D parameter sweeps with a different analysis method.
+
+    This class implements experiments where two parameters are swept, similar to QickExperiment2D,
+    but it uses a different analysis method for fitting the 2D data.
+    """
 
     def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
         """

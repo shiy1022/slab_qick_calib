@@ -17,7 +17,7 @@ from qick.asm_v2 import QickSweep1D
 from qick import *
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2DSweep
+from gen.qick_experiment import QickExperiment2DSweep
 from gen.qick_program import QickProgram
 
 import fitting as fitter

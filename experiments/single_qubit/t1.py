@@ -1,4 +1,3 @@
-from datetime import datetime
 import numpy as np
 from qick import *
 from qick.asm_v2 import QickSweep1D

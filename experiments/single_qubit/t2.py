@@ -4,9 +4,10 @@ T2 Measurement Module
 This module implements T2 (dephasing time) measurements for superconducting qubits.
 T2 is a measure of how long a qubit maintains phase coherence in the x-y plane of the Bloch sphere.
 
-The module supports two main measurement protocols:
+The module supports three main measurement protocols:
 1. Ramsey: Uses two π/2 pulses separated by a variable delay time
 2. Echo: Uses two π/2 pulses with one or more π pulses in between to refocus dephasing
+3. CPMG: Uses a sequence of π pulses to dynamically decouple the qubit from the environment
 
 Additional features include:
 - AC Stark shift measurements during Ramsey experiments
@@ -26,11 +27,12 @@ from exp_handling.datamanagement import AttrDict
 
 class T2Program(QickProgram):
     """
-    Quantum program for T2 measurements (Ramsey and Echo protocols).
+    Quantum program for T2 measurements (Ramsey, Echo, and CPMG protocols).
 
     This class defines the pulse sequences for T2 measurements:
     - Ramsey: π/2 - wait - π/2 sequence to measure phase coherence
     - Echo: π/2 - wait - π - wait - π/2 sequence to refocus dephasing
+    - CPMG: π/2 - (wait - π)^n - wait - π/2 sequence for dynamical decoupling
 
     Additional options include AC Stark shift during wait time and EF transition measurements.
     """
@@ -52,7 +54,7 @@ class T2Program(QickProgram):
 
         Creates the necessary pulses for T2 measurements:
         - Two π/2 pulses (prep and read)
-        - Optional π pulse(s) for Echo
+        - Optional π pulse(s) for Echo and CPMG
         - Optional AC Stark pulse for Ramsey with AC Stark shift
 
         Args:
@@ -189,11 +191,11 @@ class T2Program(QickProgram):
 
 class T2Experiment(QickExperiment):
     """
-    T2 Experiment - Supports both Ramsey and Echo protocols
+    T2 Experiment - Supports Ramsey, Echo, and CPMG protocols
 
     Experimental Config for Ramsey:
     expt = dict(
-        experiment_type: "ramsey" or "echo"
+        experiment_type: "ramsey", "echo", or "cpmg"
         start: total wait time b/w the two pi/2 pulses start sweep [us]
         span: total increment of wait time across experiments [us]
         expts: number experiments stepping from start
