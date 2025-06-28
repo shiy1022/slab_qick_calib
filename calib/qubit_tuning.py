@@ -755,6 +755,10 @@ def meas_opt(
             if do_res and do_more:
                 run_res(cfg_dict, qi)
 
+        
+        shot=meas.HistogramExperiment(cfg_dict, qi=qi)
+        shot.update(cfg_path)
+
 
 def run_res(cfg_dict, qi):
     """

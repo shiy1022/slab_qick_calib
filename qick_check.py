@@ -11,6 +11,57 @@ from . import config
 import numpy as np
 
 
+def get_dac_ch_name(soc, gen_ch):
+    """Gets the name of a DAC channel."""
+    dac_ch_str = soc['gens'][gen_ch]['dac']
+    tile, block = [int(c) for c in dac_ch_str]
+    if soc['board']=='RFSoC4x2':
+        return {'00': 'DAC_B', '20': 'DAC_A'}.get(dac_ch_str, f"DAC_{dac_ch_str}")
+    elif soc['board']=='ZCU111':
+        return "DAC%d_T%d_CH%d or RF board output %d" % (tile + 228, tile, block, tile*4 + block)
+    elif soc['board']=='ZCU216':
+        return "%d_%d, on JHC%d" % (block, tile + 228, 1 + (block%2) + 2*(tile//2))
+    return f"DAC_{dac_ch_str}"
+
+def get_adc_ch_name(soc, ro_ch):
+    """Gets the name of an ADC channel."""
+    adc_ch_str = soc['readouts'][ro_ch]['adc']
+    tile, block = [int(c) for c in adc_ch_str]
+    if soc['board']=='RFSoC4x2':
+        return {'00': 'ADC_D', '02': 'ADC_C', '20': 'ADC_B', '21': 'ADC_A'}.get(adc_ch_str, f"ADC_{adc_ch_str}")
+    elif soc['board']=='ZCU111':
+        rfbtype = "DC" if tile > 1 else "AC"
+        return "ADC%d_T%d_CH%d or RF board %s input %d" % (tile + 224, tile, block//2, rfbtype, (tile%2)*2 + block//2)
+    elif soc['board']=='ZCU216':
+        return "%d_%d, on JHC%d" % (block, tile + 224, 5 + (block%2) + 2*(tile//2))
+    return f"ADC_{adc_ch_str}"
+
+def get_ch(soc, name, type='dac'):
+    """
+    Get the channel number for a given DAC or ADC name.
+    """
+    if type == 'dac':
+        for i in range(len(soc['gens'])):
+            if name in get_dac_ch_name(soc, i):
+                return i
+    elif type == 'adc':
+        for i in range(len(soc['readouts'])):
+            if name in get_adc_ch_name(soc, i):
+                return i
+    return None
+
+def print_dac_channels(soc):
+    """Prints the available DAC channels and their names."""
+    print("DAC Channels:")
+    for i in range(len(soc['gens'])):
+        print(f"  {i}: {get_dac_ch_name(soc, i)}")
+
+def print_adc_channels(soc):
+    """Prints the available ADC channels and their names."""
+    print("ADC Channels:")
+    for i in range(len(soc['readouts'])):
+        print(f"  {i}: {get_adc_ch_name(soc, i)}")
+
 def check_freqs(i, cfg_dict):
     """
     Check qubit frequencies for potential aliasing issues and validate configuration.

@@ -164,14 +164,16 @@ def update_config(
     # Format the value
     value = format_value(value, sig, rng_vals)
 
-    # Split the path into components
-    path_parts = path.split(".")
+    if path is not None:
+        # Split the path into components
+        path_parts = path.split(".")
 
-    # Navigate to the target section
-    section = cfg
-    for part in path_parts:
-        section = section[part]
-
+        # Navigate to the target section
+        section = cfg
+        for part in path_parts:
+            section = section[part]
+    else:
+        section = cfg
     # Update the value
     if isinstance(field, tuple):  # For nested fields
         v = recursive_get(section, field)
@@ -502,3 +504,58 @@ def save_single_qubit_config(file_name, qubit_index, new_file_name):
         modified_file.write(cfg_yaml)
 
     return AttrDict(single_qubit_cfg)
+
+
+def init_model_config(file_name, num_qubits):
+    """
+    Initialize a model configuration file for quantum experiments with qubits.
+
+    Args:
+        file_name: Path to save the configuration
+        num_qubits: Number of qubits to configure
+
+    Returns:
+        The created configuration
+    """
+
+    # Create a helper function to initialize arrays
+    def init_array(value, length=num_qubits):
+        """Create an array with the same value repeated."""
+        return [value] * length
+
+    # Initialize the configuration structure
+    auto_cfg = {
+        "nqubits": num_qubits,
+        "Ec": init_array(None),
+        "Ej": init_array(None),
+        "Delta": init_array(None),
+        "Sum": init_array(None),
+        "alpha": init_array(None),
+        "T1_purcell": init_array(None),
+        "T1_mean": init_array(None),
+        "T1_max": init_array(None),
+        "T2E_mean": init_array(None),
+        "T2E_max": init_array(None),
+        "T2R_mean": init_array(None),
+        "T2R_max": init_array(None),
+        "T1mean_nopurcell": init_array(None),
+        "T1max_nopurcell": init_array(None),
+        "g_lamb": init_array(None),
+        "g_chi": init_array(None),
+        "kappa_low": init_array(None),
+        "Q1_mean": init_array(None),
+        "Q1_max": init_array(None),
+        "ratio": init_array(None),
+        "ng": init_array(None),
+        "Q1": init_array(None),
+        "T1_nopurcell": init_array(None),
+        "Tphi": init_array(None),
+    }
+
+    # Convert to YAML and save
+    cfg_yaml = yaml.safe_dump(auto_cfg, default_flow_style=None)
+    new_file_name = f"{file_name[0:-4]}_model.yml"
+    with open(new_file_name, "w") as modified_file:
+        modified_file.write(cfg_yaml)
+
+    return cfg_yaml

@@ -113,15 +113,6 @@ class T1Program(QickProgram):
         # Measure the qubit state
         super().measure(cfg)
 
-    def reset(self, i):
-        """
-        Reset the program state for the next iteration
-
-        Args:
-            i: Current iteration index
-        """
-        super().reset(i)
-
 
 class T1Experiment(QickExperiment):
     """
