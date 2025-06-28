@@ -12,14 +12,15 @@ The module includes:
 """
 
 import numpy as np
-from qick import *
 import matplotlib.pyplot as plt
-from exp_handling.datamanagement import AttrDict
-from ...gen.qick_experiment import QickExperiment, QickExperiment2DSweep
-from ...gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
+from qick import *
 
-from ... import fitting as fitter
+from exp_handling.datamanagement import AttrDict
+from gen.qick_experiment import QickExperiment, QickExperiment2DSweep
+from gen.qick_program import QickProgram
+
+import fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):

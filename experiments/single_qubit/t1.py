@@ -1,13 +1,13 @@
+from datetime import datetime
 import numpy as np
 from qick import *
+from qick.asm_v2 import QickSweep1D
 
-from ...exp_handling.datamanagement import AttrDict
-from datetime import datetime
-from ... import fitting as fitter
+import config
+import fitting as fitter
+from exp_handling.datamanagement import AttrDict
 from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
 from gen.qick_program import QickProgram
-from qick.asm_v2 import QickSweep1D
-import slab_qick_calib.config as config
 
 """
 T1 Experiment Module

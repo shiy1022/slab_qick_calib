@@ -3,8 +3,9 @@ import numpy as np
 from qick import *
 import seaborn as sns
 from tqdm import tqdm_notebook as tqdm
-from ...gen.qick_experiment import QickExperiment
-from ... import experiments as meas, config
+from gen.qick_experiment import QickExperiment
+import experiments as meas
+import config
 
 blue = "#4053d3"
 red = "#b51d14"

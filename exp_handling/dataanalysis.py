@@ -5,35 +5,33 @@ Created on Sat Jul 30 14:04:03 2011
 @author: Dave
 """
 
-import numpy as np
-
-# from guiqwt.pyplot import *
 import glob
 import os.path
-from scipy.signal import decimate
-from numpy import (
-    argsort,
-    genfromtxt,
-    loadtxt,
-    array,
-    transpose,
-    pi,
-    cos,
-    sin,
-    arctan2,
-    convolve,
-    sqrt,
-    ones,
-    zeros,
-    arange,
-)
-import dateutil
 import time
-
-# import inspect
-from .datamanagement import get_script
+import dateutil
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+from numpy import (
+    arange,
+    array,
+    argsort,
+    cos,
+    convolve,
+    genfromtxt,
+    loadtxt,
+    ones,
+    pi,
+    sin,
+    sqrt,
+    transpose,
+    zeros,
+    arctan2,
+)
+from scipy.signal import decimate
+
+
+from .datamanagement import get_script
 
 ###################################################
 

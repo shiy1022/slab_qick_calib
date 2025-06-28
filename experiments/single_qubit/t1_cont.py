@@ -19,16 +19,14 @@ This is particularly useful for studying T1 fluctuations and environmental effec
 
 import numpy as np
 from qick import *
+import matplotlib.pyplot as plt
+from datetime import datetime
 
 from exp_handling.datamanagement import AttrDict
-from datetime import datetime
-from ... import fitting as fitter
-from ...gen.qick_experiment import QickExperiment, QickExperiment2D
-from ...gen.qick_program import QickProgram
-from qick.asm_v2 import QickSweep1D
-import matplotlib.pyplot as plt
-from ...exp_handling.datamanagement import AttrDict
-from ...analysis import time_series
+from gen.qick_experiment import QickExperiment, QickExperiment2D
+from gen.qick_program import QickProgram
+from exp_handling.datamanagement import AttrDict
+from analysis import time_series
 
 
 class T1ContProgram(QickProgram):

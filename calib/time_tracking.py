@@ -1,17 +1,12 @@
-# Standard library imports
 import os
 import time
-from datetime import datetime
-
-# Third-party imports
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Local imports
-from ..experiments import single_qubit as meas
-from .. import config
-from . import tuneup
 from copy import deepcopy
+from datetime import datetime
+import matplotlib.pyplot as plt
+import numpy as np
+
+from .. import config
+from ..experiments import single_qubit as meas
 from . import qubit_tuning
 
 # Configure matplotlib

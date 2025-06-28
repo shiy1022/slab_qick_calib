@@ -1,11 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from datetime import datetime
+import warnings
+
 from qick import *
 
 from exp_handling.experiment import Experiment
-from datetime import datetime
-from .. import fitting as fitter
-import warnings
+import fitting as fitter
 
 
 class QickExperiment2Q(Experiment):

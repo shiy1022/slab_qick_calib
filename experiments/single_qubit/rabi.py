@@ -16,18 +16,18 @@ The module includes:
 import copy
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.optimize import curve_fit
 from qick import *
 from qick.asm_v2 import QickSweep1D
-from scipy.optimize import curve_fit
 
-from exp_handling.datamanagement import AttrDict
-from ...gen.qick_experiment import (
+import fitting as fitter
+from gen.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
-from ...gen.qick_program import QickProgram
-from ... import fitting as fitter
+from gen.qick_program import QickProgram
+from exp_handling.datamanagement import AttrDict
 
 # ====================================================== #
 

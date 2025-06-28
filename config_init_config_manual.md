@@ -179,9 +179,9 @@ In `t1.py`, the delay after a π pulse is swept to measure the energy relaxation
 ```python
 # From T1Experiment class in t1.py
 params_def = {
-    # ...
+    # 
     "span": 3.7 * self.cfg.device.qubit.T1[qi],  # Total span of wait times (μs), set to ~3.7*T1
-    # ...
+    # 
 }
 ```
 

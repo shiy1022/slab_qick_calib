@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from qick import *
-
-from ...gen.qick_experiment import QickExperiment2DSimple, QickExperiment
-from ... import experiments as meas
-from qick.asm_v2 import QickSweep1D
 from scipy.optimize import curve_fit
 
-from ... import fitting as fitter
+from qick import *
+from qick.asm_v2 import QickSweep1D
+
+from gen.qick_experiment import QickExperiment2DSimple, QickExperiment
+import experiments as meas
+import fitting as fitter
 
 
 class RamseyStarkExperiment(QickExperiment):

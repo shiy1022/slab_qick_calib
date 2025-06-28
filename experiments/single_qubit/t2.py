@@ -16,12 +16,12 @@ Additional features include:
 
 import numpy as np
 from qick import *
-
-from exp_handling.datamanagement import AttrDict
-from ...gen.qick_experiment import QickExperiment
-from ... import fitting as fitter
-from ...gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
+
+import fitting as fitter
+from gen.qick_experiment import QickExperiment
+from gen.qick_program import QickProgram
+from exp_handling.datamanagement import AttrDict
 
 
 class T2Program(QickProgram):

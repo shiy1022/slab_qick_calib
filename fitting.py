@@ -182,8 +182,8 @@ def get_best_fit(
     data: Dict[str, Any],
     fitfunc: Optional[Callable] = None,
     prefixes: List[str] = ["fit"],
-    check_measures: Tuple[str, ...] = ("amps", "avgi", "avgq"),
-    get_best_data_params: Tuple[str, ...] = (),
+    check_measures: Tuple[str,] = ("amps", "avgi", "avgq"),
+    get_best_data_params: Tuple[str,] = (),
     override: Optional[str] = None,
 ) -> List[Any]:
     """
@@ -250,7 +250,7 @@ def _find_best_fit_with_r2(
     data: Dict[str, Any],
     fits: List[Any],
     fit_errors: List[np.ndarray],
-    check_measures: Tuple[str, ...],
+    check_measures: Tuple[str,],
     fitfunc: Callable,
 ) -> int:
     """

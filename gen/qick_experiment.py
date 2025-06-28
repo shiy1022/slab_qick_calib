@@ -1,15 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from qick import *
-from ..exp_handling.experiment import Experiment
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
-from .. import fitting as fitter
-from ..calib import readout_helpers as helpers
 import time
-from scipy.optimize import curve_fit
 from pathlib import Path
+from scipy.optimize import curve_fit
 
+from qick import *
+
+from exp_handling.experiment import Experiment
+import fitting as fitter
+from calib import readout_helpers as helpers
 
 """
 QICK Experiment Module
@@ -155,8 +156,8 @@ class QickExperiment(Experiment):
         iq = iq_list[0][0]
         amps = np.abs(iq.dot([1, 1j]))
         phases = np.angle(iq.dot([1, 1j]))
-        avgi = np.squeeze(iq[..., 0])
-        avgq = np.squeeze(iq[..., 1])
+        avgi = np.squeeze(iq[, 0])
+        avgq = np.squeeze(iq[, 1])
 
         # Generate histogram if requested
         if get_hist:

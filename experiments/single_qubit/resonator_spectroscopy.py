@@ -22,17 +22,18 @@ import copy
 
 from qick import *
 from qick.asm_v2 import QickSweep1D
-from ...exp_handling.datamanagement import AttrDict
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
-from ...gen.qick_experiment import (
+
+from exp_handling.datamanagement import AttrDict
+from gen.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
-from ...gen.qick_program import QickProgram
-from ... import fitting as fitter
-from ... import config
+from gen.qick_program import QickProgram
+import fitting as fitter
+import config
 
 
 def generate_filename(experiment_type, qubit_idx, style=None, state=None, extra=None):

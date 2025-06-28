@@ -12,19 +12,13 @@ It includes functionality for:
 The module is designed to work with the QICK (Quantum Instrumentation Control Kit) framework.
 """
 
-# Standard library imports
-import os
-import time
 from datetime import datetime
-
-# Third-party imports
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-# Local imports
-from ..experiments import single_qubit as meas
 from .. import config
 from . import tuneup
+from ..experiments import single_qubit as meas
 
 # Configure matplotlib
 plt.rcParams["legend.handlelength"] = 0.5

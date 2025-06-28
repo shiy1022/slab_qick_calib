@@ -1,15 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from qick import *
-import copy
-import seaborn as sns
-from ...exp_handling.datamanagement import AttrDict
-from tqdm import tqdm
-from ...gen.qick_experiment import QickExperiment
-from gen.qick_program import QickProgram
 from scipy.optimize import curve_fit
 from scipy.special import erf
 from copy import deepcopy
+import copy
+import seaborn as sns
+
+from qick import *
+from exp_handling.datamanagement import AttrDict
+from gen.qick_experiment import QickExperiment
+from gen.qick_program import QickProgram
+
 
 blue = "#4053d3"
 red = "#b51d14"

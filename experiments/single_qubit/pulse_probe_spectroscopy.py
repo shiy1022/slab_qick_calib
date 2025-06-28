@@ -17,13 +17,12 @@ the qubit spectrum as a function of probe power.
 
 import numpy as np
 from qick import *
-
-from exp_handling.datamanagement import AttrDict
-from ...gen.qick_experiment import QickExperiment, QickExperiment2DSimple
-from ...gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
-from ... import fitting as fitter
+from exp_handling.datamanagement import AttrDict
+from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
+from gen.qick_program import QickProgram
+import fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):

@@ -4,17 +4,17 @@ from qick import *
 import time
 from tqdm import tqdm_notebook as tqdm
 import copy
-from ... import fitting as fitter
-from ...gen.qick_experiment import (
+import fitting as fitter
+from gen.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
 import seaborn as sns
-from ...gen.qick_program import QickProgram
-from ...exp_handling.datamanagement import AttrDict
+from gen.qick_program import QickProgram
+from exp_handling.datamanagement import AttrDict
 from qick.asm_v2 import QickSweep1D
-from ... import experiments as meas
+import experiments as meas
 from copy import deepcopy
 
 

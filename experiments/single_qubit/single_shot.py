@@ -24,12 +24,12 @@ import numpy as np
 from qick import *
 import copy
 import seaborn as sns
-from ...exp_handling.datamanagement import AttrDict
-from ...gen.qick_experiment import QickExperiment
-from ...gen.qick_program import QickProgram
+from exp_handling.datamanagement import AttrDict
+from gen.qick_experiment import QickExperiment
+from gen.qick_program import QickProgram
 
-from ... import config
-from ...calib import readout_helpers as helpers
+import config
+from calib import readout_helpers as helpers
 
 # Standard colors for plotting
 BLUE = "#4053d3"  # Color for ground state
