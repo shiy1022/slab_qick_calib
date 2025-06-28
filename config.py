@@ -501,8 +501,7 @@ def init_model_config(file_name, num_qubits):
         return [value] * length
     
     # Initialize the configuration structure
-    device = {
-        "qubit": {
+    auto_cfg = {
             "nqubits": num_qubits,
             "Ec": init_array(None),
             "Ej": init_array(None),
@@ -523,13 +522,14 @@ def init_model_config(file_name, num_qubits):
             "kappa_low": init_array(None),
             "Q1_mean": init_array(None),
             "Q1_max": init_array(None),
-        }
+            "ratio": init_array(None),
+            "ng": init_array(None),
+            "Q1": init_array(None),
+            "T1_nopurcell": init_array(None),
+            "Tphi": init_array(None),
     }
     
-    # Assemble the complete configuration
-    auto_cfg = {
-        "device": device, 
-    }
+
     
     # Convert to YAML and save
     cfg_yaml = yaml.safe_dump(auto_cfg, default_flow_style=None)
