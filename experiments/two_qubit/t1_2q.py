@@ -1,11 +1,11 @@
 import numpy as np
 from qick import *
 
-from exp_handling.datamanagement import AttrDict
+from ...exp_handling.datamanagement import AttrDict
 from datetime import datetime
-import slab_qick_calib.fitting as fitter
-from gen.qick_experiment_2q import QickExperiment2Q
-from gen.qick_program import QickProgram2Q
+from ... import fitting as fitter
+from ...gen.qick_experiment_2q import QickExperiment2Q
+from ...gen.qick_program import QickProgram2Q
 from qick.asm_v2 import QickSweep1D
 
 
@@ -18,13 +18,11 @@ class T1_2Q_Program(QickProgram2Q):
 
         super()._initialize(cfg, readout="standard")
         for i, q in enumerate(cfg.expt.qubit):
-            super().make_pi_pulse(
-                cfg.expt.qubit[i],i, cfg.device.qubit.f_ge, "pi_ge"
-            )
-            
+            super().make_pi_pulse(cfg.expt.qubit[i], i, cfg.device.qubit.f_ge, "pi_ge")
+
             if cfg.expt.acStark:
                 pulse = {
-                    "sigma": cfg.expt[f'wait_time_stark_{i}'],
+                    "sigma": cfg.expt[f"wait_time_stark_{i}"],
                     "sigma_inc": 0,
                     "freq": cfg.expt.stark_freq[i],
                     "gain": cfg.expt.stark_gain[i],
@@ -32,7 +30,7 @@ class T1_2Q_Program(QickProgram2Q):
                     "type": "const",
                 }
                 super().make_pulse(pulse, f"stark_pulse_{i}")
-        
+
         self.add_loop("wait_loop", cfg.expt.expts)
 
     def _body(self, cfg):
@@ -41,26 +39,34 @@ class T1_2Q_Program(QickProgram2Q):
         for q in range(len(cfg.expt.qubit)):
             self.send_readoutconfig(ch=self.adc_ch[q], name=f"readout_{q}", t=0)
         if cfg.expt.span[0] > cfg.expt.span[1]:
-            q_order = [0,1]
+            q_order = [0, 1]
         else:
-            q_order = [1,0]
+            q_order = [1, 0]
         # check if delay vs delay_auto handle pulse time differently -- I think they should be different
         q = q_order[0]
         self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
 
         if cfg.expt.acStark:
             q = q_order[0]
-            self.delay(t=cfg.device.qubit.pulses.pi_ge.sigma[cfg.expt.qubit[q]]*cfg.device.qubit.pulses.pi_ge.sigma_inc[cfg.expt.qubit[q]], tag=f"wait_stark_{q}")
-            self.pulse(ch=self.qubit_ch, name=f"stark_pulse_{q}", t=0) # length is T1 0 
+            self.delay(
+                t=cfg.device.qubit.pulses.pi_ge.sigma[cfg.expt.qubit[q]]
+                * cfg.device.qubit.pulses.pi_ge.sigma_inc[cfg.expt.qubit[q]],
+                tag=f"wait_stark_{q}",
+            )
+            self.pulse(ch=self.qubit_ch, name=f"stark_pulse_{q}", t=0)  # length is T1 0
             self.delay(t=cfg.expt[f"wait_time_{q}"], tag=f"wait_{q}")
-            q=q_order[1]
+            q = q_order[1]
             self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
-            self.delay(t=cfg.device.qubit.pulses.pi_ge.sigma[cfg.expt.qubit[q]]*cfg.device.qubit.pulses.pi_ge.sigma_inc[cfg.expt.qubit[q]], tag=f"wait_stark_{q}")
-            self.pulse(ch=self.qubit_ch, name=f"stark_pulse_{q}", t=0) # length is T1 0 
+            self.delay(
+                t=cfg.device.qubit.pulses.pi_ge.sigma[cfg.expt.qubit[q]]
+                * cfg.device.qubit.pulses.pi_ge.sigma_inc[cfg.expt.qubit[q]],
+                tag=f"wait_stark_{q}",
+            )
+            self.pulse(ch=self.qubit_ch, name=f"stark_pulse_{q}", t=0)  # length is T1 0
             self.delay(t=cfg.expt[f"wait_time_{q}"], tag=f"wait_{q}")
         else:
             self.delay(t=cfg.expt[f"wait_time_{q}"] + 0.01, tag=f"wait_{q}")
-            q=q_order[1]
+            q = q_order[1]
             self.pulse(ch=self.qubit_ch[q], name=f"pi_ge_{q}", t=0)
             self.delay_auto(t=cfg.expt[f"wait_time_{q}"] + 0.01, tag=f"wait_{q}")
 
@@ -68,15 +74,16 @@ class T1_2Q_Program(QickProgram2Q):
             self.pulse(ch=self.res_ch[q], name=f"readout_pulse_{q}", t=0)
             if self.lo_ch[q] is not None:
                 self.pulse(ch=self.lo_ch[q], name=f"mix_pulse_{q}", t=0.0)
-            self.trigger(ros=[self.adc_ch[q]], pins=[0],t=self.trig_offset[q])
+            self.trigger(ros=[self.adc_ch[q]], pins=[0], t=self.trig_offset[q])
         if cfg.expt.active_reset:
             self.reset(3)
 
-    def collect_shots(self, offset=[0,0]):
+    def collect_shots(self, offset=[0, 0]):
         return super().collect_shots(offset=offset)
-    
+
     def reset(self, i):
         super().reset(i)
+
 
 class T1_2Q(QickExperiment2Q):
     """
@@ -93,7 +100,7 @@ class T1_2Q(QickExperiment2Q):
     def __init__(
         self,
         cfg_dict,
-        qi=[0,1],
+        qi=[0, 1],
         go=True,
         params={},
         prefix=None,
@@ -105,7 +112,7 @@ class T1_2Q(QickExperiment2Q):
 
         if prefix is None:
             prefix = "t1"
-            for q in qi: 
+            for q in qi:
                 prefix += f"_Q{q}"
 
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
@@ -115,13 +122,13 @@ class T1_2Q(QickExperiment2Q):
             "soft_avgs": self.soft_avgs,
             "expts": 60,
             "start": 1,
-            "span": [3.7*self.cfg.device.qubit.T1[q] for q in qi],
+            "span": [3.7 * self.cfg.device.qubit.T1[q] for q in qi],
             "acStark": False,
-            'active_reset': [self.cfg.device.readout.active_reset[q] for q in qi],
+            "active_reset": [self.cfg.device.readout.active_reset[q] for q in qi],
             "qubit": qi,
             "qubit_chan": [self.cfg.hw.soc.adcs.readout.ch[q] for q in qi],
         }
-        params_def['active_reset']=np.all(params_def['active_reset'])
+        params_def["active_reset"] = np.all(params_def["active_reset"])
         # We assume the first T1 is longer
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
@@ -137,31 +144,57 @@ class T1_2Q(QickExperiment2Q):
 
     def acquire(self, progress=False, debug=False):
         self.param = []
-        for i in range(len(self.cfg.expt.qubit)):            
-            self.param.append({"label": f"wait_{i}", "param": "t", "param_type": "time"})
+        for i in range(len(self.cfg.expt.qubit)):
+            self.param.append(
+                {"label": f"wait_{i}", "param": "t", "param_type": "time"}
+            )
         span_diff = self.cfg.expt.span[0] - self.cfg.expt.span[1]
         # self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
         if span_diff > 0:
-            pulse_wait_time = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+            pulse_wait_time = (
+                self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]
+                * self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+            )
             self.cfg.expt.wait_time_0 = QickSweep1D(
-                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + np.absolute(span_diff)
-            -pulse_wait_time)
+                "wait_loop",
+                self.cfg.expt.start,
+                self.cfg.expt.start + np.absolute(span_diff) - pulse_wait_time,
+            )
             self.cfg.expt.wait_time_1 = QickSweep1D(
-                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span[1]
+                "wait_loop",
+                self.cfg.expt.start,
+                self.cfg.expt.start + self.cfg.expt.span[1],
             )
         else:
-            pulse_wait_time = self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
-            self.cfg.expt.wait_time_1 = QickSweep1D(
-                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + np.absolute(span_diff)
-            -pulse_wait_time)
-            self.cfg.expt.wait_time_0 = QickSweep1D(
-                "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span[0]
+            pulse_wait_time = (
+                self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]
+                * self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
             )
-        data=super().acquire(T1_2Q_Program, progress=progress)
+            self.cfg.expt.wait_time_1 = QickSweep1D(
+                "wait_loop",
+                self.cfg.expt.start,
+                self.cfg.expt.start + np.absolute(span_diff) - pulse_wait_time,
+            )
+            self.cfg.expt.wait_time_0 = QickSweep1D(
+                "wait_loop",
+                self.cfg.expt.start,
+                self.cfg.expt.start + self.cfg.expt.span[0],
+            )
+        data = super().acquire(T1_2Q_Program, progress=progress)
         if span_diff > 0:
-            data["xpts"][0]=data['xpts'][0]+data['xpts'][1]+self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+            data["xpts"][0] = (
+                data["xpts"][0]
+                + data["xpts"][1]
+                + self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[1]]
+                * self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[1]]
+            )
         else:
-            data["xpts"][1]=data['xpts'][0]+data['xpts'][1]+self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]*self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
+            data["xpts"][1] = (
+                data["xpts"][0]
+                + data["xpts"][1]
+                + self.cfg.device.qubit.pulses.pi_ge.sigma[self.cfg.expt.qubit[0]]
+                * self.cfg.device.qubit.pulses.pi_ge.sigma_inc[self.cfg.expt.qubit[0]]
+            )
 
         return self.data
 
@@ -173,20 +206,19 @@ class T1_2Q(QickExperiment2Q):
         fitfunc = fitter.expfunc
         fitterfunc = fitter.fitexp
         super().analyze(fitfunc, fitterfunc, data, **kwargs)
-        #data["new_t1"] = data["best_fit"][2]
-        #data["new_t1_i"] = data["fit_avgi"][2]
+        # data["new_t1"] = data["best_fit"][2]
+        # data["new_t1_i"] = data["fit_avgi"][2]
         return data
 
     def display(
         self, data=None, fit=True, plot_all=False, ax=None, show_hist=True, **kwargs
     ):
-        
+
         title = [f"$T_1$ Q{q}" for q in self.cfg.expt.qubit]
         xlabel = "Wait Time ($\mu$s)"
 
-
         caption_params = [
-            {"index": 2, "format": "$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"},           
+            {"index": 2, "format": "$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"},
         ]
         fitfunc = fitter.expfunc
 

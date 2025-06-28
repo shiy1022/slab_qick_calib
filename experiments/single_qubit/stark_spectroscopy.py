@@ -2,7 +2,7 @@
 Stark Spectroscopy Experiment
 
 This module implements AC Stark spectroscopy experiments for qubit characterization.
-Stark spectroscopy measures the shift in qubit frequency due to the presence of a 
+Stark spectroscopy measures the shift in qubit frequency due to the presence of a
 drive field (Stark pulse) applied to the readout resonator. This allows measurement
 of the dispersive shift and other qubit-resonator coupling parameters.
 
@@ -15,26 +15,27 @@ import numpy as np
 from qick import *
 import matplotlib.pyplot as plt
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2DSweep
-from gen.qick_program import QickProgram
+from ...gen.qick_experiment import QickExperiment, QickExperiment2DSweep
+from ...gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
-import slab_qick_calib.fitting as fitter
+from ... import fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):
     """
     Defines the pulse sequence for a Stark spectroscopy experiment.
-    
+
     The sequence consists of:
     1. Simultaneous qubit pulse (variable frequency) and Stark pulse (fixed frequency)
     2. Wait time
     3. Measurement
     """
+
     def __init__(self, soccfg, final_delay, cfg):
         """
         Initialize the Stark spectroscopy program.
-        
+
         Args:
             soccfg: SOC configuration
             final_delay: Delay time after measurement
@@ -45,7 +46,7 @@ class QubitSpecProgram(QickProgram):
     def _initialize(self, cfg):
         """
         Initialize the program with the necessary pulses and loops.
-        
+
         Args:
             cfg: Configuration dictionary containing experiment parameters
         """
@@ -74,7 +75,7 @@ class QubitSpecProgram(QickProgram):
             "phase": 0,
         }
         super().make_pulse(stark_pulse, "stark_pulse")
-        
+
         # Add sweep loops for Stark gain and qubit frequency
         self.add_loop("stark_loop", cfg.expt.stark_expts)
         self.add_loop("freq_loop", cfg.expt.expts)
@@ -82,14 +83,14 @@ class QubitSpecProgram(QickProgram):
     def _body(self, cfg):
         """
         Define the main body of the experiment sequence.
-        
+
         Args:
             cfg: Configuration dictionary containing experiment parameters
         """
         cfg = AttrDict(self.cfg)
-        
+
         # Configure readout
-        if self.adc_type == 'dyn':
+        if self.adc_type == "dyn":
             self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # Apply qubit and Stark pulses simultaneously
@@ -98,7 +99,7 @@ class QubitSpecProgram(QickProgram):
 
         # Wait before measurement
         self.delay_auto(t=0.01, tag="wait")
-        
+
         # Perform measurement
         super().measure(cfg)
 
@@ -106,11 +107,11 @@ class QubitSpecProgram(QickProgram):
 class StarkSpec(QickExperiment2DSweep):
     """
     Main experiment class for Stark spectroscopy.
-    
+
     This class implements Stark spectroscopy by sweeping the qubit frequency while
     applying a Stark pulse to the readout resonator. The Stark pulse shifts the qubit
     frequency due to the AC Stark effect, allowing measurement of the dispersive shift.
-    
+
     Parameters:
     - 'start': Start frequency for qubit sweep (MHz)
     - 'span': Frequency span for qubit sweep (MHz)
@@ -126,7 +127,7 @@ class StarkSpec(QickExperiment2DSweep):
     - 'reps': Number of repetitions
     - 'soft_avgs': Number of software averages
     - 'active_reset': Whether to use active reset
-    
+
     The style parameter can be:
     - 'huge': Very wide frequency span with high power
     - 'coarse': Wide frequency span with medium power
@@ -149,7 +150,7 @@ class StarkSpec(QickExperiment2DSweep):
     ):
         """
         Initialize the Stark spectroscopy experiment.
-        
+
         Args:
             cfg_dict: Configuration dictionary
             qi: Qubit index
@@ -163,7 +164,7 @@ class StarkSpec(QickExperiment2DSweep):
             max_err: Maximum error for fit quality
         """
         # Currently no control of readout time; may want to change for simultaneious readout
-        
+
         # Set prefix for data files
         prefix = f"stark_spectroscopy_{style}_qubit{qi}"
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
@@ -174,19 +175,39 @@ class StarkSpec(QickExperiment2DSweep):
         low_gain = self.cfg.device.qubit.low_gain
 
         # Set style-specific parameters
-        if style == 'huge':
+        if style == "huge":
             # Very wide frequency span with high power
-            params_def = {"gain": 80*low_gain * spec_gain, "span": 1500, "expts": 1000, "reps": self.reps}
+            params_def = {
+                "gain": 80 * low_gain * spec_gain,
+                "span": 1500,
+                "expts": 1000,
+                "reps": self.reps,
+            }
         elif style == "coarse":
             # Wide frequency span with medium power
-            params_def = {"gain": 20*low_gain * spec_gain, "span": 500, "expts": 500, "reps": self.reps}
+            params_def = {
+                "gain": 20 * low_gain * spec_gain,
+                "span": 500,
+                "expts": 500,
+                "reps": self.reps,
+            }
         elif style == "medium":
             # Medium frequency span with low power
-            params_def = {"gain": 5*low_gain * spec_gain, "span": 50, "expts": 200, "reps": self.reps}
+            params_def = {
+                "gain": 5 * low_gain * spec_gain,
+                "span": 50,
+                "expts": 200,
+                "reps": self.reps,
+            }
         elif style == "fine":
             # Narrow frequency span with very low power
-            params_def = {"gain": low_gain * spec_gain, "span": 5, "expts": 100, "reps": 2*self.reps}
-        
+            params_def = {
+                "gain": low_gain * spec_gain,
+                "span": 5,
+                "expts": 100,
+                "reps": 2 * self.reps,
+            }
+
         # Additional default parameters
         params_def2 = {
             "soft_avgs": self.soft_avgs,
@@ -196,7 +217,7 @@ class StarkSpec(QickExperiment2DSweep):
             "df_stark": 0,
             "max_stark_gain": 1,
             "min_stark_gain": 0,
-            'df':0,
+            "df": 0,
             "stark_rng": 15,
             "pulse_type": "const",
             "qubit": [qi],
@@ -209,11 +230,15 @@ class StarkSpec(QickExperiment2DSweep):
         params = {**params_def, **params}
 
         # Calculate start frequency
-        params_def["start"] = self.cfg.device.qubit.f_ge[qi] - params["span"] / 2 +params['df']
+        params_def["start"] = (
+            self.cfg.device.qubit.f_ge[qi] - params["span"] / 2 + params["df"]
+        )
         params = {**params_def, **params}
-        
+
         # Set Stark pulse frequency
-        params["stark_freq"] = self.cfg.device.readout.frequency[qi] + params["df_stark"]
+        params["stark_freq"] = (
+            self.cfg.device.readout.frequency[qi] + params["df_stark"]
+        )
 
         # Adjust pulse length if needed
         if params["length"] == "t1":
@@ -225,99 +250,104 @@ class StarkSpec(QickExperiment2DSweep):
 
         # Set experiment configuration
         self.cfg.expt = params
-        
+
         # Check for unexpected parameters
         super().check_params(params_def)
-    
+
         # Run the experiment if requested
         if go:
-            super().run(min_r2=min_r2, max_err=max_err, display=display, progress=progress)
+            super().run(
+                min_r2=min_r2, max_err=max_err, display=display, progress=progress
+            )
 
     def acquire(self, progress=False):
         """
         Acquire data for the Stark spectroscopy experiment.
-        
+
         Args:
             progress: Whether to show progress bar
-            
+
         Returns:
             Acquired data
         """
         # Get qubit index and set final delay
         q = self.cfg.expt.qubit[0]
         self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
-        
+
         # Set parameter to sweep
         self.param = {"label": "qubit_pulse", "param": "freq", "param_type": "pulse"}
-        
+
         # Configure frequency sweep
         self.cfg.expt.frequency = QickSweep1D(
             "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
-        
+
         # Configure Stark gain sweep
         self.cfg.expt.stark_gain = QickSweep1D(
             "stark_loop", self.cfg.expt.min_stark_gain, self.cfg.expt.max_stark_gain
         )
 
         # Acquire data using the QubitSpecProgram
-        
+
         super().acquire(QubitSpecProgram, progress=progress, get_hist=False)
-        self.data['stark_gain']=np.linspace(self.cfg.expt.max_stark_gain/self.cfg.expt.stark_rng, self.cfg.expt.max_stark_gain, self.cfg.expt.stark_expts)
-        self.data['ypts']=self.data['stark_gain']
+        self.data["stark_gain"] = np.linspace(
+            self.cfg.expt.max_stark_gain / self.cfg.expt.stark_rng,
+            self.cfg.expt.max_stark_gain,
+            self.cfg.expt.stark_expts,
+        )
+        self.data["ypts"] = self.data["stark_gain"]
         return self.data
 
     def analyze(self, data=None, fit=True, **kwargs):
         """
         Analyze the acquired data to extract qubit parameters.
-        
+
         Args:
             data: Data to analyze (if None, use self.data)
             fit: Whether to fit the data to a Lorentzian model
             **kwargs: Additional arguments for the fit
-            
+
         Returns:
             Analyzed data with fit parameters
         """
-    
+
         # Fit the data to a Lorentzian model
         self.fitterfunc = fitter.fitlor
         self.fitfunc = fitter.lorfunc
         super().analyze(self.fitfunc, self.fitterfunc, use_i=True)
 
-
         from scipy.optimize import curve_fit
 
-        f = [self.data['fit_avgi'][i][2] for i in range(len(self.data['fit_avgi']))]
+        f = [self.data["fit_avgi"][i][2] for i in range(len(self.data["fit_avgi"]))]
         # fit frequency
 
         # Fit the data
         try:
-            popt, pcov = curve_fit(quadratic, self.data['stark_gain'], f)
+            popt, pcov = curve_fit(quadratic, self.data["stark_gain"], f)
             self.popt = popt
-            Delta = self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]-self.cfg.device.readout.frequency[self.cfg.expt.qubit[0]]
-            ng2 = popt[0]/2*Delta
-            self.ng2= ng2
+            Delta = (
+                self.cfg.device.qubit.f_ge[self.cfg.expt.qubit[0]]
+                - self.cfg.device.readout.frequency[self.cfg.expt.qubit[0]]
+            )
+            ng2 = popt[0] / 2 * Delta
+            self.ng2 = ng2
             print(f"ng2: {ng2}")
-            self.f=f
+            self.f = f
         except:
             pass
-        
-        
+
         # Store the fitted qubit frequency
-#        data["new_freq"] = data["best_fit"][2]
-        
+        #        data["new_freq"] = data["best_fit"][2]
+
         return self.data
 
-    def display(
-        self, fit=True, ax=None, plot_all=True, **kwargs
-    ):
+    def display(self, fit=True, ax=None, plot_all=True, **kwargs):
         """
         Display the results of the Stark spectroscopy experiment.
-        
+
         This method is currently disabled (pass statement).
         When enabled, it would display the spectroscopy results with fit parameters.
-        
+
         Args:
             fit: Whether to show the fit
             ax: Matplotlib axis to plot on
@@ -325,15 +355,17 @@ class StarkSpec(QickExperiment2DSweep):
             **kwargs: Additional arguments for the display
         """
         # Display functionality is currently disabled
-        
-        #Example of how display could be implemented:
+
+        # Example of how display could be implemented:
         xlabel = "Qubit Frequency (MHz)"
-        
-        title = f"Stark Spectroscopy Q{self.cfg.expt.qubit[0]} (Gain {self.cfg.expt.gain})"
-        
+
+        title = (
+            f"Stark Spectroscopy Q{self.cfg.expt.qubit[0]} (Gain {self.cfg.expt.gain})"
+        )
+
         # Define which fit parameters to display in caption
         # Index 2 is frequency, index 3 is kappa
-        
+
         super().display(
             ax=ax,
             plot_all=plot_all,
@@ -346,13 +378,16 @@ class StarkSpec(QickExperiment2DSweep):
         )
 
         # Plot the fitted curve
-        x_fit = np.linspace(min(self.data['stark_gain']), max(self.data['stark_gain']), 100)
+        x_fit = np.linspace(
+            min(self.data["stark_gain"]), max(self.data["stark_gain"]), 100
+        )
         y_fit = quadratic(x_fit, *self.popt)
-        plt.plot(self.data['stark_gain'], self.f,'o')
-        plt.plot(x_fit, y_fit, label='Quadratic Fit')
+        plt.plot(self.data["stark_gain"], self.f, "o")
+        plt.plot(x_fit, y_fit, label="Quadratic Fit")
         plt.legend()
+
 
 # Define a quadratic function
 @staticmethod
 def quadratic(x, a, c):
-    return a * x**2  + c
+    return a * x**2 + c

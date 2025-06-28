@@ -19,27 +19,28 @@ import numpy as np
 from qick import *
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
-from gen.qick_program import QickProgram
+from ...gen.qick_experiment import QickExperiment, QickExperiment2DSimple
+from ...gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 
-import slab_qick_calib.fitting as fitter
+from ... import fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):
     """
     Defines the pulse sequence for a pulse probe spectroscopy experiment.
-    
+
     The sequence consists of:
     1. Optional π pulse on |g>-|e> transition (if checking EF transition)
     2. Variable frequency probe pulse
     3. Optional second π pulse on |g>-|e> transition (if checking EF transition)
     4. Measurement
     """
+
     def __init__(self, soccfg, final_delay, cfg):
         """
         Initialize the spectroscopy program.
-        
+
         Args:
             soccfg: SOC configuration
             final_delay: Delay time after measurement
@@ -50,19 +51,19 @@ class QubitSpecProgram(QickProgram):
     def _initialize(self, cfg):
         """
         Initialize the program with the necessary pulses and loops.
-        
+
         Args:
             cfg: Configuration dictionary containing experiment parameters
         """
         cfg = AttrDict(self.cfg)
-        
+
         # Get readout parameters from config
         q = cfg.expt.qubit[0]
         self.frequency = cfg.device.readout.frequency[q]
         self.gain = cfg.device.readout.gain[q]
         self.readout_length = cfg.expt.readout_length
         self.phase = cfg.device.readout.phase[q]
-        
+
         # Initialize with standard readout
         super()._initialize(cfg, readout="standard")
 
@@ -86,14 +87,14 @@ class QubitSpecProgram(QickProgram):
     def _body(self, cfg):
         """
         Define the main body of the experiment sequence.
-        
+
         Args:
             cfg: Configuration dictionary containing experiment parameters
         """
         cfg = AttrDict(self.cfg)
-        
+
         # Configure readout
-        if self.adc_type == 'dyn':
+        if self.adc_type == "dyn":
             self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # If checking EF transition, apply first pi pulse to excite |g> to |e>
@@ -103,7 +104,7 @@ class QubitSpecProgram(QickProgram):
 
         # Apply the probe pulse with variable frequency
         self.pulse(ch=self.qubit_ch, name="qubit_pulse", t=0)
-        
+
         # Add delay if separate readout is enabled
         if cfg.expt.sep_readout:
             self.delay_auto(t=0.01, tag="wait")
@@ -120,11 +121,11 @@ class QubitSpecProgram(QickProgram):
 class QubitSpec(QickExperiment):
     """
     Main experiment class for pulse probe spectroscopy.
-    
+
     This class implements pulse probe spectroscopy by sweeping the frequency of a probe pulse
     and measuring the resulting qubit state. This allows determination of the qubit transition
     frequencies (f_ge or f_ef).
-    
+
     Parameters:
     - 'start': Start frequency for the probe sweep (MHz)
     - 'span': Frequency span for the probe sweep (MHz)
@@ -139,7 +140,7 @@ class QubitSpec(QickExperiment):
     - 'readout_length': Length of the readout pulse
     - 'final_delay': Delay time between repetitions
     - 'active_reset': Whether to use active reset
-    
+
     The style parameter can be:
     - 'huge': Very wide frequency span with high power
     - 'coarse': Wide frequency span with medium power
@@ -163,7 +164,7 @@ class QubitSpec(QickExperiment):
     ):
         """
         Initialize the pulse probe spectroscopy experiment.
-        
+
         Args:
             cfg_dict: Configuration dictionary
             qi: Qubit index
@@ -177,7 +178,7 @@ class QubitSpec(QickExperiment):
             max_err: Maximum error for fit quality
         """
         # Currently no control of readout time; may want to change for simultaneious readout
-        
+
         # Set prefix based on whether we're checking EF transition
         ef = "ef_" if "checkEF" in params and params["checkEF"] else ""
         prefix = f"qubit_spectroscopy_{ef}{style}_qubit{qi}"
@@ -189,36 +190,60 @@ class QubitSpec(QickExperiment):
         low_gain = self.cfg.device.qubit.low_gain
 
         # Set style-specific parameters
-        if style == 'huge':
+        if style == "huge":
             # Very wide frequency span with high power
-            params_def = {"gain": 80*low_gain * spec_gain, "span": 1500, "expts": 1000, "reps": self.reps}
+            params_def = {
+                "gain": 80 * low_gain * spec_gain,
+                "span": 1500,
+                "expts": 1000,
+                "reps": self.reps,
+            }
         elif style == "coarse":
             # Wide frequency span with medium power
-            params_def = {"gain": 20*low_gain * spec_gain, "span": 500, "expts": 500, "reps": self.reps}
+            params_def = {
+                "gain": 20 * low_gain * spec_gain,
+                "span": 500,
+                "expts": 500,
+                "reps": self.reps,
+            }
         elif style == "medium":
             # Medium frequency span with low power
-            params_def = {"gain": 5*low_gain * spec_gain, "span": 50, "expts": 200, "reps": self.reps}
+            params_def = {
+                "gain": 5 * low_gain * spec_gain,
+                "span": 50,
+                "expts": 200,
+                "reps": self.reps,
+            }
         elif style == "fine":
             # Narrow frequency span with very low power
-            params_def = {"gain": low_gain * spec_gain, "span": 5, "expts": 100, "reps": 2*self.reps}
-        
+            params_def = {
+                "gain": low_gain * spec_gain,
+                "span": 5,
+                "expts": 100,
+                "reps": 2 * self.reps,
+            }
+
         # Adjust parameters for EF transition
-        if 'checkEF' in params and params["checkEF"]:
-            params_def["gain"] = 3 * params_def["gain"]  # Higher power for EF transition
-            params_def["reps"] = 5 * params_def["reps"]  # More repetitions for better SNR
-            
+        if "checkEF" in params and params["checkEF"]:
+            params_def["gain"] = (
+                3 * params_def["gain"]
+            )  # Higher power for EF transition
+            params_def["reps"] = (
+                5 * params_def["reps"]
+            )  # More repetitions for better SNR
+
         # Additional default parameters
         params_def2 = {
             "soft_avgs": self.soft_avgs,
             "final_delay": 10,
             "length": 10,
-            'readout_length': self.cfg.device.readout.readout_length[qi],
+            "readout_length": self.cfg.device.readout.readout_length[qi],
             "pulse_type": "const",
             "checkEF": False,
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
             "sep_readout": True,
-            'active_reset': False
+            "active_reset": False,
         }
         params_def = {**params_def2, **params_def}
 
@@ -226,7 +251,7 @@ class QubitSpec(QickExperiment):
         params = {**params_def, **params}
 
         # Set start frequency based on transition type
-        if params['checkEF']:
+        if params["checkEF"]:
             params_def["start"] = self.cfg.device.qubit.f_ef[qi] - params["span"] / 2
         else:
             params_def["start"] = self.cfg.device.qubit.f_ge[qi] - params["span"] / 2
@@ -234,68 +259,74 @@ class QubitSpec(QickExperiment):
 
         # Adjust pulse length based on transition type
         if params["length"] == "t1":
-            if not params['checkEF']:
-                params["length"] = 3 * self.cfg.device.qubit.T1[qi]  # Longer pulse for GE
+            if not params["checkEF"]:
+                params["length"] = (
+                    3 * self.cfg.device.qubit.T1[qi]
+                )  # Longer pulse for GE
             else:
-                params["length"] = self.cfg.device.qubit.T1[qi] / 4  # Shorter pulse for EF
-                
+                params["length"] = (
+                    self.cfg.device.qubit.T1[qi] / 4
+                )  # Shorter pulse for EF
+
         # Limit pulse length to maximum allowed
         if params["length"] > max_length:
             params["length"] = max_length
-            
+
         # Set readout length equal to pulse length if not separate
-        if not params['sep_readout']:
-            params['readout_length'] = params['length']
+        if not params["sep_readout"]:
+            params["readout_length"] = params["length"]
 
         # Set experiment configuration
         self.cfg.expt = params
-        
+
         # Check for unexpected parameters
         super().check_params(params_def)
 
-        if print: 
+        if print:
             super().print()
-            go=False
+            go = False
         # Run the experiment if requested
         if go:
-            super().run(min_r2=min_r2, max_err=max_err, display=display, progress=progress)
+            super().run(
+                min_r2=min_r2, max_err=max_err, display=display, progress=progress
+            )
 
     def acquire(self, progress=False):
         """
         Acquire data for the pulse probe spectroscopy experiment.
-        
+
         Args:
             progress: Whether to show progress bar
-            
+
         Returns:
             Acquired data
         """
         # Get qubit index and set final delay
         q = self.cfg.expt.qubit[0]
         self.cfg.device.readout.final_delay[q] = self.cfg.expt.final_delay
-        
+
         # Set parameter to sweep
         self.param = {"label": "qubit_pulse", "param": "freq", "param_type": "pulse"}
-        
+
         # Configure frequency sweep
         self.cfg.expt.frequency = QickSweep1D(
             "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
-        
+
         # Acquire data using the QubitSpecProgram
         super().acquire(QubitSpecProgram, progress=progress)
-        
+
         return self.data
 
     def analyze(self, data=None, fit=True, **kwargs):
         """
         Analyze the acquired data to extract qubit parameters.
-        
+
         Args:
             data: Data to analyze (if None, use self.data)
             fit: Whether to fit the data to a Lorentzian model
             **kwargs: Additional arguments for the fit
-            
+
         Returns:
             Analyzed data with fit parameters
         """
@@ -307,18 +338,16 @@ class QubitSpec(QickExperiment):
             fitterfunc = fitter.fitlor
             fitfunc = fitter.lorfunc
             super().analyze(fitfunc, fitterfunc, use_i=False)
-            
+
             # Store the fitted qubit frequency
             data["new_freq"] = data["best_fit"][2]
-            
+
         return self.data
 
-    def display(
-        self, fit=True, ax=None, plot_all=True, **kwargs
-    ):
+    def display(self, fit=True, ax=None, plot_all=True, **kwargs):
         """
         Display the results of the pulse probe spectroscopy experiment.
-        
+
         Args:
             fit: Whether to show the fit curve
             ax: Matplotlib axis to plot on
@@ -328,7 +357,7 @@ class QubitSpec(QickExperiment):
         # Set up fit function and labels
         fitfunc = fitter.lorfunc
         xlabel = "Qubit Frequency (MHz)"
-        
+
         # Set up plot title
         title = f"Spectroscopy Q{self.cfg.expt.qubit[0]} (Gain {self.cfg.expt.gain})"
         if self.cfg.expt.checkEF:
@@ -353,14 +382,15 @@ class QubitSpec(QickExperiment):
             caption_params=caption_params,  # Pass the new structured parameter list
         )
 
+
 class QubitSpecPower(QickExperiment2DSimple):
     """
     2D pulse probe spectroscopy experiment that sweeps both frequency and power.
-    
+
     This experiment performs a 2D sweep of both probe frequency and power (gain)
     to map out how the qubit spectrum changes with power. This allows visualization
     of power-dependent effects like AC Stark shifts and multi-photon transitions.
-    
+
     Parameters:
     - 'span': Frequency span for the probe sweep (MHz)
     - 'expts': Number of frequency points
@@ -370,7 +400,7 @@ class QubitSpecPower(QickExperiment2DSimple):
     - 'expts_gain': Number of gain points
     - 'log': Whether to use logarithmic gain spacing
     - 'checkEF': Whether to check the |e>-|f> transition
-    
+
     The style parameter can be:
     - 'coarse': Wide frequency span with many points
     - 'fine': Narrow frequency span with fewer points
@@ -391,7 +421,7 @@ class QubitSpecPower(QickExperiment2DSimple):
     ):
         """
         Initialize the 2D pulse probe spectroscopy experiment.
-        
+
         Args:
             cfg_dict: Configuration dictionary
             prefix: Prefix for data files
@@ -422,23 +452,23 @@ class QubitSpecPower(QickExperiment2DSimple):
 
         # Additional default parameters
         params_def2 = {
-            "reps": 2*self.reps,
-            "rng": 50,                                  # Range for logarithmic gain sweep
-            "max_gain": self.cfg.device.qubit.max_gain, # Maximum gain value
-            "expts_gain": 10,                           # Number of gain points
-            "log": True,                                # Use logarithmic gain spacing
+            "reps": 2 * self.reps,
+            "rng": 50,  # Range for logarithmic gain sweep
+            "max_gain": self.cfg.device.qubit.max_gain,  # Maximum gain value
+            "expts_gain": 10,  # Number of gain points
+            "log": True,  # Use logarithmic gain spacing
         }
-        
+
         # Merge default parameters
         params_def = {**params_def, **params_def2}
-        
+
         # Merge with user-provided parameters
         params = {**params_def, **params}
-        
+
         # Create a QubitSpec experiment but don't run it
-        exp_name = QubitSpec 
+        exp_name = QubitSpec
         self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
-        
+
         # Get parameters from the QubitSpec experiment
         params = {**self.expt.cfg.expt, **params}
 
@@ -452,10 +482,10 @@ class QubitSpecPower(QickExperiment2DSimple):
     def acquire(self, progress=False):
         """
         Acquire data for the 2D pulse probe spectroscopy experiment.
-        
+
         Args:
             progress: Whether to show progress bar
-            
+
         Returns:
             Acquired data
         """
@@ -480,7 +510,7 @@ class QubitSpecPower(QickExperiment2DSimple):
         self.qubit = self.cfg.expt.qubit[0]
         self.cfg.device.readout.final_delay[self.qubit] = self.cfg.expt.final_delay
         self.param = {"label": "qubit_pulse", "param": "freq", "param_type": "pulse"}
-        
+
         # Set up frequency sweep
         # self.cfg.expt.frequency = QickSweep1D(
         #     "freq_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
@@ -494,14 +524,14 @@ class QubitSpecPower(QickExperiment2DSimple):
     def analyze(self, fit=True, **kwargs):
         """
         Analyze the acquired data.
-        
+
         Fits each frequency slice to a Lorentzian model to extract
         qubit parameters as a function of probe power.
-        
+
         Args:
             fit: Whether to fit the data
             **kwargs: Additional arguments for the fit
-            
+
         Returns:
             Analyzed data with fit parameters
         """
@@ -515,10 +545,10 @@ class QubitSpecPower(QickExperiment2DSimple):
     def display(self, data=None, fit=True, plot_amps=True, ax=None, **kwargs):
         """
         Display the results of the 2D pulse probe spectroscopy experiment.
-        
+
         Creates a 2D color plot showing the qubit response as a function
         of both frequency and power.
-        
+
         Args:
             data: Data to display (if None, use self.data)
             fit: Whether to show the fit

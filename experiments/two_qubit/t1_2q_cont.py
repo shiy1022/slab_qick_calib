@@ -1,14 +1,15 @@
-# import numpy as np
-# from qick import *
+import numpy as np
+from qick import *
 
-# from exp_handling.datamanagement import AttrDict
-# from datetime import datetime
-# import slab_qick_calib.fitting as fitter
-# from gen.qick_experiment import QickExperiment, QickExperiment2D
-# from gen.qick_program import QickProgram
-# from qick.asm_v2 import QickSweep1D
-# from scipy.ndimage import uniform_filter1d
-# import matplotlib.pyplot as plt
+from ...exp_handling.datamanagement import AttrDict
+from datetime import datetime
+from ... import fitting as fitter
+from ...gen.qick_experiment_2q import QickExperiment2Q
+from ...gen.qick_program import QickProgram2Q
+from qick.asm_v2 import QickSweep1D
+from scipy.ndimage import uniform_filter1d
+import matplotlib.pyplot as plt
+
 
 # class T1ContProgram(QickProgram):
 #     def __init__(self, soccfg, final_delay, cfg):
@@ -22,7 +23,7 @@
 #         super().make_pi_pulse(
 #             cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge"
 #         )
-        
+
 #     def _body(self, cfg):
 
 #         cfg = AttrDict(self.cfg)
@@ -54,9 +55,9 @@
 #                 self.delay_auto(t=cfg.expt['readout'] + 0.01, tag=f"final_delay_{i}")
 #             else:
 #                 self.delay_auto(t=cfg.expt["final_delay"] + 0.01, tag=f"final_delay_{i}")
-        
 
-#     def measure(self, cfg): 
+
+#     def measure(self, cfg):
 
 #         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
 #         if self.lo_ch is not None:
@@ -65,15 +66,15 @@
 
 
 #     def reset(self, i,j,k):
-#         # Perform active reset i times 
+#         # Perform active reset i times
 #         cfg = AttrDict(self.cfg)
 #         for n in range(i):
 #             self.wait_auto(cfg.expt.read_wait)
 #             self.delay_auto(cfg.expt.read_wait + cfg.expt.extra_delay)
-            
+
 #             # read the input, test a threshold, and jump if it is met [so, if i<threshold, doesn't do pi pulse]
 #             self.read_and_jump(ro_ch=self.adc_ch, component='I', threshold=cfg.expt.threshold, test='<', label=f'NOPULSE{n}{j}{k}')
-            
+
 #             self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
 #             self.delay_auto(0.01)
 #             self.label(f"NOPULSE{n}{j}{k}")
@@ -154,7 +155,7 @@
 #         else:
 #             final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
 #         prog = T1ContProgram(soccfg=self.soccfg,final_delay=final_delay,cfg=self.cfg,)
-        
+
 #         now = datetime.now()
 #         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
 #         current_time = current_time.encode("ascii", "replace")
@@ -183,12 +184,12 @@
 #         else:
 #             start_ind = [0, self.cfg.expt.n_g, self.cfg.expt.n_g+self.cfg.expt.n_e, len(iq_list[0])]
 #         iq_array = np.array(iq_list)
-#         for i in range(3): 
+#         for i in range(3):
 #             nm=nms[i]
 #             if self.cfg.expt.active_reset:
 #                 inds = np.arange(start_ind[i], start_ind[i+1], 3)
 #             else:
-                
+
 #                 inds = np.arange(start_ind[i], start_ind[i+1])
 #             #data['amps_'+nm] = np.abs(iq_array[0,inds,0].dot([1, 1j]))
 #             #data['phases_'+nm] = np.angle(iq_array[0,inds,:].dot([1, 1j]))
@@ -208,9 +209,9 @@
 #     def analyze(self, data=None, **kwargs):
 #         if data is None:
 #             data = self.data
-        
+
 #         # fitparams=[y-offset, amp, x-offset, decay rate]
-        
+
 #         return data
 
 #     def display(
@@ -243,7 +244,7 @@
 #             ax.set_ylabel("Probability")
 #         m=0.2
 #         fig, ax = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
-        
+
 #         for i in range(len(data['avgi_e'])):
 #             ax[0].plot(data['avgi_e'][i],'b.',markersize=m)
 #             ax[1].plot(data['avgq_e'][i],'b.',markersize=m)
@@ -256,9 +257,9 @@
 #             ax[1].plot(data['avgq_t1'][i],'r.',markersize=m)
 
 #         t1_data = data['avgi_t1'].transpose().flatten()
-#         g_data = data['avgi_g'].transpose().flatten() 
-#         e_data = data['avgi_e'].transpose().flatten()  
-        
+#         g_data = data['avgi_g'].transpose().flatten()
+#         e_data = data['avgi_e'].transpose().flatten()
+
 #         fig, ax = plt.subplots(4, 1, figsize=(15, 12), sharex=True)
 #         smoothed_t1_data = uniform_filter1d(t1_data, size=navg*self.cfg.expt.n_t1)
 #         smoothed_t1_data=smoothed_t1_data[::nred*self.cfg.expt.n_t1]
@@ -276,7 +277,7 @@
 #         ax[3].plot(times,pt1, 'k.-',linewidth=0.1,markersize=m, label='Smoothed e Data')
 #         ax[3].axhline(np.exp(-1), color='r', linestyle='--', label='$e^{-1}$')
 
-        
+
 #         ax[0].set_ylabel('I (ADC), $T =T_1$')
 #         ax[1].set_ylabel('I (ADC), $g$ state')
 #         ax[2].set_ylabel('I (ADC), $e$ state')
@@ -304,7 +305,5 @@
 #             plt.show()
 
 #         #ax[3].legend()
-        
-#         #ax.legend()
 
-        
+#         #ax.legend()

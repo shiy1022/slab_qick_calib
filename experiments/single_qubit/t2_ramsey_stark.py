@@ -2,12 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
 
-from gen.qick_experiment import QickExperiment2DSimple, QickExperiment
-import experiments as meas
+from ...gen.qick_experiment import QickExperiment2DSimple, QickExperiment
+from ... import experiments as meas
 from qick.asm_v2 import QickSweep1D
 from scipy.optimize import curve_fit
 
-import slab_qick_calib.fitting as fitter
+from ... import fitting as fitter
+
 
 class RamseyStarkExperiment(QickExperiment):
     """
@@ -25,6 +26,7 @@ class RamseyStarkExperiment(QickExperiment):
         qubits: if not checkZZ, just specify [1 qubit]. if checkZZ: [qA in e , qB sweeps length rabi]
     )
     """
+
     def __init__(
         self,
         cfg_dict,
@@ -47,19 +49,19 @@ class RamseyStarkExperiment(QickExperiment):
             "reps": 2 * self.reps,
             "soft_avgs": 2 * self.soft_avgs,
             "start": 0.1,
-            "ramsey_freq": 'smart',
+            "ramsey_freq": "smart",
             "stark_gain": 0.5,
-            "step": 1/430,
+            "step": 1 / 430,
             "df": 70,
             "acStark": True,
             "checkEF": False,
-            'active_reset': self.cfg.device.readout.active_reset[qi],
-            'experiment_type': 'ramsey',
+            "active_reset": self.cfg.device.readout.active_reset[qi],
+            "experiment_type": "ramsey",
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
         params = {**params_def, **params}
-        if params['checkEF']:
+        if params["checkEF"]:
             cfg_qub = self.cfg.device.qubit.pulses.pi_ef
             params_def["freq"] = self.cfg.device.qubit.f_ef[qi]
         else:
@@ -69,7 +71,7 @@ class RamseyStarkExperiment(QickExperiment):
             params_def[key] = cfg_qub[key][qi]
         if params["ramsey_freq"] == "smart":
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
-        
+
         if style == "fine":
             params_def["soft_avgs"] = params_def["soft_avgs"] * 2
         elif style == "fast":
@@ -77,7 +79,7 @@ class RamseyStarkExperiment(QickExperiment):
         params = {**params_def, **params}
         params["stark_freq"] = self.cfg.device.qubit.f_ge[qi] + params["df"]
         self.cfg.expt = params
-        
+
         super().check_params(params_def)
         if self.cfg.expt.active_reset:
             super().configure_reset()
@@ -88,7 +90,9 @@ class RamseyStarkExperiment(QickExperiment):
     def acquire(self, progress=False):
         self.param = {"label": "waiting", "param": "t", "param_type": "time"}
         self.cfg.expt.wait_time = QickSweep1D(
-            "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.step*self.cfg.expt.expts
+            "wait_loop",
+            self.cfg.expt.start,
+            self.cfg.expt.start + self.cfg.expt.step * self.cfg.expt.expts,
         )
 
         data = super().acquire(meas.T2Program, progress=progress)
@@ -105,7 +109,14 @@ class RamseyStarkExperiment(QickExperiment):
         return self.data
 
     def display(
-        self, data=None, fit=True, debug=False, plot_all=False, ax=None, show_hist=True, **kwargs
+        self,
+        data=None,
+        fit=True,
+        debug=False,
+        plot_all=False,
+        ax=None,
+        show_hist=True,
+        **kwargs,
     ):
         qubit = self.cfg.expt.qubit[0]
         df = self.cfg.expt.stark_freq - self.cfg.device.qubit.f_ge[qubit]
@@ -113,14 +124,14 @@ class RamseyStarkExperiment(QickExperiment):
             f"$T_2$ Ramsey Stark Q{qubit} Freq: {df}, Amp: {self.cfg.expt.stark_gain}"
         )
         xlabel = "Wait Time ($\mu$s)"
-        
+
         fitfunc = fitter.decaysin
 
         caption_params = [
             {"index": 3, "format": "$T_2$ Ramsey : {val:.4} $\pm$ {err:.2g} $\mu$s"},
-            {"index": 1, "format": "Freq. : {val:.3} $\pm$ {err:.1} MHz"},        
+            {"index": 1, "format": "Freq. : {val:.3} $\pm$ {err:.1} MHz"},
         ]
-        
+
         super().display(
             data=data,
             ax=ax,
@@ -134,6 +145,7 @@ class RamseyStarkExperiment(QickExperiment):
         )
 
         return data
+
 
 class RamseyStarkPowerExperiment(QickExperiment2DSimple):
     """
@@ -172,7 +184,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
 
         super().__init__(cfg_dict=cfg_dict, qi=qi, prefix=prefix, progress=progress)
 
-
         params_def = {
             "end_gain": self.cfg.device.qubit.max_gain,
             "expts_gain": 20,
@@ -191,7 +202,8 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
     def acquire(self, progress=False):
 
         self.cfg.expt["end_gain"] = np.min(
-            [self.cfg.device.qubit.max_gain,self.cfg.expt["end_gain"]])
+            [self.cfg.device.qubit.max_gain, self.cfg.expt["end_gain"]]
+        )
         gainpts = np.linspace(
             self.cfg.expt["start_gain"],
             self.cfg.expt["end_gain"],
@@ -210,7 +222,6 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         fitterfunc = fitter.fitsin
         super().analyze(fitfunc=fitter.decaysin, fitterfunc=fitterfunc, data=data)
 
-
         freq = [data["fit_avgi"][i][1] for i in range(len(data["stark_gain_pts"]))]
         popt, pcov = curve_fit(quad_fit, data["stark_gain_pts"], freq)
         data["quad_fit"] = popt
@@ -226,12 +237,11 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         xlabel = "Wait Time ($\mu$s)"
         super().display(plot_both=False, title=title, xlabel=xlabel, ylabel=ylabel)
 
-        
         fig, ax = plt.subplots(1, 1, figsize=(6, 4))
         ax = [ax]
         if fit:
             freq = [data["fit_avgi"][i][1] for i in range(len(data["stark_gain_pts"]))]
-            ax[0].plot(data["stark_gain_pts"], freq,'o')
+            ax[0].plot(data["stark_gain_pts"], freq, "o")
 
             ax[0].plot(
                 data["stark_gain_pts"],
@@ -246,17 +256,20 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
 
         # Plot raw data
         fig3, ax = plt.subplots(1, 1, figsize=(6, 8))
-        off = 0 
-        for i in range(len(data['stark_gain_pts'])):
-            
-            ax.plot(data['xpts'], data['avgi'][i]+off)#, label=f'Gain {data['stark_gain_pts'][i]}')
-            off += 2*data['fit_avgi'][i][0]
+        off = 0
+        for i in range(len(data["stark_gain_pts"])):
+
+            ax.plot(
+                data["xpts"], data["avgi"][i] + off
+            )  # , label=f'Gain {data['stark_gain_pts'][i]}')
+            off += 2 * data["fit_avgi"][i][0]
 
         imname = self.fname.split("\\")[-1]
         fig.savefig(
             self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "quad_fit.png"
         )
         plt.show()
+
 
 class RamseyStarkFreqExperiment(QickExperiment2DSimple):
     """
@@ -294,7 +307,7 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         if prefix == "":
             prefix = f"ramsey_stark_freq_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict,qi=qi,  prefix=prefix, progress=progress)
+        super().__init__(cfg_dict=cfg_dict, qi=qi, prefix=prefix, progress=progress)
 
         exp_name = RamseyStarkExperiment
 
@@ -306,8 +319,8 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         }
         self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
         params = {**params_def, **params}
-        params['start_freq'] = self.cfg.device.qubit.f_ge[qi] + params['start_df']
-        params['end_freq'] = self.cfg.device.qubit.f_ge[qi] + params['end_df']
+        params["start_freq"] = self.cfg.device.qubit.f_ge[qi] + params["start_df"]
+        params["end_freq"] = self.cfg.device.qubit.f_ge[qi] + params["end_df"]
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
@@ -333,7 +346,7 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
 
         fitterfunc = fitter.fitsin
         super().analyze(fitfunc=fitter.sinfunc, fitterfunc=fitterfunc, data=data)
-        self.data['freq'] = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
+        self.data["freq"] = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
 
     def display(self, data=None, fit=True, plot_both=False, **kwargs):
         if data is None:
@@ -346,26 +359,31 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         xlabel = "Wait Time ($\mu$s)"
         super().display(plot_both=False, title=title, xlabel=xlabel, ylabel=ylabel)
 
-        
         fig, ax = plt.subplots(1, 1, figsize=(6, 4))
         ax = [ax]
         if fit:
-             self.data['freq'] = [data["fit_avgi"][i][1] for i in range(len(data["ypts"]))]
-             ax[0].plot(data["ypts"], self.data['freq'],'o')
-             alpha = self.cfg.device.qubit.f_ge[qubit]-self.cfg.device.qubit.f_ef[qubit]
-             df = data['ypts']-self.cfg.device.qubit.f_ge[qubit]
-             df2 = data['ypts']-self.cfg.device.qubit.f_ef[qubit]
-             exp_val = np.abs(alpha*gain**2/df/df2)*500
-             inds = exp_val<30 
-             ax[0].plot(data["ypts"][inds], exp_val[inds],'.')
+            self.data["freq"] = [
+                data["fit_avgi"][i][1] for i in range(len(data["ypts"]))
+            ]
+            ax[0].plot(data["ypts"], self.data["freq"], "o")
+            alpha = (
+                self.cfg.device.qubit.f_ge[qubit] - self.cfg.device.qubit.f_ef[qubit]
+            )
+            df = data["ypts"] - self.cfg.device.qubit.f_ge[qubit]
+            df2 = data["ypts"] - self.cfg.device.qubit.f_ef[qubit]
+            exp_val = np.abs(alpha * gain**2 / df / df2) * 500
+            inds = exp_val < 30
+            ax[0].plot(data["ypts"][inds], exp_val[inds], ".")
 
         # Plot raw data
         fig3, ax = plt.subplots(1, 1, figsize=(6, 8))
-        off = 0 
-        for i in range(len(data['ypts'])):
-            
-            ax.plot(data['xpts'], data['avgi'][i]+off)#, label=f'Gain {data['stark_gain_pts'][i]}')
-            off += 2*data['fit_avgi'][i][0]
+        off = 0
+        for i in range(len(data["ypts"])):
+
+            ax.plot(
+                data["xpts"], data["avgi"][i] + off
+            )  # , label=f'Gain {data['stark_gain_pts'][i]}')
+            off += 2 * data["fit_avgi"][i][0]
 
         # imname = self.fname.split("\\")[-1]
         # fig.savefig(
@@ -375,4 +393,4 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
 
 
 def quad_fit(x, a, b, c):
-        return a * x**2 + b * x + c
+    return a * x**2 + b * x + c

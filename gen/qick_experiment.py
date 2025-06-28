@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
-from exp_handling.experiment import Experiment
+from ..exp_handling.experiment import Experiment
 from tqdm import tqdm_notebook as tqdm
 from datetime import datetime
-import slab_qick_calib.fitting as fitter
-import slab_qick_calib.calib.readout_helpers as helpers
+from .. import fitting as fitter
+from ..calib import readout_helpers as helpers
 import time
 from scipy.optimize import curve_fit
 from pathlib import Path
@@ -44,7 +44,15 @@ class QickExperiment(Experiment):
     specific experiment types (e.g., T1, T2, Rabi oscillations).
     """
 
-    def __init__(self, cfg_dict=None, qi=0, prefix="QickExp", fname=None, progress=None, check_params=True):
+    def __init__(
+        self,
+        cfg_dict=None,
+        qi=0,
+        prefix="QickExp",
+        fname=None,
+        progress=None,
+        check_params=True,
+    ):
         """
         Initialize the QickExperiment with hardware configuration and experiment parameters.
 
@@ -74,7 +82,7 @@ class QickExperiment(Experiment):
         )
         # Store the check_params parameter for use in child classes
         self._check_params = check_params
-        
+
         # Calculate repetitions and averages based on qubit-specific settings
         self.reps = int(
             self.cfg.device.readout.reps[qi] * self.cfg.device.readout.reps_base
@@ -84,7 +92,9 @@ class QickExperiment(Experiment):
             * self.cfg.device.readout.soft_avgs_base
         )
 
-    def acquire(self, prog_name, progress=True, get_hist=True, single=True, compact=False):
+    def acquire(
+        self, prog_name, progress=True, get_hist=True, single=True, compact=False
+    ):
         """
         Acquire measurement data by running the specified quantum program.
 
@@ -108,8 +118,10 @@ class QickExperiment(Experiment):
         """
         # Set appropriate final delay based on whether active reset is enabled
         if "active_reset" in self.cfg.expt and self.cfg.expt.active_reset:
-            final_delay = self.cfg.device.readout.readout_length[self.cfg.expt.qubit[0]] # Not sure if this is about needed "wait" time for last readout, but seems necessary
-            #final_delay = 10
+            final_delay = self.cfg.device.readout.readout_length[
+                self.cfg.expt.qubit[0]
+            ]  # Not sure if this is about needed "wait" time for last readout, but seems necessary
+            # final_delay = 10
         else:
             final_delay = self.cfg.device.readout.final_delay[self.cfg.expt.qubit[0]]
 
@@ -119,7 +131,7 @@ class QickExperiment(Experiment):
             final_delay=final_delay,
             cfg=self.cfg,
         )
-        #print(prog)
+        # print(prog)
 
         # Record start time
         now = datetime.now()
@@ -131,7 +143,7 @@ class QickExperiment(Experiment):
             self.im[self.cfg.aliases.soc],
             soft_avgs=self.cfg.expt.soft_avgs,
             threshold=None,
-            #load_pulses=True,
+            # load_pulses=True,
             progress=progress,
         )
 
@@ -145,14 +157,13 @@ class QickExperiment(Experiment):
         phases = np.angle(iq.dot([1, 1j]))
         avgi = np.squeeze(iq[..., 0])
         avgq = np.squeeze(iq[..., 1])
-        
-        
+
         # Generate histogram if requested
         if get_hist:
             v, hist = self.make_hist(prog, single=single)
 
         # Compile data dictionary
-        if compact: 
+        if compact:
             data = {
                 "xpts": xpts,
                 "avgi": avgi,
@@ -224,7 +235,7 @@ class QickExperiment(Experiment):
             ydata_lab.append("scale_data")
 
         # Perform fits on each data set (amplitude, I, Q)
-        for i, ydata in enumerate(ydata_lab):   
+        for i, ydata in enumerate(ydata_lab):
             # Use standard curve_fit via fitterfunc
             (
                 data["fit_" + ydata],
@@ -252,11 +263,11 @@ class QickExperiment(Experiment):
         data["i_best"] = i_best
 
         if inds is None:
-            inds=np.arange(len(fit_err))
-        
-        fit_err=fit_err[inds]
+            inds = np.arange(len(fit_err))
+
+        fit_err = fit_err[inds]
         # Calculate relative parameter errors
-        fit_pars =np.array(fit_pars)
+        fit_pars = np.array(fit_pars)
         data["fit_err_par"] = np.sqrt(np.diag(fit_err)) / fit_pars[inds]
         fit_err = np.mean(np.abs(data["fit_err_par"]))
         data["fit_err"] = fit_err
@@ -433,7 +444,7 @@ class QickExperiment(Experiment):
 
         # Create histogram with 60 bins
         # sturges_bins = int(np.ceil(np.log2(len(shots_i)) + 1))
-        if single: 
+        if single:
             hist, bin_edges = np.histogram(shots_i, bins=60, density=True)
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         else:
@@ -445,7 +456,10 @@ class QickExperiment(Experiment):
                 bin_centers.append((bin_edges0[:-1] + bin_edges0[1:]) / 2)
         return bin_centers, hist
 
-    def qubit_run(self,qi=0, progress=True,
+    def qubit_run(
+        self,
+        qi=0,
+        progress=True,
         analyze=True,
         display=True,
         save=True,
@@ -453,7 +467,8 @@ class QickExperiment(Experiment):
         min_r2=0.1,
         max_err=1,
         disp_kwargs=None,
-        **kwargs,):
+        **kwargs,
+    ):
         # Configure active reset if enabled
         if self.cfg.expt.active_reset:
             self.configure_reset()
@@ -461,15 +476,20 @@ class QickExperiment(Experiment):
         # For untuned qubits, show all data points by default
         if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
             disp_kwargs = {"plot_all": True}
-                # For untuned qubits, show all data points by default
-        if self.cfg.device.readout.rescale[qi] or disp_kwargs is not None and "rescale" in disp_kwargs:
+            # For untuned qubits, show all data points by default
+        if (
+            self.cfg.device.readout.rescale[qi]
+            or disp_kwargs is not None
+            and "rescale" in disp_kwargs
+        ):
             disp_kwargs = {"rescale": True}
 
         # Run the experiment if go=True
-        if print: 
+        if print:
             self.print()
         else:
-            self.run(analyze=analyze,
+            self.run(
+                analyze=analyze,
                 display=display,
                 save=save,
                 progress=progress,
@@ -509,7 +529,6 @@ class QickExperiment(Experiment):
             disp_kwargs: Display options dictionary
             **kwargs: Additional arguments passed to the analyze method
         """
-        
 
         # Set default values for fit quality thresholds
         if min_r2 is None:
@@ -527,7 +546,7 @@ class QickExperiment(Experiment):
         if save:
             self.save_data(data)
         if display:
-            self.display(data, **disp_kwargs)     
+            self.display(data, **disp_kwargs)
 
     def save_data(self, data=None, verbose=False):
         """
@@ -551,7 +570,7 @@ class QickExperiment(Experiment):
         """
         for key, value in self.cfg.expt.items():
             print(f"{key}: {value}")
-        
+
     def get_status(self, max_err=1, min_r2=0.1):
         # Determine if experiment was successful based on fit quality
         if (
@@ -565,7 +584,7 @@ class QickExperiment(Experiment):
             # No fit performed, can't determine status
             pass
         else:
-            #print("Fit failed")
+            # print("Fit failed")
             self.status = False
 
     def get_params(self, prog):
@@ -575,7 +594,7 @@ class QickExperiment(Experiment):
         This method extracts the values of the parameter being swept in the experiment,
         either a pulse parameter (e.g., amplitude, frequency) or a time parameter
         (e.g., delay, pulse length).
-        self.param needs to have fields set: 
+        self.param needs to have fields set:
         - param_type: "pulse" or "time"
         - label: Label of the parameter to extract [listed in the program]
         - param: Name of the parameter to extract (freq, gain, total_length, t)
@@ -623,7 +642,7 @@ class QickExperiment(Experiment):
     def get_freq(self, fit=True):
         """
         Provide correct frequency if mixers are in use, for LO coming from QICK or external source
-"""
+        """
         freq_offset = 0
         q = self.cfg.expt.qubit[0]
         if "mixer_freq" in self.cfg.hw.soc.dacs.readout:
@@ -641,7 +660,7 @@ class QickExperiment(Experiment):
         #     self.data["freq_init"] = self.data["init"]
         #     self.data["freq_fit"][0] = freq_offset + self.data["fit"][0]
         #     self.data["freq_init"][0] = freq_offset + self.data["init"][0]
-    
+
     def scale_ge(self):
         """
         Scale g->0 and e->1 based on histogram data"""
@@ -661,7 +680,7 @@ class QickExperiment(Experiment):
             popt, pcov = curve_fit(helpers.two_gaussians, bin_centers, hist, p0=p0)
             vg = popt[1]
             ve = popt[4]
-            dv= ve - vg
+            dv = ve - vg
             # if (
             #     "tm" in self.cfg.device.readout
             #     and self.cfg.device.readout.tm[self.cfg.expt.qubit[0]] != 0
@@ -759,7 +778,6 @@ class QickExperimentLoop(QickExperiment):
                 threshold=None,
                 progress=False,
             )
-            
 
             # Store measurement data for this parameter value
             data = self.stow_data(iq_list, data)
@@ -1058,15 +1076,14 @@ class QickExperiment2D(QickExperimentLoop):
             fig.tight_layout()
 
             file_path = Path(self.fname)
-    
+
             # Get the parent directory
             parent_dir = file_path.parent
-            
-            # Get the filename and change its extension to .png
-            new_filename = file_path.name.rsplit('.', 1)[0] + '.png'
-            # Create the full output path and save the figure
-            output_path = parent_dir / 'images' / new_filename
 
+            # Get the filename and change its extension to .png
+            new_filename = file_path.name.rsplit(".", 1)[0] + ".png"
+            # Create the full output path and save the figure
+            output_path = parent_dir / "images" / new_filename
 
             fig.savefig(output_path)
             plt.show()
@@ -1134,9 +1151,9 @@ class QickExperiment2DSimple(QickExperiment2D):
             data_new = self.expt.acquire(progress=progress)
 
             # Store all data from the nested experiment
-        
+
             for key in data_new:
-                if i==0:
+                if i == 0:
                     data[key] = []
                 data[key].append(data_new[key])
 
@@ -1161,7 +1178,6 @@ class QickExperiment2DSimple(QickExperiment2D):
 
 
 class QickExperiment2DSweep(QickExperiment):
-
 
     def analyze(self, fitfunc=None, fitterfunc=None, data=None, fit=False, **kwargs):
         """
@@ -1290,15 +1306,14 @@ class QickExperiment2DSweep(QickExperiment):
             fig.tight_layout()
 
             file_path = Path(self.fname)
-    
+
             # Get the parent directory
             parent_dir = file_path.parent
-            
-            # Get the filename and change its extension to .png
-            new_filename = file_path.name.rsplit('.', 1)[0] + '.png'
-            # Create the full output path and save the figure
-            output_path = parent_dir / 'images' / new_filename
 
+            # Get the filename and change its extension to .png
+            new_filename = file_path.name.rsplit(".", 1)[0] + ".png"
+            # Create the full output path and save the figure
+            output_path = parent_dir / "images" / new_filename
 
             fig.savefig(output_path)
             plt.show()

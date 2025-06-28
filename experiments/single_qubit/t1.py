@@ -1,13 +1,14 @@
 import numpy as np
 from qick import *
 
-from exp_handling.datamanagement import AttrDict
+from ...exp_handling.datamanagement import AttrDict
 from datetime import datetime
-import slab_qick_calib.fitting as fitter
+from ... import fitting as fitter
 from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
 from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
 import slab_qick_calib.config as config
+
 """
 T1 Experiment Module
 
@@ -92,7 +93,7 @@ class T1Program(QickProgram):
         """
         cfg = AttrDict(self.cfg)
         # Configure readout
-        if self.adc_type == 'dyn':
+        if self.adc_type == "dyn":
             self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # Apply π pulse to excite qubit from |0⟩ to |1⟩
@@ -112,7 +113,6 @@ class T1Program(QickProgram):
 
         # Measure the qubit state
         super().measure(cfg)
-
 
     def reset(self, i):
         """
@@ -182,7 +182,14 @@ class T1Experiment(QickExperiment):
         if prefix is None:
             prefix = f"t1_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, fname=fname, progress=progress, qi=qi, check_params=check_params)
+        super().__init__(
+            cfg_dict=cfg_dict,
+            prefix=prefix,
+            fname=fname,
+            progress=progress,
+            qi=qi,
+            check_params=check_params,
+        )
 
         # Define default parameters
         params_def = {
@@ -217,7 +224,8 @@ class T1Experiment(QickExperiment):
         super().check_params(params_def)
 
         if go:
-            super().qubit_run(qi=qi,
+            super().qubit_run(
+                qi=qi,
                 display=display,
                 progress=progress,
                 min_r2=min_r2,
@@ -333,14 +341,47 @@ class T1Experiment(QickExperiment):
             rescale=rescale,
         )
 
-    def update(self, cfg_file, rng_vals=[1,500],first_time=False, verbose=True):
+    def update(self, cfg_file, rng_vals=[1, 500], first_time=False, verbose=True):
         qi = self.cfg.expt.qubit[0]
-        if self.status: 
-            config.update_qubit(cfg_file, 'T1', self.data['new_t1_i'], qi, sig=2, rng_vals=rng_vals, verbose=verbose)
-            config.update_readout(cfg_file, 'final_delay', 6*self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0]*10, rng_vals[1]*3], verbose=verbose)
+        if self.status:
+            config.update_qubit(
+                cfg_file,
+                "T1",
+                self.data["new_t1_i"],
+                qi,
+                sig=2,
+                rng_vals=rng_vals,
+                verbose=verbose,
+            )
+            config.update_readout(
+                cfg_file,
+                "final_delay",
+                6 * self.data["new_t1_i"],
+                qi,
+                sig=2,
+                rng_vals=[rng_vals[0] * 10, rng_vals[1] * 3],
+                verbose=verbose,
+            )
             if first_time:
-                config.update_qubit(cfg_file, 'T2r', self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
-                config.update_qubit(cfg_file, 'T2e', 2*self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
+                config.update_qubit(
+                    cfg_file,
+                    "T2r",
+                    self.data["new_t1_i"],
+                    qi,
+                    sig=2,
+                    rng_vals=[rng_vals[0], rng_vals[1] * 2],
+                    verbose=verbose,
+                )
+                config.update_qubit(
+                    cfg_file,
+                    "T2e",
+                    2 * self.data["new_t1_i"],
+                    qi,
+                    sig=2,
+                    rng_vals=[rng_vals[0], rng_vals[1] * 2],
+                    verbose=verbose,
+                )
+
 
 class T1_2D(QickExperiment2DSimple):
     """

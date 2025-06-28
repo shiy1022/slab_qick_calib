@@ -1,5 +1,5 @@
 from qick.asm_v2 import AveragerProgramV2
-from exp_handling.datamanagement import AttrDict
+from ..exp_handling.datamanagement import AttrDict
 from qick import *
 import numpy as np
 
@@ -67,20 +67,26 @@ class QickProgram(AveragerProgramV2):
         # Configure hardware channels for the selected qubit
         self.adc_ch = cfg.hw.soc.adcs.readout.ch[q]  # ADC channel for readout
         self.res_ch = cfg.hw.soc.dacs.readout.ch[q]  # DAC channel for resonator drive
-        self.res_ch_type = cfg.hw.soc.dacs.readout.type[q]  # Resonator channel type (full, mux, int)
-        self.res_nqz = cfg.hw.soc.dacs.readout.nyquist[q]  # Nyquist zone for resonator (1 for <5 GHz, 2 for >5 GHz)
+        self.res_ch_type = cfg.hw.soc.dacs.readout.type[
+            q
+        ]  # Resonator channel type (full, mux, int)
+        self.res_nqz = cfg.hw.soc.dacs.readout.nyquist[
+            q
+        ]  # Nyquist zone for resonator (1 for <5 GHz, 2 for >5 GHz)
         self.type = cfg.hw.soc.dacs.readout.type[q]  # Type of readout channel
         self.adc_type = cfg.hw.soc.adcs.readout.type[q]  # ADC channel type
 
         self.trig_offset = cfg.device.readout.trig_offset[q]  # Trigger timing offset
-        if 'qubit' in cfg.hw.soc.dacs:
+        if "qubit" in cfg.hw.soc.dacs:
             self.qubit_ch = cfg.hw.soc.dacs.qubit.ch[q]  # DAC channel for qubit drive
             self.qubit_ch_type = cfg.hw.soc.dacs.qubit.type[q]  # Qubit channel type
             self.qubit_nqz = cfg.hw.soc.dacs.qubit.nyquist[q]  # Nyquist zone for qubit
 
         # Configure standard readout parameters if specified
         if readout == "standard":
-            self.readout_length = cfg.device.readout.readout_length[q]  # Readout pulse length
+            self.readout_length = cfg.device.readout.readout_length[
+                q
+            ]  # Readout pulse length
             self.frequency = cfg.device.readout.frequency[q]  # Readout frequency
             self.gain = cfg.device.readout.gain[q]  # Readout amplitude
             self.phase = cfg.device.readout.phase[q]  # Readout phase
@@ -115,18 +121,16 @@ class QickProgram(AveragerProgramV2):
         else:
             self.lo_ch = None  # No LO channel available
 
-        if 'aves' in cfg.expt: 
+        if "aves" in cfg.expt:
             self.add_loop("ave_loop", cfg.expt.aves)
 
-        
-        
-        # Set up readout generator 
-        if self.type == 'full':
-            
+        # Set up readout generator
+        if self.type == "full":
+
             self.declare_gen(
                 ch=self.res_ch, nqz=self.res_nqz
             )  # Declare resonator signal generator
-            
+
             # Create readout pulse
             pulse_args = {
                 "ch": self.res_ch,
@@ -137,32 +141,41 @@ class QickProgram(AveragerProgramV2):
                 "phase": self.phase,
                 "gain": self.gain,
             }
-            if readout == 'long':
+            if readout == "long":
                 pulse_args["length"] = 1
                 pulse_args["mode"] = "periodic"
             else:
                 pulse_args["length"] = self.readout_length
             self.add_pulse(**pulse_args)
-        elif self.type == 'mux':
-            
-            self.declare_gen(ch=self.res_ch, nqz=self.res_nqz, ro_ch=self.adc_ch, 
-                             mux_freqs=[self.frequency], 
-                             mux_gains=[self.gain], 
-                             mux_phases=[self.phase])
-            
-            self.add_pulse(ch=self.res_ch, name="readout_pulse", 
-                        style="const", 
-                        length=self.readout_length,
-                        mask=[0],
-                        )
-        elif self.type == 'int':
+        elif self.type == "mux":
+
             self.declare_gen(
-                ch=self.res_ch, nqz=self.res_nqz, ro_ch=self.adc_ch, mixer_freq=self.frequency - 400
-            )                 
-                        
+                ch=self.res_ch,
+                nqz=self.res_nqz,
+                ro_ch=self.adc_ch,
+                mux_freqs=[self.frequency],
+                mux_gains=[self.gain],
+                mux_phases=[self.phase],
+            )
+
+            self.add_pulse(
+                ch=self.res_ch,
+                name="readout_pulse",
+                style="const",
+                length=self.readout_length,
+                mask=[0],
+            )
+        elif self.type == "int":
+            self.declare_gen(
+                ch=self.res_ch,
+                nqz=self.res_nqz,
+                ro_ch=self.adc_ch,
+                mixer_freq=self.frequency - 400,
+            )
+
             self.add_pulse(
                 self.res_ch,
-                ro_ch = self.adc_ch,
+                ro_ch=self.adc_ch,
                 name="readout_pulse",
                 style="const",  # Constant amplitude pulse
                 length=self.readout_length,
@@ -172,20 +185,25 @@ class QickProgram(AveragerProgramV2):
             )
 
         # Configure readout settings
-        if self.adc_type == 'dyn':
+        if self.adc_type == "dyn":
             self.declare_readout(
                 self.adc_ch, length=self.readout_length
             )  # Configure ADC for readout
 
             self.add_readoutconfig(
-                ch=self.adc_ch, name="readout", freq=self.frequency,  gen_ch=self.res_ch
+                ch=self.adc_ch, name="readout", freq=self.frequency, gen_ch=self.res_ch
             )
-            
-            
-        elif self.adc_type == 'std':
-            self.declare_readout(ch=self.adc_ch, length=self.readout_length, freq=self.frequency, phase=self.phase, gen_ch=self.res_ch)
-        
-        if 'qubit' in cfg.hw.soc.dacs:
+
+        elif self.adc_type == "std":
+            self.declare_readout(
+                ch=self.adc_ch,
+                length=self.readout_length,
+                freq=self.frequency,
+                phase=self.phase,
+                gen_ch=self.res_ch,
+            )
+
+        if "qubit" in cfg.hw.soc.dacs:
             # Set up qubit control channel
             self.declare_gen(
                 ch=self.qubit_ch, nqz=self.qubit_nqz
@@ -203,7 +221,7 @@ class QickProgram(AveragerProgramV2):
         """
         cfg = AttrDict(self.cfg)
         # Send readout configuration to hardware
-        if self.adc_type == 'dyn':
+        if self.adc_type == "dyn":
             self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
         # Apply readout pulse
         self.pulse(ch=self.res_ch, name="readout_pulse", t=0)
@@ -272,7 +290,7 @@ class QickProgram(AveragerProgramV2):
 
         # Create different pulse types based on pulse.type
         if pulse.type == "gauss":
-            # Gaussian pulse, with sigma = sigma, total length = sigma * sigma_inc or length 
+            # Gaussian pulse, with sigma = sigma, total length = sigma * sigma_inc or length
             style = "arb"  # Arbitrary waveform
 
             # Determine pulse length
@@ -308,7 +326,7 @@ class QickProgram(AveragerProgramV2):
             if "ramp_sigma_inc" not in pulse:
                 pulse.ramp_sigma_inc = 5
             ramp_length = pulse.ramp_sigma * pulse.ramp_sigma_inc
-            
+
             self.add_gauss(
                 ch=self.qubit_ch,
                 name="ramp",
@@ -384,7 +402,7 @@ class QickProgram(AveragerProgramV2):
 
             # Extract and normalize I quadrature data
             # indices are : channel, # reps, expts,readout # in pulse, i/q
-            
+
             i_shots_vec = iq_raw[i][:, :, :, 0] / nsamp - offset
             # Extract and normalize Q quadrature data
             q_shots_vec = iq_raw[i][:, :, :, 1] / nsamp - offset
@@ -393,9 +411,8 @@ class QickProgram(AveragerProgramV2):
                 q_shots = q_shots_vec.flatten()  # Flatten to 1D array
             else:
                 for j in range(i_shots_vec.shape[1]):
-                    i_shots.append(i_shots_vec[:,j,:])
-                    q_shots.append(q_shots_vec[:,j,:])
-
+                    i_shots.append(i_shots_vec[:, j, :])
+                    q_shots.append(q_shots_vec[:, j, :])
 
         return i_shots, q_shots
 
@@ -462,9 +479,9 @@ class QickProgram(AveragerProgramV2):
         Args:
             i: Number of reset iterations to perform
         """
-        # Not tested, and not sure qick allows it 
-        n=0
-        cfg = AttrDict(self.cfg)        
+        # Not tested, and not sure qick allows it
+        n = 0
+        cfg = AttrDict(self.cfg)
         # Wait for readout to complete
         self.wait_auto(cfg.expt.read_wait)
         # Add extra delay for stability
@@ -562,9 +579,7 @@ class QickProgram2Q(AveragerProgramV2):
         self.qubits = cfg.expt.qubit
         soc = cfg.hw.soc  # Hardware configuration
         # Configure hardware channels for all qubits (as arrays)
-        self.adc_ch = [
-            soc.adcs.readout.ch[q] for q in self.qubits
-        ]  # ADC channels
+        self.adc_ch = [soc.adcs.readout.ch[q] for q in self.qubits]  # ADC channels
         self.res_ch = [
             soc.dacs.readout.ch[q] for q in self.qubits
         ]  # Resonator channels

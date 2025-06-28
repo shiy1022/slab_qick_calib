@@ -1,11 +1,13 @@
-import experiments as meas
-import slab_qick_calib.config as config
+from ..experiments import single_qubit as meas
+from .. import config
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as cs
 import seaborn as sns
 import datetime
-colors = ["#0869c8","#b51d14"]
+
+colors = ["#0869c8", "#b51d14"]
+
 
 def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
 
@@ -22,7 +24,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
             "npts": npts,
             "soft_avgs": 5,
             "final_delay": 15,
-            'pulse_e':True,
+            "pulse_e": True,
         },
         go=False,
     )
@@ -38,8 +40,8 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
                 "npts": npts,
                 "soft_avgs": 5,
                 "final_delay": 15,
-                "pulse_e":True,
-                "pulse_f":True,
+                "pulse_e": True,
+                "pulse_f": True,
             },
             go=False,
         )
@@ -54,7 +56,6 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
             "npts": npts,
             "soft_avgs": 2,
             "final_delay": 15,
-
         },
         go=False,
     )
@@ -74,18 +75,25 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
     chi.data["rval"] = rspec.data["xpts"][arg2]
     chi.data["cval"] = chi.data["xpts"][arg]
     chi_val = xpts_chi[arg] - xpts_res[arg2]
-    chi.data['chi_val'] = chi_val
+    chi.data["chi_val"] = chi_val
     chi.data["freq_opt"] = rspec.data["xpts"][arg]
 
     fig, ax = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
     ax[0].set_title(f"Chi Measurement Q{qi}")
     ax[0].plot(xpts_res, rspec.data["amps"], label="No Pulse")
     ax[0].plot(xpts_chi, chi.data["amps"], label=f"e Pulse")
-    
 
-    cap=f'$\chi=${chi_val:0.2f} MHz'
-    ax[0].text(0.04, 0.35, cap, transform=ax[0].transAxes, fontsize=12,
-                    verticalalignment='bottom', horizontalalignment='left', bbox=dict(facecolor='white', alpha=0.8))
+    cap = f"$\chi=${chi_val:0.2f} MHz"
+    ax[0].text(
+        0.04,
+        0.35,
+        cap,
+        transform=ax[0].transAxes,
+        fontsize=12,
+        verticalalignment="bottom",
+        horizontalalignment="left",
+        bbox=dict(facecolor="white", alpha=0.8),
+    )
     ax[0].legend()
     ax[0].axvline(
         x=xpts_chi[arg], color="k", linestyle="--"
@@ -137,11 +145,18 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
 
 def measure_temp(cfg_dict, qi, expts=20, soft_avgs=1, chan=None):
 
-    rabief = meas.RabiExperiment(cfg_dict, qi=qi,params={'pulse_ge':True,'checkEF':True})
+    rabief = meas.RabiExperiment(
+        cfg_dict, qi=qi, params={"pulse_ge": True, "checkEF": True}
+    )
     rabief_nopulse = meas.RabiExperiment(
         cfg_dict,
         qi=qi,
-        params={"expts": expts, 'pulse_ge':False, 'checkEF':True, "soft_avgs": soft_avgs},
+        params={
+            "expts": expts,
+            "pulse_ge": False,
+            "checkEF": True,
+            "soft_avgs": soft_avgs,
+        },
         style="temp",
     )
 
@@ -152,8 +167,8 @@ def measure_temp(cfg_dict, qi, expts=20, soft_avgs=1, chan=None):
     else:
         population = rabief_nopulse.data[chan][0] / rabief.data[chan][0]
 
-    qubit_temp = -1e3* cs.h * fge / (cs.k * np.log(population))
-    
+    qubit_temp = -1e3 * cs.h * fge / (cs.k * np.log(population))
+
     fig, ax = plt.subplots(1, 1)
     i_best = str(rabief.data["i_best"])[2:-1]
     ax.plot(
@@ -181,7 +196,9 @@ def measure_temp(cfg_dict, qi, expts=20, soft_avgs=1, chan=None):
     )
 
     imname = rabief.fname.split("\\")[-1]
-    fig.savefig(rabief.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "_temp.png")
+    fig.savefig(
+        rabief.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + "_temp.png"
+    )
     print("Qubit temp [mK]:", qubit_temp)
 
     print("State preparation ratio:", population)
@@ -192,69 +209,77 @@ def measure_temp(cfg_dict, qi, expts=20, soft_avgs=1, chan=None):
 
     return qubit_temp, population
 
+
 def make_hist(d, nbins=200):
     hist, bin_edges = np.histogram(d, bins=nbins, density=True)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     return bin_centers, hist
 
-def plot_reset(d):     
+
+def plot_reset(d):
     blue = "#4053d3"
     red = "#b51d14"
 
     num_plots = len(d)
-    fig, ax = plt.subplots( int(np.ceil(num_plots/4)), 4, figsize=(14, 1 * num_plots), sharey=True)
+    fig, ax = plt.subplots(
+        int(np.ceil(num_plots / 4)), 4, figsize=(14, 1 * num_plots), sharey=True
+    )
     ax = ax.flatten()
 
-    b  = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d[0].data['Igr']))
+    b = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d[0].data["Igr"]))
     for i, shot in enumerate(d):
-        v, hist = make_hist(shot.data['Ig'], nbins=50)
+        v, hist = make_hist(shot.data["Ig"], nbins=50)
         ax[i].semilogy(v, hist, color=blue)
         ax[i].set_title(f"{shot.cfg.expt.threshold_v:0.2f}")
         ax[i].axvline(x=shot.cfg.expt.threshold_v, color="k", linestyle="--")
-        for j in range(len(shot.data['Igr'])):
-            v, hist = make_hist(shot.data['Igr'][j],  nbins=50)
-            ax[i].semilogy(v, hist,color=b[j])
-    
+        for j in range(len(shot.data["Igr"])):
+            v, hist = make_hist(shot.data["Igr"][j], nbins=50)
+            ax[i].semilogy(v, hist, color=b[j])
+
     fig.tight_layout()
-    fig, ax = plt.subplots(int(np.ceil(num_plots/4)),4, figsize=(14, 1 * num_plots), sharey=True)
+    fig, ax = plt.subplots(
+        int(np.ceil(num_plots / 4)), 4, figsize=(14, 1 * num_plots), sharey=True
+    )
     ax = ax.flatten()
     for i, shot in enumerate(d):
-        v, hist = make_hist(shot.data['Ig'], nbins=50)
+        v, hist = make_hist(shot.data["Ig"], nbins=50)
         ax[i].semilogy(v, hist, color=blue)
-        v, hist = make_hist(shot.data['Ie'], nbins=50)
+        v, hist = make_hist(shot.data["Ie"], nbins=50)
         ax[i].semilogy(v, hist, color=red)
         ax[i].set_title(f"{shot.cfg.expt.threshold_v:0.2f}")
         ax[i].axvline(x=shot.cfg.expt.threshold_v, color="k", linestyle="--")
-        for j in range(len(shot.data['Ier'])):
-            v, hist = make_hist(shot.data['Ier'][j], nbins=50)
-            ax[i].semilogy(v, hist,color=b[j])
+        for j in range(len(shot.data["Ier"])):
+            v, hist = make_hist(shot.data["Ier"][j], nbins=50)
+            ax[i].semilogy(v, hist, color=b[j])
 
     fig.tight_layout()
 
     nplots = 6
-    fig, ax = plt.subplots(2,nplots, figsize=(nplots*4,8))
-    b  = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d))
-    
+    fig, ax = plt.subplots(2, nplots, figsize=(nplots * 4, 8))
+    b = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d))
+
     for i, shot in enumerate(d):
-        vg, histg = make_hist(shot.data['Ig'], nbins=50)
-        ve, histe = make_hist(shot.data['Ie'], nbins=50)
+        vg, histg = make_hist(shot.data["Ig"], nbins=50)
+        ve, histe = make_hist(shot.data["Ie"], nbins=50)
         for j in range(nplots):
-            
-            ax[0,j].semilogy(vg, histg, color=blue, linewidth=1)
-            ax[1,j].semilogy(vg, histg, color=blue, linewidth=1)
-            
-            ax[1,j].semilogy(ve, histe, color=red, linewidth=1)
 
-            v, hist = make_hist(shot.data['Igr'][j,:], nbins=50)
-            ax[0,j].semilogy(v, hist,label=f"{shot.cfg.expt.threshold_v:0.1f}", color=b[i])
+            ax[0, j].semilogy(vg, histg, color=blue, linewidth=1)
+            ax[1, j].semilogy(vg, histg, color=blue, linewidth=1)
 
-            v, hist = make_hist(shot.data['Ier'][j,:], nbins=50)
-            ax[1,j].semilogy(v, hist,label=shot.cfg.expt.threshold_v, color=b[i])
-            
-    ax[0,0].legend(ncol=int(np.ceil(len(d)/6)), fontsize=8)
+            ax[1, j].semilogy(ve, histe, color=red, linewidth=1)
 
-    ax[0,0].set_title('Ground state')
-    ax[1,0].set_title('Excited state')
+            v, hist = make_hist(shot.data["Igr"][j, :], nbins=50)
+            ax[0, j].semilogy(
+                v, hist, label=f"{shot.cfg.expt.threshold_v:0.1f}", color=b[i]
+            )
+
+            v, hist = make_hist(shot.data["Ier"][j, :], nbins=50)
+            ax[1, j].semilogy(v, hist, label=shot.cfg.expt.threshold_v, color=b[i])
+
+    ax[0, 0].legend(ncol=int(np.ceil(len(d) / 6)), fontsize=8)
+
+    ax[0, 0].set_title("Ground state")
+    ax[1, 0].set_title("Excited state")
     fig.tight_layout()
     current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -262,5 +287,3 @@ def plot_reset(d):
     #             shot.fname[0 : -len(imname)] + "images\\" +  + ".png"
     #         )
     fig.savefig(f"reset_hist_{current_time}.png")
-
-    
