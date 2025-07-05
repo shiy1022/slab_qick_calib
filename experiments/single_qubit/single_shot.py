@@ -55,7 +55,18 @@ class HistogramProgram(QickProgram):
     final_delay : float
         Final delay time after readout
     cfg : dict
-        Configuration dictionary containing experiment parameters
+        Configuration dictionary containing experiment parameters.
+        This dictionary is expected to have the following keys:
+        - `expt.shots`: Number of shots in the experiment
+        - `expt.frequency`: Readout frequency
+        - `expt.gain`: Readout gain
+        - `expt.readout_length`: Length of the readout pulse
+        - `expt.qubit`: List of qubit indices (e.g., `[0]`)
+        - `device.readout.phase`: Readout phase from device config
+        - `device.qubit.f_ge`: Qubit g-e transition frequency
+        - `expt.pulse_f` (optional): Boolean to enable pulsing to the f-state
+        - `device.qubit.f_ef` (optional): Qubit e-f transition frequency
+        - `expt.active_reset` (optional): Boolean to enable active reset
     """
 
     def __init__(self, soccfg, final_delay, cfg):
@@ -195,11 +206,22 @@ class HistogramExperiment(QickExperiment):
     check_f : bool, optional
         Whether to measure the second excited state
     params : dict, optional
-        Additional parameters to override defaults
-    style : str, optional
-        Plot style
+        A dictionary of parameters to override the default values.
+        If not provided, the following defaults are used:
+        - `shots`: 10000
+        - `reps`: 1
+        - `rounds`: 1
+        - `readout_length`: from device config for the specified qubit
+        - `frequency`: from device config for the specified qubit
+        - `gain`: from device config for the specified qubit
+        - `active_reset`: `False`
+        - `check_e`: `True`
+        - `check_f`: as passed to `__init__`
+        - `qubit`: `[qi]`
+        - `qubit_chan`: from hardware config for the specified qubit
+        - `ddr4`: `False`
     display : bool, optional
-        Whether to display results after acquisition
+        Whether to display the results after acquisition
     """
 
     def __init__(

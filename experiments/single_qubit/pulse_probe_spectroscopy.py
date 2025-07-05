@@ -146,6 +146,23 @@ class QubitSpec(QickExperiment):
     - 'coarse': Wide frequency span with medium power
     - 'medium': Medium frequency span with low power
     - 'fine': Narrow frequency span with very low power
+
+    Default parameters are defined in the `__init__` method.
+    The `style` parameter sets default values for 'gain', 'span', 'expts', and 'reps'.
+    Other default parameters include:
+    - 'rounds': self.rounds
+    - 'final_delay': 10
+    - 'length': 10
+    - 'readout_length': from config
+    - 'pulse_type': 'const'
+    - 'checkEF': False
+    - 'qubit': [qi]
+    - 'qubit_chan': from config
+    - 'sep_readout': True
+    - 'active_reset': False
+    The 'start' frequency is calculated from the qubit frequency in the config and the span.
+    The 'length' can be set to 't1' to be calculated from the T1 time in the config.
+    If 'checkEF' is True, 'gain' and 'reps' are increased.
     """
 
     def __init__(
@@ -404,6 +421,16 @@ class QubitSpecPower(QickExperiment2DSimple):
     The style parameter can be:
     - 'coarse': Wide frequency span with many points
     - 'fine': Narrow frequency span with fewer points
+
+    Default parameters are defined in the `__init__` method.
+    The `style` parameter sets default values for 'span' and 'expts'.
+    Other default parameters include:
+    - 'reps': 2 * self.reps
+    - 'rng': 50
+    - 'max_gain': from config
+    - 'expts_gain': 10
+    - 'log': True
+    This experiment uses the `QubitSpec` experiment, so its parameters are also relevant.
     """
 
     def __init__(

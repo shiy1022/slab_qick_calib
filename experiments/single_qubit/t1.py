@@ -134,6 +134,18 @@ class T1Experiment(QickExperiment):
         - qubit_chan (int): The channel of the qubit being read out.
         - acStark (bool): Whether to apply AC Stark shift during wait time
         - active_reset (bool): Whether to use active qubit reset
+
+    Default values are defined in the `params_def` dictionary in the __init__ function.
+    The default values are:
+        - reps (int): 2 * self.reps
+        - rounds (int): self.rounds
+        - expts (int): 60
+        - start (float): 0
+        - span (float): 3.7 * self.cfg.device.qubit.T1[qi]
+        - acStark (bool): False
+        - active_reset (bool): self.cfg.device.readout.active_reset[qi]
+        - qubit (list): [qi]
+        - qubit_chan (int): self.cfg.hw.soc.adcs.readout.ch[qi]
     """
 
     def __init__(

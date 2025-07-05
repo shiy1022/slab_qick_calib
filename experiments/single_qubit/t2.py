@@ -232,18 +232,34 @@ class T2Experiment(QickExperiment):
         """
         Initialize the T2 experiment.
 
+        This experiment measures T2 using Ramsey, Echo, or CPMG protocols.
+        Default `params` values:
+        - 'reps': Number of repetitions, doubled from default (default: `2 * self.reps`)
+        - 'rounds': Number of software averages, from `self.rounds`
+        - 'expts': Number of wait time points (default: 100)
+        - 'span': Total span of wait times in µs, set to ~3xT2 (default: `3 * self.cfg.device.qubit[par][qi]`)
+        - 'start': Start time for wait sweep in µs (default: 0.01)
+        - 'ramsey_freq': Ramsey frequency for phase advancement, 'smart' sets it to 1.5/T2 (default: 'smart')
+        - 'active_reset': If True, uses active reset (default: from `cfg.device.readout.active_reset[qi]`)
+        - 'experiment_type': 'ramsey', 'echo', or 'cpmg' (default: 'ramsey')
+        - 'acStark': If True, applies an AC Stark pulse during the wait time (Ramsey only) (default: False)
+        - 'checkEF': If True, measures the |e>-|f> transition (default: False)
+        - 'num_pi': Number of π pulses for Echo/CPMG (default: 1 for 'echo', 0 for 'ramsey')
+
         Args:
-            cfg_dict: Configuration dictionary
-            qi: Qubit index to measure
-            go: Whether to immediately run the experiment
-            params: Additional parameters to override defaults
-            prefix: Filename prefix for saved data
-            progress: Whether to show progress bar
-            style: Measurement style ('fine' for more averages, 'fast' for fewer points)
-            disp_kwargs: Display options
-            min_r2: Minimum R² value for acceptable fit
-            max_err: Maximum error for acceptable fit
-            display: Whether to display results
+            cfg_dict (dict): Configuration dictionary.
+            qi (int): Qubit index to measure.
+            go (bool): Whether to immediately run the experiment.
+            params (dict): Additional parameters to override defaults.
+            prefix (str): Filename prefix for saved data.
+            fname (str): Full filename for saved data.
+            progress (bool): Whether to show a progress bar.
+            style (str): Measurement style ('fine' for more averages, 'fast' for fewer points).
+            disp_kwargs (dict): Display options.
+            min_r2 (float): Minimum R² value for acceptable fit.
+            max_err (float): Maximum error for acceptable fit.
+            display (bool): Whether to display results.
+            print (bool): If True, prints the experiment config and exits.
         """
         # Determine experiment type and parameter name based on protocol
         if "experiment_type" in params and params["experiment_type"] == "echo":

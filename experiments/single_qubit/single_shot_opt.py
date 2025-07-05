@@ -15,32 +15,33 @@ int_rgain = True
 
 class SingleShotOptExperiment(QickExperiment):
     """
-    start_f (float): Starting frequency for the experiment.
-    span_f (float): Frequency span for the experiment.
-    expts_f (int): Number of frequency experiments.
+    A class for optimizing single-shot readout experiments by sweeping frequency, gain, and readout length.
 
-    start_gain (float): Starting gain for the experiment.
-    span_gain (float): Gain span for the experiment.
-    expts_gain (int): Number of gain experiments.
+    This experiment iterates through a parameter space to find the optimal
+    combination of readout frequency, gain, and length that maximizes readout fidelity.
 
-    start_len (float): Starting readout length for the experiment.
-    span_len (float): Readout length span for the experiment.
-    expts_len (int): Number of readout length experiments.
-    reps (int): Number of repetitions for each experiment.
-    check_f (bool): Flag to check frequency.
+    The parameters for this experiment can be configured via the `params` dictionary.
+    If a parameter is not provided, a default value will be used.
 
-    step_f (float): Frequency step size.
-    step_gain (float): Gain step size.
-    step_len (float): Readout length step size.
+    Default Parameters
+    ------------------
+    - `span_f`: Readout frequency span, defaults to `0.8 * kappa` from the device config.
+    - `expts_f`: Number of frequency points, defaults to 5.
+    - `expts_gain`: Number of gain points, defaults to 5.
+    - `expts_len`: Number of readout length points, defaults to 5.
+    - `shots`: Number of shots per measurement, defaults to 10000.
+    - `check_f`: Boolean to check the f-state, defaults to `False`.
+    - `qubit`: Qubit index, defaults to the one specified in `qi`.
+    - `save_data`: Boolean to save the raw data, defaults to `True`.
+    - `qubit_chan`: Readout channel, defaults to the one from the hardware config.
 
-    qubit (list): List of qubits to be used in the experiment.
-    save_data (bool): Flag to save data.
-    qubit_chan (int): Qubit channel for readout.
+    The starting points for frequency, gain, and length are determined based on the
+    device configuration and the number of experiment points. If `expts_f`, `expts_gain`,
+    or `expts_len` is 1, the starting value is taken directly from the device config.
+    Otherwise, it is calculated to center the sweep around the config value.
     """
 
-    def __init__(
-        self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, style=""
-    ):
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}):
 
         if prefix is None:
             prefix = f"single_shot_opt_qubit_{qi}"
@@ -76,30 +77,18 @@ class SingleShotOptExperiment(QickExperiment):
             params_def["start_gain"] = self.cfg.device.readout.gain[qi]
             params_def["span_gain"] = 0
         else:
-            if style == "fine":
-                params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.8
-                params_def["span_gain"] = 0.4 * self.cfg.device.readout.gain[qi]
-            else:
-                params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.3
-                params_def["span_gain"] = 1.8 * self.cfg.device.readout.gain[qi]
+            params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.3
+            params_def["span_gain"] = 1.8 * self.cfg.device.readout.gain[qi]
 
         if params["expts_len"] == 1:
             params_def["start_len"] = self.cfg.device.readout.readout_length[qi]
         else:
-            if style == "fine":
-                params_def["start_len"] = (
-                    self.cfg.device.readout.readout_length[qi] * 0.8
-                )
-                params_def["span_len"] = (
-                    0.4 * self.cfg.device.readout.readout_length[qi]
-                )
-            else:
-                params_def["start_len"] = (
-                    self.cfg.device.readout.readout_length[qi] * 0.3
-                )
-                params_def["span_len"] = (
-                    1.8 * self.cfg.device.readout.readout_length[qi]
-                )
+            params_def["start_len"] = (
+                self.cfg.device.readout.readout_length[qi] * 0.3
+            )
+            params_def["span_len"] = (
+                1.8 * self.cfg.device.readout.readout_length[qi]
+            )
 
         params = {**params_def, **params}
         if params["expts_f"] == 1:
