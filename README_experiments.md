@@ -15,11 +15,19 @@ This document provides a guide to configuring and running various quantum experi
 
 The SLAB QICK calibration framework provides a comprehensive set of experiments for characterizing and calibrating superconducting qubits. The framework is built on top of the QICK hardware platform and provides a high-level interface for running quantum experiments.
 
-Before running experiments, make sure a nameserver is running on the network (on whatever computer you want to run it, open NameServer.ipynb and run with that computer's IP address). Then, on QICK board, go to pyro4 folder and open Notebook 1, setting th.  the QICK board is connected to it, and the IP address in your configuration matches that of the nameserver.
+Before running experiments, make sure a nameserver is running on the network (on whatever computer you want to run it, open NameServer.ipynb and run with that computer's IP address). Then, on QICK board, go to pyro4 folder and open 01_server.ipynb, setting an alias for the board that you will use when connecting to the board on your client computer, and setting the ip address to that of the nameserver. This is also where you would specify the location of firmware.
 
 ## Experiment Configuration
+## QICK Program vs. QICK Experiment
 
 Experiments are configured using parameter dictionaries that are passed to the experiment constructor. Each experiment has a set of default parameters that can be overridden by the user.
+In this framework, it's important to understand the distinction between a `QickProgram` and a `QickExperiment`:
+
+### Basic Configuration Setup
+- **`QickProgram`**: This is a lower-level class that directly interacts with the QICK's pulse processor. It is responsible for defining the pulse sequences, acquiring data, and managing the hardware registers. Each experiment has an associated `QickProgram` that handles the hardware communication.
+- **`QickExperiment`**: This is a higher-level class that encapsulates the entire experimental procedure. It handles data processing, fitting, plotting, and saving. It uses a `QickProgram` to execute the pulse sequence on the hardware. When you run an experiment, you will typically interact with the `QickExperiment` class.
+
+This separation of concerns allows for a modular and extensible framework where the high-level experiment logic is decoupled from the low-level hardware control.
 
 ### Basic Configuration Setup
 
