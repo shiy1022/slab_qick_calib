@@ -7,7 +7,7 @@ It helps identify potential issues with frequency aliasing and validates qubit a
 resonator frequency configurations.
 """
 
-from .. from .... import config
+from .helpers import config
 import numpy as np
 
 
