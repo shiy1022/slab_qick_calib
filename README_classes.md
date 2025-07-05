@@ -33,7 +33,7 @@ The `QickProgram2Q` class is the base for two-qubit experiments, extending `Aver
 
 ## QickExperiment
 
-The `QickExperiment` class is the base for running single-shot quantum experiments on QICK hardware. It handles experiment configuration, data acquisition, analysis, and visualization.
+The `QickExperiment` class is the base for running quantum experiments on QICK hardware. It handles experiment configuration, data acquisition, analysis, and visualization.
 
 ### Methods
 

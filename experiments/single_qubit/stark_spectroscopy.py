@@ -7,7 +7,7 @@ drive field (Stark pulse) applied to the readout resonator. This allows measurem
 of the dispersive shift and other qubit-resonator coupling parameters.
 
 The module includes:
-- QubitSpecProgram: Defines the pulse sequence for the Stark spectroscopy experiment
+- QubitStarkSpecProgram: Defines the pulse sequence for the Stark spectroscopy experiment
 - StarkSpec: Main experiment class for Stark spectroscopy
 """
 
@@ -24,7 +24,7 @@ from ..general.qick_program import QickProgram
 from ...analysis import fitting as fitter
 
 
-class QubitSpecProgram(QickProgram):
+class QubitStarkSpecProgram(QickProgram):
     """
     Defines the pulse sequence for a Stark spectroscopy experiment.
 
@@ -114,27 +114,24 @@ class StarkSpec(QickExperiment2DSweep):
     applying a Stark pulse to the readout resonator. The Stark pulse shifts the qubit
     frequency due to the AC Stark effect, allowing measurement of the dispersive shift.
 
-    Parameters:
-    - 'start': Start frequency for qubit sweep (MHz)
-    - 'span': Frequency span for qubit sweep (MHz)
-    - 'expts': Number of frequency points
-    - 'gain': Gain of the qubit pulse
-    - 'length': Length of the pulses
-    - 'stark_expts': Number of Stark gain points
-    - 'df_stark': Frequency offset from resonator frequency for Stark pulse (MHz)
-    - 'max_stark_gain': Maximum gain for Stark pulse
-    - 'stark_rng': Range for Stark gain sweep
-    - 'pulse_type': Type of pulse ('const' or 'gauss')
-    - 'final_delay': Delay time between repetitions (μs)
-    - 'reps': Number of repetitions
-    - 'rounds': Number of software averages
-    - 'active_reset': Whether to use active reset
+    The default values for the parameters are determined by the selected style, which can be:
+    - 'huge': Very wide frequency span with high power.
+    - 'coarse': Wide frequency span with medium power.
+    - 'medium': Medium frequency span with low power.
+    - 'fine': Narrow frequency span with very low power.
 
-    The style parameter can be:
-    - 'huge': Very wide frequency span with high power
-    - 'coarse': Wide frequency span with medium power
-    - 'medium': Medium frequency span with low power
-    - 'fine': Narrow frequency span with very low power
+    If no parameters are specified, the default values are:
+    - 'rounds': As defined in the configuration.
+    - 'final_delay': 10 μs
+    - 'length': 5 μs
+    - 'stark_expts': 30
+    - 'df_stark': 0 MHz
+    - 'max_stark_gain': 1
+    - 'min_stark_gain': 0
+    - 'df': 0 MHz
+    - 'stark_rng': 15
+    - 'pulse_type': 'const'
+    - 'active_reset': False
     """
 
     def __init__(
@@ -289,9 +286,9 @@ class StarkSpec(QickExperiment2DSweep):
             "stark_loop", self.cfg.expt.min_stark_gain, self.cfg.expt.max_stark_gain
         )
 
-        # Acquire data using the QubitSpecProgram
+        # Acquire data using the QubitStarkSpecProgram
 
-        super().acquire(QubitSpecProgram, progress=progress, get_hist=False)
+        super().acquire(QubitStarkSpecProgram, progress=progress, get_hist=False)
         self.data["stark_gain"] = np.linspace(
             self.cfg.expt.max_stark_gain / self.cfg.expt.stark_rng,
             self.cfg.expt.max_stark_gain,

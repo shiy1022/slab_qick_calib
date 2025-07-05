@@ -463,9 +463,27 @@ The experiment fits the data to a decaying sinusoid (or exponential if no oscill
 shot = meas.HistogramExperiment(cfg_dict, qi=0, params={'shots': 20000})
 ```
 
+#### Active Reset
+
+**File**: `experiments/single_qubit/active_reset.py`
+
+**Description**: This experiment does not do any fitting. It is designed to test the memory and the active reset.
+
+**Key Parameters**:
+- `shots`: Number of shots per experiment
+- `check_e`: Whether to test the e state blob (true if unspecified)
+- `check_f`: Whether to also test the f state blob
+- `active_reset`: Boolean to add active reset
+- `read_wait`: Wait time between measurements in us
+
+**Example**:
+```python
+reset_exp = meas.RepMeasExperiment(cfg_dict, qi=0, params={'shots': 20000, 'active_reset': True})
+```
+
 #### Single Shot Optimization
 
-**File**: `experiments/single_qubit/single_shot.py`
+**File**: `experiments/single_qubit/single_shot_opt.py`
 
 **Description**: Optimizes readout parameters (frequency, gain, length) to maximize readout fidelity.
 
@@ -496,6 +514,54 @@ shotopt = meas.SingleShotOptExperiment(cfg_dict, qi=0, params={'expts_f': 5, 'ex
 stark_spec = meas.StarkSpec(cfg_dict, qi=0, style='medium')
 ```
 
+#### T1 Continuous Measurement
+
+**File**: `experiments/single_qubit/t1_cont.py`
+
+**Description**: This experiment performs continuous T1 measurements to monitor the stability of the qubit's relaxation time. It repeatedly runs a T1 experiment and plots the results over time.
+
+**Key Parameters**:
+- `t1_expts`: Number of T1 experiments to run
+- `t1_reps`: Number of repetitions for each T1 experiment
+- `t1_rounds`: Number of software averages for each T1 experiment
+
+**Example**:
+```python
+t1_cont = meas.T1Cont(cfg_dict, qi=0, params={'t1_expts': 100})
+```
+
+#### T1 Stark Measurement
+
+**File**: `experiments/single_qubit/t1_stark.py`
+
+**Description**: This experiment measures the T1 relaxation time in the presence of a Stark drive applied to the readout resonator. It is useful for characterizing the impact of the Stark drive on qubit coherence.
+
+**Key Parameters**:
+- `stark_gain`: Amplitude of the Stark pulse
+- `stark_freq`: Frequency of the Stark pulse
+- `wait_time`: Wait time for the T1 measurement
+
+**Example**:
+```python
+t1_stark = meas.T1Stark(cfg_dict, qi=0, params={'stark_gain': 0.1, 'stark_freq': 4900})
+```
+
+#### T2 Ramsey Stark Measurement
+
+**File**: `experiments/single_qubit/t2_ramsey_stark.py`
+
+**Description**: This experiment measures the T2 Ramsey coherence time while applying a Stark drive to the readout resonator. It helps to understand how the Stark drive affects qubit dephasing.
+
+**Key Parameters**:
+- `stark_gain`: Amplitude of the Stark pulse
+- `stark_freq`: Frequency of the Stark pulse
+- `ramsey_freq`: Ramsey frequency for phase advancement
+
+**Example**:
+```python
+t2_ramsey_stark = meas.T2RamseyStark(cfg_dict, qi=0, params={'stark_gain': 0.1, 'stark_freq': 4900})
+```
+
 ### Two Qubit Experiments
 
 #### Two-Qubit Rabi
@@ -524,6 +590,29 @@ rabi_2q = meas.Rabi_2Q(cfg_dict, qi=[0, 1])
 **Example**:
 ```python
 t1_2q = meas.T1_2Q(cfg_dict, qi=[0, 1])
+```
+
+#### Two-Qubit T1 Continuous
+
+**File**: `experiments/two_qubit/t1_2q_cont.py`
+
+**Description**: This experiment continuously measures the T1 relaxation time for two qubits simultaneously. It is useful for monitoring the stability of T1 for both qubits over time.
+
+**Key Parameters**:
+- `shots`: Number of shots per experiment
+- `reps`: Number of repetitions for each experiment
+- `rounds`: Number of software averages
+- `wait_time`: Wait time for the T1 measurement
+- `active_reset`: Whether to use active reset
+- `final_delay`: Delay between measurements
+- `readout`: Readout pulse length
+- `n_g`: Number of ground state measurements
+- `n_e`: Number of excited state measurements
+- `n_t1`: Number of T1 measurements
+
+**Example**:
+```python
+t1_2q_cont = meas.T1Cont2QExperiment(cfg_dict, qi=[0, 1], params={'shots': 50000})
 ```
 
 ## Common Experiment Workflows
