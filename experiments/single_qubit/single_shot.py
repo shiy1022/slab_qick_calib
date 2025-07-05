@@ -29,7 +29,7 @@ from ...exp_handling.datamanagement import AttrDict
 from ..general.qick_experiment import QickExperiment
 from ..general.qick_program import QickProgram
 
-from ... import config
+from ...helpers import config
 from ...calib import readout_helpers as helpers
 
 # Standard colors for plotting

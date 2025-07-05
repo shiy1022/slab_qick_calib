@@ -5,7 +5,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .. import config
+from ..helpers import config
 from ..experiments import single_qubit as meas
 from . import qubit_tuning
 

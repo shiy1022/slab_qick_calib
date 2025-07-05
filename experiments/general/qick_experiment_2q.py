@@ -6,7 +6,7 @@ import warnings
 from qick import *
 
 from ...exp_handling.experiment import Experiment
-from ... import fitting as fitter
+from ...analysis import fitting as fitter
 
 
 class QickExperiment2Q(Experiment):

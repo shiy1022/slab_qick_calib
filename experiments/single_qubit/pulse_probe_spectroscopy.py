@@ -23,7 +23,7 @@ from ...exp_handling.datamanagement import AttrDict
 from ..general.qick_experiment import QickExperiment, QickExperiment2DSimple
 from ..general.qick_program import QickProgram
 
-from ... import fitting as fitter
+from ...analysis import fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):

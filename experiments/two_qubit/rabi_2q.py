@@ -9,7 +9,7 @@ from ...exp_handling.datamanagement import AttrDict
 from ..general.qick_experiment import QickExperiment2DSimple
 from ..general.qick_experiment_2q import QickExperiment2Q
 from ..general.qick_program import QickProgram2Q
-from ... import fitting as fitter
+from ...analysis import fitting as fitter
 
 
 # ====================================================== #

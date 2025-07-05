@@ -2,8 +2,8 @@ import numpy as np
 from qick import *
 from qick.asm_v2 import QickSweep1D
 
-from ... import config
-from ... import fitting as fitter
+from ...helpers import config
+from ...analysis import fitting as fitter
 from ...exp_handling.datamanagement import AttrDict
 from ..general.qick_experiment import QickExperiment, QickExperiment2DSimple
 from ..general.qick_program import QickProgram

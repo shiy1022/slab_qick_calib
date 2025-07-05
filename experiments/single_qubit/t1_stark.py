@@ -8,7 +8,7 @@ import seaborn as sns
 from copy import deepcopy
 
 from qick.asm_v2 import QickSweep1D
-from ... import fitting as fitter
+from ...analysis import fitting as fitter
 from ..general.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,

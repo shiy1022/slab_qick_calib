@@ -7,7 +7,7 @@ from qick.asm_v2 import QickSweep1D
 
 from ..general.qick_experiment import QickExperiment2DSimple, QickExperiment
 from .t2 import T2Program
-from ... import fitting as fitter
+from ...analysis import fitting as fitter
 
 
 class RamseyStarkExperiment(QickExperiment):

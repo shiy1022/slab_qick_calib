@@ -33,8 +33,8 @@ from ..general.qick_experiment import (
 )
 from ..general.qick_program import QickProgram
 
-from ... import fitting as fitter
-from ... import config
+from ...analysis import fitting as fitter
+from ...helpers import config
 
 
 def generate_filename(experiment_type, qubit_idx, style=None, state=None, extra=None):

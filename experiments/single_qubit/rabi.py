@@ -21,7 +21,7 @@ from scipy.optimize import curve_fit
 from qick import *
 from qick.asm_v2 import QickSweep1D
 
-from ... import fitting as fitter
+from ...analysis import fitting as fitter
 from ..general.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,

@@ -19,7 +19,7 @@ import numpy as np
 from qick import *
 from qick.asm_v2 import QickSweep1D
 
-from ... import fitting as fitter
+from ...analysis import fitting as fitter
 from ..general.qick_experiment import QickExperiment
 from ..general.qick_program import QickProgram
 

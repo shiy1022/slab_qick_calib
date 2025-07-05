@@ -16,8 +16,8 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .. import config
-from . import tuneup
+from ..helpers import config
+from . import measure_func
 from ..experiments import single_qubit as meas
 
 # Configure matplotlib
@@ -44,7 +44,7 @@ def tune_up_qubit(
     tol=TOL,
 ):
     """
-    Comprehensive tuneup procedure for a single qubit.
+    Comprehensive measure_func procedure for a single qubit.
 
     This function performs a complete calibration sequence for a qubit, including:
     - Resonator spectroscopy
@@ -64,7 +64,7 @@ def tune_up_qubit(
     update : bool, optional
         Whether to update the configuration file with new parameters
     first_time : bool, optional
-        Whether this is the first tuneup for this qubit
+        Whether this is the first measure_func for this qubit
     readout : bool, optional
         Whether to update readout frequency
     single : bool, optional
@@ -124,7 +124,7 @@ def tune_up_qubit(
             cfg_path, ("pulses", "pi_ge", "gain"), amp_rabi.data["pi_length"], qi
         )
 
-    # Step 5: For first-time tuneup, measure T1 and optimize readout
+    # Step 5: For first-time measure_func, measure T1 and optimize readout
     if first_time:
         # Initial T1 measurement to get coherence time estimate
         t1 = meas.T1Experiment(cfg_dict, qi=qi)
@@ -180,7 +180,7 @@ def tune_up_qubit(
     t2e = get_coherence(meas.T2Experiment, qi, cfg_dict, par="T2e")
 
     # Step 11: Measure dispersive shift (chi)
-    chid, chi_val = tuneup.check_chi(cfg_dict, qi=qi)
+    chid, chi_val = measure_func.check_chi(cfg_dict, qi=qi)
     auto_cfg = config.update_readout(cfg_path, "chi", float(chi_val), qi)
 
     # Step 12: Create summary figure with all measurements
@@ -280,7 +280,7 @@ def make_summary_figure(cfg_dict, progs, qi):
 
     # Save figure
     datestr = datetime.now().strftime("%Y%m%d_%H%M")
-    fname = cfg_dict["expt_path"] + f"images\\summary\\qubit{qi}_tuneup_{datestr}.png"
+    fname = cfg_dict["expt_path"] + f"images\\summary\\qubit{qi}_measure_func_{datestr}.png"
     print(fname)
     fig.savefig(fname, dpi=150, bbox_inches="tight")
 

@@ -6,7 +6,7 @@ from tqdm import tqdm_notebook as tqdm
 
 from ..general.qick_experiment import QickExperiment
 from .single_shot import HistogramExperiment
-from ... import config
+from ...helpers import config
 
 blue = "#4053d3"
 red = "#b51d14"
