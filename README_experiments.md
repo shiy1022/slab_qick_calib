@@ -159,8 +159,8 @@ Note that harmonics of the clock frequency will show up as "infinitely" narrow p
 
 **Key Parameters**:
 - `start`: Start frequency (MHz)
-- `span`: Frequency span (MHz)
-- `center`: Center frequency (MHz) - alternative to start
+- `span`: Frequency span (MHz) 
+- `center`: Center frequency (MHz) - alternative to `start'
 - `expts`: Number of frequency points
 - `gain`: Gain of the readout resonator
 - `length`: Length of the readout pulse
@@ -168,7 +168,7 @@ Note that harmonics of the clock frequency will show up as "infinitely" narrow p
 - `pulse_e`: Boolean to add e pulse prior to measurement (excite qubit)
 - `pulse_f`: Boolean to add f pulse prior to measurement (excite to 2nd level)
 - `style`: 'coarse' for wide frequency scan, 'fine' for narrow scan
-- `long_pulse`: Whether to use a long readout pulse
+- `long_pulse`: Whether to use a long readout pulse, requiring 'periodic' mode where readout pulse occuring entire time, when pulse length exceeds hardware limit. 
 - `kappa`: Resonator linewidth
 
 **Example**:

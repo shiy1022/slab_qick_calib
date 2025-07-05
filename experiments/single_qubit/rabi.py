@@ -167,6 +167,40 @@ class RabiExperiment(QickExperiment):
         max_err=None,
         print=False,
     ):
+        """
+        Initialize the Rabi experiment.
+
+        This experiment sweeps the amplitude or length of a pulse to observe Rabi oscillations.
+        Default `params` values:
+        - 'expts': Number of points in the sweep (default: 60)
+        - 'reps': Number of repetitions, from `self.reps`
+        - 'rounds': Number of software averages, from `self.rounds`
+        - 'checkEF': If True, performs the Rabi experiment on the |e>-|f> transition (default: False)
+        - 'pulse_ge': If True, applies a π-pulse on |g>-|e> before the EF Rabi pulse (default: True)
+        - 'num_osc': Number of oscillations to fit (default: 2.5)
+        - 'n_pulses': Number of Rabi pulses to apply (default: 1)
+        - 'sweep': Type of sweep, 'amp' or 'length' (default: 'amp')
+        - 'active_reset': If True, uses active reset (default: from `cfg.device.readout.active_reset[qi]`)
+        - 'loop': If True, uses loop-based acquisition (default: False)
+        - 'temp': Temperature parameter for temperature-dependent measurements (default: 40)
+
+        Pulse parameters (`sigma`, `gain`, `type`, etc.) are taken from the device config for either
+        the |g>-|e> or |e>-|f> transition, depending on `checkEF`.
+
+        Args:
+            cfg_dict (dict): Configuration dictionary.
+            qi (int): Qubit index.
+            go (bool): Whether to run the experiment immediately.
+            params (dict): Additional parameters to override defaults.
+            prefix (str): Prefix for data files.
+            progress (bool): Whether to show a progress bar.
+            display (bool): Whether to display results.
+            style (str): Experiment style ('fine', 'fast', 'temp').
+            disp_kwargs (dict): Display keyword arguments.
+            min_r2 (float): Minimum R² value for fit quality.
+            max_err (float): Maximum error for fit quality.
+            print (bool): If True, prints the experiment config and exits.
+        """
 
         if "checkEF" in params and params["checkEF"]:
             if "pulse_ge" in params and not params["pulse_ge"]:
@@ -483,18 +517,37 @@ class ReadoutCheck(QickExperiment):
         """
         Initialize the ReadoutCheck experiment.
 
+        This experiment checks readout parameters by sweeping either the end wait time or pulse gain.
+        Default `params` values:
+        - 'expts': Number of points in the sweep (default: 30)
+        - 'reps': Number of repetitions, multiplied by 5 (default: `5 * self.reps`)
+        - 'rounds': Number of software averages, from `self.rounds`
+        - 'checkEF': If True, checks the |e>-|f> transition (default: False)
+        - 'pulse_ge': If True, applies a |g>-|e> pulse (default: True)
+        - 'active_reset': If True, uses active reset (default: from `cfg.device.readout.active_reset[qi]`)
+        - 'df': Frequency detuning in MHz (default: 50)
+        - 'qubit_freq': Qubit frequency, from `cfg.device.qubit.f_ge[qi]`
+        - 'length': Pulse length in µs (default: 10)
+        - 'gain': Pulse gain (default: 0.5)
+        - 'type': Pulse type, 'const' (default: 'const')
+        - 'max_wait': Maximum wait time for 'end_wait' sweep (default: 10)
+        - 'max_gain': Maximum gain for 'gain' sweep (default: 1)
+        - 'end_wait': Initial end wait time (default: 0.2)
+        - 'start': Start value for the sweep (default: 0)
+        - 'expt_type': Type of sweep, 'end_wait' or 'gain' (default: 'end_wait')
+
         Args:
-            cfg_dict: Configuration dictionary
-            qi: Qubit index
-            go: Whether to run the experiment immediately
-            params: Additional parameters to override defaults
-            prefix: Prefix for data files
-            progress: Whether to show progress bar
-            display: Whether to display results
-            style: Style of experiment ("fine" or "fast")
-            disp_kwargs: Display keyword arguments
-            min_r2: Minimum R² value for fit quality
-            max_err: Maximum error for fit quality
+            cfg_dict (dict): Configuration dictionary.
+            qi (int): Qubit index.
+            go (bool): Whether to run the experiment immediately.
+            params (dict): Additional parameters to override defaults.
+            prefix (str): Prefix for data files.
+            progress (bool): Whether to show a progress bar.
+            display (bool): Whether to display results.
+            style (str): Experiment style ('fine' or 'fast').
+            disp_kwargs (dict): Display keyword arguments.
+            min_r2 (float): Minimum R² value for fit quality.
+            max_err (float): Maximum error for fit quality.
         """
         # Set the prefix for data files
         prefix = f"'readout_qubit{qi}"
@@ -668,14 +721,24 @@ class RabiChevronExperiment(QickExperiment2DSimple):
         """
         Initialize the RabiChevronExperiment.
 
+        This experiment performs a 2D sweep of frequency and either pulse amplitude or length
+        to generate a Rabi chevron plot.
+        Default `params` values:
+        - 'span_f': Frequency span in MHz (default: 20)
+        - 'expts_f': Number of frequency points (default: 30)
+        - 'sweep': Type of sweep for the inner loop, 'amp' or 'length' (default: 'amp')
+
+        The start frequency `start_f` is calculated based on the qubit frequency (`f_ge` or `f_ef`)
+        and the frequency span.
+
         Args:
-            cfg_dict: Configuration dictionary
-            qi: Qubit index
-            go: Whether to run the experiment immediately
-            params: Additional parameters to override defaults
-            style: Style of experiment
-            prefix: Prefix for data files
-            progress: Whether to show progress bar
+            cfg_dict (dict): Configuration dictionary.
+            qi (int): Qubit index.
+            go (bool): Whether to run the experiment immediately.
+            params (dict): Additional parameters to override defaults.
+            style (str): Experiment style.
+            prefix (str): Prefix for data files.
+            progress (bool): Whether to show a progress bar.
         """
         # Determine prefix based on parameters
         if "type" in params:
@@ -879,16 +942,25 @@ class Rabi2D(QickExperiment2DSimple):
         progress=False,
     ):
         """
-        Initialize the RabiChevronExperiment.
+        Initialize the 2D Rabi experiment.
+
+        This experiment performs a 2D sweep of pulse length and gain.
+        Default `params` values:
+        - 'span_y': Span of the y-axis sweep (gain) (default: 1)
+        - 'expts_y': Number of points in the y-axis sweep (default: 30)
+        - 'start_y': Start value for the y-axis sweep (default: 0)
+        - 'sweep': Type of sweep for the inner loop, must be 'length' (default: 'length')
+        - 'loop': If True, uses loop-based acquisition (default: True)
+        - 'yval': The parameter to sweep on the y-axis (default: 'gain')
 
         Args:
-            cfg_dict: Configuration dictionary
-            qi: Qubit index
-            go: Whether to run the experiment immediately
-            params: Additional parameters to override defaults
-            style: Style of experiment
-            prefix: Prefix for data files
-            progress: Whether to show progress bar
+            cfg_dict (dict): Configuration dictionary.
+            qi (int): Qubit index.
+            go (bool): Whether to run the experiment immediately.
+            params (dict): Additional parameters to override defaults.
+            style (str): Experiment style.
+            prefix (str): Prefix for data files.
+            progress (bool): Whether to show a progress bar.
         """
         # Determine prefix based on parameters
         if "type" in params:

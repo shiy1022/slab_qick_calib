@@ -171,7 +171,7 @@ class ResSpec(QickExperiment):
     Parameters:
     - 'start': Start frequency (MHz)
     - 'span': Frequency span (MHz)
-    - 'center': Center frequency (MHz) - alternative to start
+    - 'center': Center frequency (MHz) - `alternative to start'
     - 'expts': Number of frequency points
     - 'gain': Gain of the readout resonator
     - 'length': Length of the readout pulse
@@ -208,17 +208,45 @@ class ResSpec(QickExperiment):
         """
         Initialize the resonator spectroscopy experiment.
 
+        This experiment sweeps the readout frequency to find the resonator resonance.
+        The parameters for the experiment are managed by a dictionary `params`.
+        If a parameter is not specified, a default value is used.
+
+        Default `params` values:
+        - 'gain': Readout gain, from `cfg.device.readout.gain[qi]`
+        - 'reps': Number of repetitions, from `self.reps`
+        - 'rounds': Number of software averages, from `self.rounds`
+        - 'length': Readout pulse length, from `cfg.device.readout.readout_length[qi]`
+        - 'final_delay': Delay after measurement in µs, default is 5
+        - 'pulse_e': If True, applies a π-pulse on |g>-|e> before measurement (default: False)
+        - 'pulse_f': If True, applies a π-pulse on |e>-|f> before measurement (default: False)
+        - 'long_pulse': If True, uses a long readout pulse (default: False, automatically set if length > 100)
+        - 'loop': If True, uses loop-based acquisition for non-linear frequency spacing (default: False)
+        - 'phase_const': If True, uses homophase frequency points for constant phase spacing (default: False)
+        - 'active_reset': If True, uses active reset (default: False)
+        - 'kappa': Resonator linewidth, from `cfg.device.readout.kappa[qi]`
+
+        Style-dependent `params`:
+        - If `style` is 'coarse':
+            - 'start': 6000 MHz
+            - 'expts': 5000 points
+            - 'span': 500 MHz
+        - If `style` is 'fine' (default):
+            - 'center': Resonator frequency from `cfg.device.readout.frequency[qi]`
+            - 'expts': 220 points
+            - 'span': 5 MHz
+
         Args:
-            cfg_dict: Configuration dictionary
-            prefix: Prefix for data files
-            progress: Whether to show progress bar
-            display: Whether to display results
-            save: Whether to save data
-            analyze: Whether to analyze data
-            qi: Qubit index
-            go: Whether to run the experiment immediately
-            params: Additional parameters to override defaults
-            style: Style of experiment ('coarse' or 'fine')
+            cfg_dict (dict): Configuration dictionary.
+            prefix (str): Prefix for data files.
+            progress (bool): Whether to show a progress bar.
+            display (bool): Whether to display results.
+            save (bool): Whether to save data.
+            analyze (bool): Whether to analyze data.
+            qi (int): Qubit index.
+            go (bool): Whether to run the experiment immediately.
+            params (dict): Additional parameters to override defaults.
+            style (str): Style of experiment ('coarse' or 'fine').
         """
         # Determine qubit state for filename
         state = None
@@ -703,13 +731,28 @@ class ResSpecPower(QickExperiment2DSimple):
         """
         Initialize the power sweep resonator spectroscopy experiment.
 
+        This experiment performs a 2D sweep of readout frequency and power.
+        Default `params` values:
+        - 'reps': Base number of repetitions, divided by 2400 for efficiency (default: `self.reps / 2400`)
+        - 'rng': Dynamic range for logarithmic gain sweep (default: 100)
+        - 'max_gain': Maximum gain for log sweep, from `self.cfg.device.qubit.max_gain`
+        - 'span': Frequency span in MHz (default: 15)
+        - 'expts': Number of frequency points (default: 200)
+        - 'start_gain': Minimum gain for linear sweep (default: 0.003)
+        - 'step_gain': Gain step for linear sweep (default: 0.05)
+        - 'expts_gain': Number of gain points (default: 20)
+        - 'f_off': Frequency offset from resonator frequency in MHz (default: 4)
+        - 'min_reps': Minimum repetitions for any gain value (default: 100)
+        - 'pulse_e': If True, applies a π-pulse on |g>-|e> (default: False)
+        - 'log': If True, uses logarithmic gain spacing (default: True)
+
         Args:
-            cfg_dict: Configuration dictionary
-            prefix: Prefix for data files
-            progress: Whether to show progress bar
-            qi: Qubit index
-            go: Whether to run the experiment immediately
-            params: Additional parameters to override defaults
+            cfg_dict (dict): Configuration dictionary.
+            prefix (str): Prefix for data files.
+            progress (bool): Whether to show a progress bar.
+            qi (int): Qubit index.
+            go (bool): Whether to run the experiment immediately.
+            params (dict): Additional parameters to override defaults.
         """
         # Determine qubit state for filename
         state = "e" if "pulse_e" in params and params["pulse_e"] else None
@@ -956,17 +999,21 @@ class ResSpec2D(QickExperiment2DSimple):
         """
         Initialize the 2D resonator spectroscopy experiment.
 
+        This experiment repeats a 1D resonator spectroscopy scan multiple times and averages the results.
+        Default `params` values:
+        - 'expts_count': Number of repetitions to average (default: 50)
+
         Args:
-            cfg_dict: Configuration dictionary
-            qi: Qubit index
-            go: Whether to run the experiment immediately
-            save: Whether to save data
-            display: Whether to display results
-            analyze: Whether to analyze data
-            params: Additional parameters to override defaults
-            prefix: Prefix for data files
-            progress: Whether to show progress bar
-            style: Style of experiment
+            cfg_dict (dict): Configuration dictionary.
+            qi (int): Qubit index.
+            go (bool): Whether to run the experiment immediately.
+            save (bool): Whether to save data.
+            display (bool): Whether to display results.
+            analyze (bool): Whether to analyze data.
+            params (dict): Additional parameters to override defaults.
+            prefix (str): Prefix for data files.
+            progress (bool): Whether to show a progress bar.
+            style (str): Style of experiment.
         """
         # Generate standardized filename if not provided
         if not prefix:
