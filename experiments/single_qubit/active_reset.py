@@ -8,8 +8,8 @@ import seaborn as sns
 
 from qick import *
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment
-from gen.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment
+from experiments.general.qick_program import QickProgram
 
 
 blue = "#4053d3"
@@ -614,7 +614,7 @@ class MemoryExperiment(QickExperiment):
             shots=10000,
             reps=1,
             expts=100,
-            soft_avgs=1,
+            rounds=1,
             readout_length=self.cfg.device.readout.readout_length[qi],
             frequency=self.cfg.device.readout.frequency[qi],
             gain=self.cfg.device.readout.gain[qi],
@@ -852,7 +852,7 @@ class RepMeasExperiment(QickExperiment):
         params_def = dict(
             shots=10000,
             reps=1,
-            soft_avgs=1,
+            rounds=1,
             readout_length=self.cfg.device.readout.readout_length[qi],
             frequency=self.cfg.device.readout.frequency[qi],
             gain=self.cfg.device.readout.gain[qi],

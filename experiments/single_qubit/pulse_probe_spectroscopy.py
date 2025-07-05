@@ -20,8 +20,8 @@ from qick import *
 from qick.asm_v2 import QickSweep1D
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
-from gen.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment, QickExperiment2DSimple
+from experiments.general.qick_program import QickProgram
 import fitting as fitter
 
 
@@ -130,7 +130,7 @@ class QubitSpec(QickExperiment):
     - 'span': Frequency span for the probe sweep (MHz)
     - 'expts': Number of frequency points
     - 'reps': Number of repetitions for each experiment
-    - 'soft_avgs': Number of software averages
+    - 'rounds': Number of software averages
     - 'length': Probe pulse length (μs)
     - 'gain': Probe pulse gain (DAC units)
     - 'pulse_type': Type of pulse ('const' or 'gauss')
@@ -233,7 +233,7 @@ class QubitSpec(QickExperiment):
 
         # Additional default parameters
         params_def2 = {
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "final_delay": 10,
             "length": 10,
             "readout_length": self.cfg.device.readout.readout_length[qi],

@@ -47,7 +47,7 @@ The configuration is organized into three main sections:
 |-----------|-------------|---------------------|
 | `f_ge` | Ground to excited state transition frequency (MHz) | Used in `pulse_probe_spectroscopy.py` to set the center frequency for spectroscopy. Used in `rabi.py` to set the frequency of the π pulse. |
 | `f_ef` | Excited to second excited state transition frequency (MHz) | Used in `pulse_probe_spectroscopy.py` when `checkEF=True` to probe the ef transition. |
-| `kappa` | Qubit linewidth (MHz) | Used in spectroscopy experiments to determine appropriate frequency spans. |
+| `kappa` | Qubit linewidth (MHz) | Just informative, not used anywhere. |
 
 ### Qubit Pulses
 
@@ -69,8 +69,8 @@ The configuration is organized into three main sections:
 | `spec_gain` | Gain scaling factor for spectroscopy for qubit to qubit variation | Used in `pulse_probe_spectroscopy.py` to set appropriate pulse amplitudes. |
 | `pop` | Thermal population | Used in analysis of qubit measurements. |
 | `temp` | Qubit temperature | Used in analysis of qubit measurements. |
-| `tuned_up` | Boolean flag indicating if qubit is tuned | Used in experiments to determine whether to show additional diagnostic information. |
-| `low_gain` | Gain for finest spectroscopy scan | Used in `pulse_probe_spectroscopy.py` and `rabi.py` to set the minimum gain for pulses. |
+| `tuned_up` | Boolean flag indicating if qubit is tuned | Used in experiments to determine whether to show Amps/Q in addition to I. Set by single_shot, depending on fidelity. |
+| `low_gain` | Gain used for finest spectroscopy scan, wider spectroscopy scans use multiples of this power | Used in `pulse_probe_spectroscopy.py` to set the minimum gain for pulses. |
 | `max_gain` | Maximum gain value for pulses (RFSoC property) | Used in `pulse_probe_spectroscopy.py` and `rabi.py` to set the maximum gain for pulses. |
 
 ## Readout Parameters (`device.readout`)
@@ -91,21 +91,21 @@ The configuration is organized into three main sections:
 
 | Parameter | Description | Usage in Experiments |
 |-----------|-------------|---------------------|
-| `phase` | Phase rotation for readout signal | Used in all experiments to correctly process the readout signal. |
+| `phase` | Phase rotation for readout signal | Used in all experiments to correctly rtate readout so that signal is in I quadrature. |
 | `readout_length` | Duration of readout pulse (μs) | Used in all experiments that perform qubit readout. |
 | `threshold` | Threshold for state discrimination | Used for active reset. |
 | `fidelity` | Readout fidelity | Used in analysis of readout performance. |
-| `tm` | Time constant for readout | Used in analysis of readout performance. |
-| `sigma` | Width parameter for readout histogram | Used in alnalysis of readout performance. |
+| `tm` | Measurement time / T1 fit from single shot | Used in analysis of readout performance. |
+| `sigma` | Width parameter (i.e. noise) for readout histogram | Used in alnalysis of readout performance. |
 | `trig_offset` | Trigger offset for readout | Used in timing of readout pulses. |
 | `final_delay` | Delay after readout before next experiment (μs) | Used in all experiments to ensure qubit returns to ground state. Set to 6*T1 by default. |
 | `active_reset` | Boolean flag for active qubit reset | Used in experiments that support active reset to improve experiment speed. |
 | `reset_e` | Parameter for active reset of excited state | Used in active reset protocols. |
 | `reset_g` | Parameter for active reset of ground state | Used in active reset protocols. |
-| `reps` | If qubit needs more or fewer reps than reps_base, set param here (1 standard) | Used in all experiments to set the number of repetitions. |
-| `soft_avgs` | If qubit needs more or fewer soft_avgs than soft_avgs_base, set param here (1 standard) | Used in all experiments to set the number of software averages. |
+| `reps` | Allow qubit to qubit variation in number of reps used (base is reps[qi]*reps_base). (1 standard) | Used in all experiments to set the number of repetitions. |
+| `rounds` | Allow qubit to qubit variation in number of rounds used (1 standard) | Used in all experiments to set the number of software averages. |
 | `reps_base` | Base number of repetitions for entire device | Used to calculate appropriate repetition counts. |
-| `soft_avgs_base` | Base number of software averages for entire device | Used to calculate appropriate averaging counts. |
+| `rounds_base` | Base number of software averages for entire device | Used to calculate appropriate averaging counts. |
 | `max_gain` | Maximum gain for readout, RFSoC parameter (usually 1) | Used to limit readout pulse amplitude. |
 
 ## Hardware Configuration (`hw.soc`)
@@ -121,11 +121,11 @@ The configuration is organized into three main sections:
 | Parameter | Description | Usage in Experiments |
 |-----------|-------------|---------------------|
 | `dacs.qubit.ch` | DAC channel for qubit control | Used in all experiments to specify which DAC channel to use for qubit control. |
-| `dacs.qubit.nyquist` | Nyquist zone for qubit DAC, 1 for frequencies < fs, 2 for frequencies above | Used in signal generation for qubit control. |
-| `dacs.qubit.type` | Type of qubit DAC output, full/mux/int but only full supported now | Used in signal generation for qubit control. |
+| `dacs.qubit.nyquist` | Nyquist zone for qubit DAC, 1 for frequencies < fs/2, 2 for frequencies above | Used in signal generation for qubit control. |
+| `dacs.qubit.type` | Type of qubit DAC output, full/mux/int | Used in signal generation for qubit control. |
 | `dacs.readout.ch` | DAC channel for readout | Used in all experiments to specify which DAC channel to use for readout. |
-| `dacs.readout.nyquist` | Nyquist zone for readout DAC, 1 for frequencies < fs, 2 for frequencies above | Used in signal generation for readout. |
-| `dacs.readout.type` | Type of readout DAC output, full/mux/int but only full supported now | Used in signal generation for readout. |
+| `dacs.readout.nyquist` | Nyquist zone for readout DAC, 1 for frequencies < fs/2, 2 for frequencies above | Used in signal generation for readout. |
+| `dacs.readout.type` | Type of readout DAC output, full/mux/int | Used in signal generation for readout. |
 
 ## Usage Examples
 

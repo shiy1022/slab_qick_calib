@@ -103,7 +103,7 @@ def tune_up_qubit(
         cfg_dict,
         qi=qi,
         style="fine",
-        params={"span": 3, "expts": 85, "soft_avgs": 2, "length": "t1"},
+        params={"span": 3, "expts": 85, "rounds": 2, "length": "t1"},
     )
     if not qspec.status:
         # If spectroscopy fails, try to find it with broader search
@@ -503,10 +503,10 @@ def get_coherence(
         else:
             # If measurement failed, increase averaging
             print("Failed")
-            if "soft_avgs" in params:
-                params["soft_avgs"] = 2 * params["soft_avgs"]
+            if "rounds" in params:
+                params["rounds"] = 2 * params["rounds"]
             else:
-                params["soft_avgs"] = 2
+                params["rounds"] = 2
             err = 2 * tol
             print("Increasing soft avgs due to fitting issues")
 

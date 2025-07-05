@@ -4,8 +4,8 @@ from qick import *
 from exp_handling.datamanagement import AttrDict
 from datetime import datetime
 import fitting as fitter
-from gen.qick_experiment_2q import QickExperiment2Q
-from gen.qick_program import QickProgram2Q
+from experiments.general.qick_experiment_2q import QickExperiment2Q
+from experiments.general.qick_program import QickProgram2Q
 from qick.asm_v2 import QickSweep1D
 
 
@@ -92,7 +92,7 @@ class T1_2Q(QickExperiment2Q):
         - span (float): The total span of the wait time sweep in microseconds.
         - expts (int): The number of experiments to be performed.
         - reps (int): The number of repetitions for each experiment (inner loop)
-        - soft_avgs (int): The number of soft_avgs for the experiment (outer loop)
+        - rounds (int): The number of rounds for the experiment (outer loop)
         - qubit (int): The index of the qubit being used in the experiment.
         - qubit_chan (int): The channel of the qubit being read out.
     """
@@ -119,7 +119,7 @@ class T1_2Q(QickExperiment2Q):
 
         params_def = {
             "reps": 2 * self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "expts": 60,
             "start": 1,
             "span": [3.7 * self.cfg.device.qubit.T1[q] for q in qi],
@@ -131,7 +131,7 @@ class T1_2Q(QickExperiment2Q):
         params_def["active_reset"] = np.all(params_def["active_reset"])
         # We assume the first T1 is longer
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 30
 
@@ -244,7 +244,7 @@ class T1_2Q_Continuous(QickExperiment2Q):
         step: wait time sweep step
         expts: number steps in sweep
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
     )
     """
 

@@ -22,12 +22,12 @@ from qick import *
 from qick.asm_v2 import QickSweep1D
 
 import fitting as fitter
-from gen.qick_experiment import (
+from experiments.general.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
-from gen.qick_program import QickProgram
+from experiments.general.qick_program import QickProgram
 from exp_handling.datamanagement import AttrDict
 
 # ====================================================== #
@@ -134,7 +134,7 @@ class RabiExperiment(QickExperiment):
     Parameters:
     - 'expts': Number of experiments to run (default: 60)
     - 'reps': Number of repetitions for each experiment (default: self.reps)
-    - 'soft_avgs': Number of soft_avgs for each experiment (default: self.soft_avgs)
+    - 'rounds': Number of rounds for each experiment (default: self.rounds)
     - 'gain': Max gain value for the pulse (default: gain)
     - 'sigma': Standard deviation of the Gaussian pulse (default: sigma)
     - 'checkEF': Boolean flag to check EF interaction (default: False)
@@ -182,7 +182,7 @@ class RabiExperiment(QickExperiment):
         params_def = {
             "expts": 60,
             "reps": self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "checkEF": False,
             "pulse_ge": True,
             "num_osc": 2.5,
@@ -199,7 +199,7 @@ class RabiExperiment(QickExperiment):
 
         # Apply style modifications for different experiment modes
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 25
 
@@ -239,8 +239,8 @@ class RabiExperiment(QickExperiment):
         # Special configuration for temperature-dependent measurements
         if style == "temp":
             params["reps"] = 40 * params["reps"]
-            params["soft_avgs"] = int(
-                np.ceil(20 * params["soft_avgs"] * 1.5 ** (params["temp"] / 40))
+            params["rounds"] = int(
+                np.ceil(20 * params["rounds"] * 1.5 ** (params["temp"] / 40))
             )
             params["pulse_ge"] = False
 
@@ -504,7 +504,7 @@ class ReadoutCheck(QickExperiment):
         params_def = {
             "expts": 30,
             "reps": 5 * self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "checkEF": False,
             "pulse_ge": True,
             "active_reset": self.cfg.device.readout.active_reset[qi],
@@ -527,7 +527,7 @@ class ReadoutCheck(QickExperiment):
 
         # Apply style modifications
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 25
 
@@ -648,7 +648,7 @@ class RabiChevronExperiment(QickExperiment2DSimple):
         step_gain: gain step [dac level]
         expts_gain: number steps
         reps: number averages per expt
-        soft_avgs: number repetitions of experiment sweep
+        rounds: number repetitions of experiment sweep
         sigma: gaussian sigma for pulse length [us] (default: from pi_ge in config)
         pulse_type: 'gauss' or 'const'
     )
@@ -861,7 +861,7 @@ class Rabi2D(QickExperiment2DSimple):
         step_gain: gain step [dac level]
         expts_gain: number steps
         reps: number averages per expt
-        soft_avgs: number repetitions of experiment sweep
+        rounds: number repetitions of experiment sweep
         sigma: gaussian sigma for pulse length [us] (default: from pi_ge in config)
         pulse_type: 'gauss' or 'const'
     )

@@ -89,9 +89,9 @@ class QickExperiment(Experiment):
         self.reps = int(
             self.cfg.device.readout.reps[qi] * self.cfg.device.readout.reps_base
         )
-        self.soft_avgs = int(
-            self.cfg.device.readout.soft_avgs[qi]
-            * self.cfg.device.readout.soft_avgs_base
+        self.rounds = int(
+            self.cfg.device.readout.rounds[qi]
+            * self.cfg.device.readout.rounds_base
         )
 
     def acquire(
@@ -143,7 +143,7 @@ class QickExperiment(Experiment):
         # Run the program and acquire data
         iq_list = prog.acquire(
             self.im[self.cfg.aliases.soc],
-            soft_avgs=self.cfg.expt.soft_avgs,
+            rounds=self.cfg.expt.rounds,
             threshold=None,
             # load_pulses=True,
             progress=progress,
@@ -776,7 +776,7 @@ class QickExperimentLoop(QickExperiment):
 
             iq_list = prog.acquire(
                 self.im[self.cfg.aliases.soc],
-                soft_avgs=self.cfg.expt.soft_avgs,
+                rounds=self.cfg.expt.rounds,
                 threshold=None,
                 progress=False,
             )
@@ -918,7 +918,7 @@ class QickExperiment2D(QickExperimentLoop):
             )
             iq_list = prog.acquire(
                 self.im[self.cfg.aliases.soc],
-                soft_avgs=self.cfg.expt.soft_avgs,
+                rounds=self.cfg.expt.rounds,
                 threshold=None,
                 progress=False,
             )

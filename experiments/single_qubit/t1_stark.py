@@ -9,13 +9,13 @@ from copy import deepcopy
 
 from qick.asm_v2 import QickSweep1D
 import fitting as fitter
-from gen.qick_experiment import (
+from experiments.general.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
 
-from gen.qick_program import QickProgram
+from experiments.general.qick_program import QickProgram
 from exp_handling.datamanagement import AttrDict
 
 import experiments as meas
@@ -115,7 +115,7 @@ class T1StarkExperiment(QickExperiment):
         step: wait time sweep step
         expts: number steps in sweep
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
     )
     """
 
@@ -140,7 +140,7 @@ class T1StarkExperiment(QickExperiment):
 
         params_def = {
             "reps": 3 * self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "expts": 60,
             "start": 0.05,
             "span": 3.7 * self.cfg.device.qubit.T1[qi],
@@ -154,7 +154,7 @@ class T1StarkExperiment(QickExperiment):
         }
         params = {**params_def, **params}
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 30
 
@@ -222,7 +222,7 @@ class T1StarkPowerExperiment(QickExperiment2DSimple):
         step_gain: gain step [dac level]
         expts_gain: number steps
         reps: number averages per expt
-        soft_avgs: number repetitions of experiment sweep
+        rounds: number repetitions of experiment sweep
         sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
         pulse_type: 'gauss' or 'const'
     )
@@ -347,7 +347,7 @@ class T1StarkFreqExperiment(QickExperiment2DSimple):
         step_gain: gain step [dac level]
         expts_gain: number steps
         reps: number averages per expt
-        soft_avgs: number repetitions of experiment sweep
+        rounds: number repetitions of experiment sweep
         sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
         pulse_type: 'gauss' or 'const'
     )
@@ -467,7 +467,7 @@ class T1StarkPowerSingle(QickExperiment):
         step: wait time sweep step
         expts: number steps in sweep
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
     )
     """
 
@@ -492,7 +492,7 @@ class T1StarkPowerSingle(QickExperiment):
 
         params_def = {
             "reps": 10 * self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "expts": 200,
             "start": 1,
             "wait_time": self.cfg.device.qubit.T1[qi],
@@ -506,7 +506,7 @@ class T1StarkPowerSingle(QickExperiment):
         }
         params = {**params_def, **params}
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 30
 
@@ -585,7 +585,7 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
         step: wait time sweep step
         expts: number steps in sweep
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
     )
     """
 
@@ -611,7 +611,7 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
 
         params_def = {
             "reps": 10 * self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "expts": 200,
             "start": 1,
             "wait_time": self.cfg.device.qubit.T1[qi],
@@ -630,7 +630,7 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
         params_def["quad_fit_neg"] = [conf.qneg[qi], conf.lneg[qi], conf.oneg[qi]]
         params = {**params_def, **params}
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 30
 
@@ -717,7 +717,7 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
         step: wait time sweep step
         expts: number steps in sweep
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
     )
     """
 
@@ -742,7 +742,7 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
 
         params_def = {
             "reps": 5 * self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "expts": 200,
             "start": 1,
             "t1": self.cfg.device.qubit.T1[qi],
@@ -761,7 +761,7 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
         params_def["quad_fit_neg"] = [conf.qneg[qi], conf.lneg[qi], conf.oneg[qi]]
         params = {**params_def, **params}
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 30
 
@@ -865,7 +865,7 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DSimple):
         step_gain: gain step [dac level]
         expts_gain: number steps
         reps: number averages per expt
-        soft_avgs: number repetitions of experiment sweep
+        rounds: number repetitions of experiment sweep
         sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
         pulse_type: 'gauss' or 'const'
     )
@@ -895,7 +895,7 @@ class T1StarkPowerContTimeExperiment(QickExperiment2DSimple):
             "repsT1": 10 * self.reps,
             "repsE": 2 * self.reps,
             "repsG": self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "start_gain": 0,
             "stop_gain": self.cfg.device.qubit.max_gain,
             "expts_gain": 200,
@@ -1084,7 +1084,7 @@ class T1StarkPowerContTime(QickExperiment2DSimple):
         step_gain: gain step [dac level]
         expts_gain: number steps
         reps: number averages per expt
-        soft_avgs: number repetitions of experiment sweep
+        rounds: number repetitions of experiment sweep
         sigma_test: gaussian sigma for pulse length [us] (default: from pi_ge in config)
         pulse_type: 'gauss' or 'const'
     )
@@ -1114,7 +1114,7 @@ class T1StarkPowerContTime(QickExperiment2DSimple):
             "repsT1": 10 * self.reps,
             "repsE": 2 * self.reps,
             "repsG": self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "expts_f": 200,
             "stop_f": 25,
             "quad_fit_pos": [3e-8, 3e-4, 0],

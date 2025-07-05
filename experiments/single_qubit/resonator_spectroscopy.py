@@ -26,12 +26,12 @@ from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import (
+from experiments.general.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
-from gen.qick_program import QickProgram
+from experiments.general.qick_program import QickProgram
 import fitting as fitter
 import config
 
@@ -178,7 +178,7 @@ class ResSpec(QickExperiment):
     - 'pulse_e': Boolean to add e pulse prior to measurement (excite qubit)
     - 'pulse_f': Boolean to add f pulse prior to measurement (excite to 2nd level)
     - 'reps': Number of repetitions
-    - 'soft_avgs': Number of software averages
+    - 'rounds': Number of software averages
     - 'long_pulse': Whether to use a long readout pulse
     - 'loop': Whether to use loop mode for acquisition
     - 'phase_const': Whether to use constant phase spacing
@@ -236,7 +236,7 @@ class ResSpec(QickExperiment):
         params_def = {
             "gain": self.cfg.device.readout.gain[qi],
             "reps": self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "length": self.cfg.device.readout.readout_length[qi],
             "final_delay": 5,
             "pulse_e": False,

@@ -19,7 +19,7 @@ device:
   readout: {active_reset: false, chi: -1.438, fidelity: 0.8247, final_delay: 246.16,
     frequency: 1390.8844, gain: 0.4015, ie: 0, ig: 0, kappa: 0.6091, lamb: 0, max_gain: 1,
     phase: 164.3442, qe: 3.1888, qi: 1.4222, readout_length: 5.7845, reps: 1.2477,
-    reps_base: 200, reset_e: 0.0641, reset_g: 9.44, sigma: 2.3675, soft_avgs: 1, soft_avgs_base: 1,
+    reps_base: 200, reset_e: 0.0641, reset_g: 9.44, sigma: 2.3675, rounds: 1, rounds_base: 1,
     threshold: 6.2158, tm: 0.2382, trig_offset: 0.506}
 hw:
   soc:

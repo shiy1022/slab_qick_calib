@@ -4,8 +4,8 @@ from qick import *
 from exp_handling.datamanagement import AttrDict
 from datetime import datetime
 import fitting as fitter
-from gen.qick_experiment_2q import QickExperiment2Q
-from gen.qick_program import QickProgram2Q
+from experiments.general.qick_experiment_2q import QickExperiment2Q
+from experiments.general.qick_program import QickProgram2Q
 from qick.asm_v2 import QickSweep1D
 from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
@@ -97,7 +97,7 @@ import matplotlib.pyplot as plt
 #         - span (float): The total span of the wait time sweep in microseconds.
 #         - expts (int): The number of experiments to be performed.
 #         - reps (int): The number of repetitions for each experiment (inner loop)
-#         - soft_avgs (int): The number of soft_avgs for the experiment (outer loop)
+#         - rounds (int): The number of rounds for the experiment (outer loop)
 #         - qubit (int): The index of the qubit being used in the experiment.
 #         - qubit_chan (int): The channel of the qubit being read out.
 #     """
@@ -125,7 +125,7 @@ import matplotlib.pyplot as plt
 #         params_def = {
 #             "shots": 50000,
 #             'reps': 1,
-#             "soft_avgs": self.soft_avgs,
+#             "rounds": self.rounds,
 #             "wait_time": self.cfg.device.qubit.T1[qi],
 #             'active_reset': self.cfg.device.readout.active_reset[qi],
 #             'final_delay': self.cfg.device.qubit.T1[qi]*6,
@@ -162,7 +162,7 @@ import matplotlib.pyplot as plt
 
 #         iq_list = prog.acquire(
 #             self.im[self.cfg.aliases.soc],
-#             soft_avgs=self.cfg.expt.soft_avgs,
+#             rounds=self.cfg.expt.rounds,
 #             threshold=None,
 #             load_pulses=True,
 #             progress=progress,

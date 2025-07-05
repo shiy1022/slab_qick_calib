@@ -30,10 +30,18 @@ files = os.listdir(path)
 files = [f for f in files if not f.endswith(".ini")]
 module_path = __name__
 # module_path = os.path.join("slab_qick_calib", module_path)
+# Import general first so that it can be a superclass
+fpath = os.path.join(path, "general")
+subfiles = os.listdir(fpath)
+subfiles = [f for f in subfiles if not f.endswith(".ini")]
+submodule_path = module_path + ".general"
+for subf in subfiles:
+    import_modules_from_files(submodule_path, subf)
+
 for f in files:
     fpath = os.path.join(path, f)
     print(fpath)
-    if f[0] == "_" or f[0] == ".":
+    if f[0] == "_" or f[0] == "." or f == "general":
         continue
     if os.path.isdir(fpath):
         subfiles = os.listdir(fpath)

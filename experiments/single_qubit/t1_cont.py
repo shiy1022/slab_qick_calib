@@ -23,8 +23,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2D
-from gen.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment, QickExperiment2D
+from experiments.general.qick_program import QickProgram
 from exp_handling.datamanagement import AttrDict
 from analysis import time_series
 
@@ -206,7 +206,7 @@ class T1ContExperiment(QickExperiment):
     Configuration parameters (self.cfg.expt: dict):
         - shots (int): Number of measurement shots to take
         - reps (int): Number of repetitions for each experiment (inner loop)
-        - soft_avgs (int): Number of software averages (outer loop)
+        - rounds (int): Number of software averages (outer loop)
         - wait_time (float): Fixed wait time for T1 measurement in microseconds
         - active_reset (bool): Whether to use active qubit reset
         - final_delay (float): Delay between measurements in microseconds
@@ -258,7 +258,7 @@ class T1ContExperiment(QickExperiment):
         params_def = {
             "shots": 50000,  # Number of measurement shots
             "reps": 1,  # Number of repetitions
-            "soft_avgs": self.soft_avgs,  # Number of software averages
+            "rounds": self.rounds,  # Number of software averages
             "wait_time": self.cfg.device.qubit.T1[qi],  # Wait time set to current T1
             "active_reset": self.cfg.device.readout.active_reset[
                 qi
@@ -338,7 +338,7 @@ class T1ContExperiment(QickExperiment):
         # Run the program to acquire data
         iq_list = prog.acquire(
             self.im[self.cfg.aliases.soc],
-            soft_avgs=self.cfg.expt.soft_avgs,
+            rounds=self.cfg.expt.rounds,
             threshold=None,
             progress=progress,
         )

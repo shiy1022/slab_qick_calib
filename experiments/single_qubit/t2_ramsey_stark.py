@@ -5,7 +5,7 @@ from scipy.optimize import curve_fit
 from qick import *
 from qick.asm_v2 import QickSweep1D
 
-from gen.qick_experiment import QickExperiment2DSimple, QickExperiment
+from experiments.general.qick_experiment import QickExperiment2DSimple, QickExperiment
 import experiments as meas
 import fitting as fitter
 
@@ -20,7 +20,7 @@ class RamseyStarkExperiment(QickExperiment):
         expts: number experiments stepping from start
         ramsey_freq: frequency by which to advance phase [MHz]
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
         checkZZ: True/False for putting another qubit in e (specify as qA)
         checkEF: does ramsey on the EF transition instead of ge
         qubits: if not checkZZ, just specify [1 qubit]. if checkZZ: [qA in e , qB sweeps length rabi]
@@ -47,7 +47,7 @@ class RamseyStarkExperiment(QickExperiment):
         params_def = {
             "expts": 200,
             "reps": 2 * self.reps,
-            "soft_avgs": 2 * self.soft_avgs,
+            "rounds": 2 * self.rounds,
             "start": 0.1,
             "ramsey_freq": "smart",
             "stark_gain": 0.5,
@@ -73,7 +73,7 @@ class RamseyStarkExperiment(QickExperiment):
             params["ramsey_freq"] = np.pi / 2 / self.cfg.device.qubit.T2r[qi]
 
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2
+            params_def["rounds"] = params_def["rounds"] * 2
         elif style == "fast":
             params_def["expts"] = 30
         params = {**params_def, **params}
@@ -159,7 +159,7 @@ class RamseyStarkPowerExperiment(QickExperiment2DSimple):
         expts_gain (int): Gain value for experiments.
         ramsey_freq (float): Ramsey frequency in MHz.
         reps (int): Number of repetitions.
-        soft_avgs (int): Number of soft_avgs.
+        rounds (int): Number of rounds.
         qubit (list): List containing the qubit index.
         stark_freq (float): Stark frequency.
         checkEF (bool): Flag to check EF interaction.
@@ -283,7 +283,7 @@ class RamseyStarkFreqExperiment(QickExperiment2DSimple):
         expts_gain (int): Gain value for experiments.
         ramsey_freq (float): Ramsey frequency in MHz.
         reps (int): Number of repetitions.
-        soft_avgs (int): Number of soft_avgs.
+        rounds (int): Number of rounds.
         qubit (list): List containing the qubit index.
         stark_freq (float): Stark frequency.
         checkZZ (bool): Flag to check ZZ interaction.

@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 from qick import *
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment
-from gen.qick_program import QickProgram
-from gen.qick_experiment import QickExperiment2DSimple
+from experiments.general.qick_experiment import QickExperiment
+from experiments.general.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment2DSimple
 
 """
 Time of Flight (ToF) Calibration Module
@@ -106,7 +106,7 @@ class ToFCalibrationExperiment(QickExperiment):
     that should be applied to the ADC trigger to capture the signal at the right time.
 
     Experimental Config Parameters:
-        soft_avgs: Number of software averages for the measurement
+        rounds: Number of software averages for the measurement
         readout_length [us]: Length of the readout pulse
         trig_offset [us]: Current trigger offset for the ADC
         gain [DAC units]: Amplitude of the readout pulse
@@ -146,7 +146,7 @@ class ToFCalibrationExperiment(QickExperiment):
 
         # Define default parameters for the experiment
         params_def = {
-            "soft_avgs": 1000,  # Number of software averages
+            "rounds": 1000,  # Number of software averages
             "readout_length": 1,  # Readout pulse length [us]
             "trig_offset": self.cfg.device.readout.trig_offset[
                 qi
@@ -201,7 +201,7 @@ class ToFCalibrationExperiment(QickExperiment):
         # Acquire decimated I/Q data
         iq_list = prog.acquire_decimated(
             self.im[self.cfg.aliases.soc],
-            soft_avgs=self.cfg.expt.soft_avgs,
+            rounds=self.cfg.expt.rounds,
             progress=progress,
         )
 
@@ -332,7 +332,7 @@ class ToF2D(QickExperiment2DSimple):
         # Define default parameters for the 2D experiment
         params_def = {
             "expts_count": 1000,  # Number of experiments to run
-            "soft_avgs": 1,  # Number of software averages per experiment
+            "rounds": 1,  # Number of software averages per experiment
             "qubit": [qi],  # Qubit index to calibrate
         }
         params = {**params_def, **params}

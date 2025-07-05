@@ -25,9 +25,9 @@ class QickExperiment2Q(Experiment):
             im=im,
         )
         reps = np.max([self.cfg.device.readout.reps[q] for q in qi])
-        soft_avgs = np.max([self.cfg.device.readout.soft_avgs[q] for q in qi])
+        rounds = np.max([self.cfg.device.readout.rounds[q] for q in qi])
         self.reps = int(reps * self.cfg.device.readout.reps_base)
-        self.soft_avgs = int(soft_avgs * self.cfg.device.readout.soft_avgs_base)
+        self.rounds = int(rounds * self.cfg.device.readout.rounds_base)
 
     def acquire(self, prog_name, progress=True, get_hist=True):
         if "active_reset" in self.cfg.expt and self.cfg.expt.active_reset:
@@ -47,7 +47,7 @@ class QickExperiment2Q(Experiment):
 
         iq_list = prog.acquire(
             self.im[self.cfg.aliases.soc],
-            soft_avgs=self.cfg.expt.soft_avgs,
+            rounds=self.cfg.expt.rounds,
             threshold=None,
             load_pulses=True,
             progress=progress,

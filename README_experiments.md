@@ -83,7 +83,7 @@ rspec = meas.ResSpec(cfg_dict, qi=qi, style='coarse', params={'start': 5000, 'sp
 Each experiment accepts a `params` dictionary that allows you to customize the experiment. Common parameters include:
 
 - `reps`: Number of repetitions for each experiment point
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages
 - `expts`: Number of experiment points
 - `start`: Start value for the swept parameter
 - `span`: Span of the swept parameter
@@ -107,7 +107,7 @@ Experiment-specific parameters are documented in the respective experiment class
 **Purpose**: Run this calibration when the wiring of the setup is changed. By calibrating this delay, we ensure that data acquisition starts at the optimal time when the signal actually arrives at the detector, avoiding dead time or missed signals.
 
 **Parameters**:
-- `soft_avgs`: Number of software averages for the measurement
+- `rounds`: Number of software averages for the measurement
 - `readout_length [us]`: Length of the readout pulse
 - `trig_offset [us]`: Current trigger offset for the ADC
 - `gain [DAC units]`: Amplitude of the readout pulse
@@ -282,7 +282,7 @@ The module includes:
 **Key Parameters**:
 - `expts`: Number of amplitude/length points (default: 60)
 - `reps`: Number of repetitions for each experiment
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages
 - `gain`: Maximum pulse amplitude (for length sweep)
 - `sigma`: Pulse width (for amplitude sweep)
 - `sweep`: 'amp' or 'length' to specify what to sweep
@@ -346,7 +346,7 @@ The module provides several experiment classes:
 **Key Parameters**:
 - `expts`: Number of wait time points (default: 60)
 - `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages
 - `start`: Start wait time (μs) (default: 0)
 - `span`: Total span of wait times (μs) (default: 3.7 * T1)
 - `acStark`: Whether to apply AC Stark shift during wait time (default: False)
@@ -386,7 +386,7 @@ Additional features include:
 - `experiment_type`: "ramsey" or "echo" (default: "ramsey")
 - `expts`: Number of wait time points (default: 100)
 - `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages
 - `start`: Start wait time (μs) (default: 0.01)
 - `span`: Total span of wait times (μs) (default: 3 * T2r)
 - `ramsey_freq`: Frequency detuning for phase advancement (MHz) (default: "smart", which sets to 1.5/T2)
@@ -418,7 +418,7 @@ The experiment fits the data to a decaying sinusoid and extracts both the T2 tim
 - `experiment_type`: Set to 'echo' for echo experiment
 - `expts`: Number of wait time points (default: 100)
 - `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages
 - `start`: Start wait time (μs) (default: 0.01)
 - `span`: Total span of wait times (μs) (default: 3 * T2e)
 - `num_pi`: Number of π pulses (default: 1 for standard echo)
@@ -614,7 +614,7 @@ t1_2q = meas.T1_2Q(cfg_dict, qi=[0, 1])
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `reps` | Number of repetitions for each experiment point | Varies by experiment |
-| `soft_avgs` | Number of software averages | Varies by experiment |
+| `rounds` | Number of software averages | Varies by experiment |
 | `expts` | Number of experiment points | Varies by experiment |
 | `start` | Start value for the swept parameter | Varies by experiment |
 | `span` | Span of the swept parameter | Varies by experiment |

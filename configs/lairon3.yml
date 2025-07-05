@@ -44,8 +44,8 @@ device:
     reset_e: [0, 0, 0]
     reset_g: [0, 0, 0]
     sigma: [0.7346, 1.1219, 0.8807]
-    soft_avgs: [1, 1, 1]
-    soft_avgs_base: 1
+    rounds: [1, 1, 1]
+    rounds_base: 1
     threshold: [1.3739, 2.1654, 2.7314]
     tm: [0.3251, 0.1161, 0.427]
     trig_offset: [0.4, 0.4, 0.4]

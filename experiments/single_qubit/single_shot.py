@@ -26,8 +26,8 @@ import copy
 import seaborn as sns
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment
-from gen.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment
+from experiments.general.qick_program import QickProgram
 import config
 from calib import readout_helpers as helpers
 
@@ -223,7 +223,7 @@ class HistogramExperiment(QickExperiment):
         params_def = dict(
             shots=10000,  # Number of shots per experiment
             reps=1,  # Number of repetitions
-            soft_avgs=1,  # Number of software averages
+            rounds=1,  # Number of software averages
             readout_length=self.cfg.device.readout.readout_length[
                 qi
             ],  # Readout pulse length

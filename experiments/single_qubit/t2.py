@@ -20,8 +20,8 @@ from qick import *
 from qick.asm_v2 import QickSweep1D
 
 import fitting as fitter
-from gen.qick_experiment import QickExperiment
-from gen.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment
+from experiments.general.qick_program import QickProgram
 from exp_handling.datamanagement import AttrDict
 
 
@@ -201,7 +201,7 @@ class T2Experiment(QickExperiment):
         expts: number experiments stepping from start
         ramsey_freq: frequency by which to advance phase [MHz]
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
         acStark: True/False (Ramsey only)
         checkEF: True/False (Ramsey only)
     )
@@ -265,7 +265,7 @@ class T2Experiment(QickExperiment):
         # Define default parameters
         params_def = {
             "reps": 2 * self.reps,  # Number of repetitions (inner loop)
-            "soft_avgs": self.soft_avgs,  # Number of averages (outer loop)
+            "rounds": self.rounds,  # Number of averages (outer loop)
             "expts": 100,  # Number of wait time points
             "span": 3
             * self.cfg.device.qubit[par][
@@ -285,8 +285,8 @@ class T2Experiment(QickExperiment):
 
         # Adjust parameters based on measurement style
         if style == "fine":
-            params_def["soft_avgs"] = (
-                params_def["soft_avgs"] * 2
+            params_def["rounds"] = (
+                params_def["rounds"] * 2
             )  # Double averages for fine measurements
         elif style == "fast":
             params_def["expts"] = 50  # Fewer points for fast measurements

@@ -17,8 +17,8 @@ from qick.asm_v2 import QickSweep1D
 from qick import *
 
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment2DSweep
-from gen.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment2DSweep
+from experiments.general.qick_program import QickProgram
 
 import fitting as fitter
 
@@ -126,7 +126,7 @@ class StarkSpec(QickExperiment2DSweep):
     - 'pulse_type': Type of pulse ('const' or 'gauss')
     - 'final_delay': Delay time between repetitions (μs)
     - 'reps': Number of repetitions
-    - 'soft_avgs': Number of software averages
+    - 'rounds': Number of software averages
     - 'active_reset': Whether to use active reset
 
     The style parameter can be:
@@ -211,7 +211,7 @@ class StarkSpec(QickExperiment2DSweep):
 
         # Additional default parameters
         params_def2 = {
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "final_delay": 10,
             "length": 5,
             "stark_expts": 30,

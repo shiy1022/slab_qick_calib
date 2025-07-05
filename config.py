@@ -289,7 +289,6 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
             "pop": init_array(0),
             "temp": init_array(0),
             "tuned_up": init_array(False),
-            "rescale": init_array(False),
             "low_gain": 0.003,
             "max_gain": 1,
         }
@@ -323,6 +322,7 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
             "fidelity": init_array(0),
             "tm": init_array(0),
             "sigma": init_array(0),
+            "rescale": init_array(False),
         }
     )
 
@@ -341,10 +341,10 @@ def init_config(file_name, num_qubits, type="full", t1=50, aliases="Qick001"):
     device["readout"].update(
         {
             "reps": init_array(1),
-            "soft_avgs": init_array(1),
+            "rounds": init_array(1),
             "max_gain": 1,
             "reps_base": 150,
-            "soft_avgs_base": 1,
+            "rounds_base": 1,
         }
     )
 
@@ -437,10 +437,10 @@ def init_config_res(file_name, num_qubits, type="full", aliases="Qick001"):
     device["readout"].update(
         {
             "reps": init_array(1),
-            "soft_avgs": init_array(1),
+            "rounds": init_array(1),
             "max_gain": 1,
             "reps_base": 30,
-            "soft_avgs_base": 1,
+            "rounds_base": 1,
             "phase_inc": [1140],
         }
     )

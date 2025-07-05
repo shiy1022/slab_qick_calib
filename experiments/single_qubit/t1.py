@@ -5,8 +5,8 @@ from qick.asm_v2 import QickSweep1D
 import config
 import fitting as fitter
 from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
-from gen.qick_program import QickProgram
+from experiments.general.qick_experiment import QickExperiment, QickExperiment2DSimple
+from experiments.general.qick_program import QickProgram
 
 """
 T1 Experiment Module
@@ -128,7 +128,7 @@ class T1Experiment(QickExperiment):
         - span (float): The total span of the wait time sweep in microseconds.
         - expts (int): The number of experiments to be performed.
         - reps (int): The number of repetitions for each experiment (inner loop)
-        - soft_avgs (int): The number of soft_avgs for the experiment (outer loop)
+        - rounds (int): The number of rounds for the experiment (outer loop)
         - qubit (int): The index of the qubit being used in the experiment.
         - qubit_chan (int): The channel of the qubit being read out.
         - acStark (bool): Whether to apply AC Stark shift during wait time
@@ -184,7 +184,7 @@ class T1Experiment(QickExperiment):
         # Define default parameters
         params_def = {
             "reps": 2 * self.reps,  # Number of repetitions (inner loop)
-            "soft_avgs": self.soft_avgs,  # Number of averages (outer loop)
+            "rounds": self.rounds,  # Number of averages (outer loop)
             "expts": 60,  # Number of wait time points
             "start": 0,  # Start time for wait sweep (μs)
             "span": 3.7
@@ -203,8 +203,8 @@ class T1Experiment(QickExperiment):
 
         # Adjust parameters based on measurement style
         if style == "fine":
-            params_def["soft_avgs"] = (
-                params_def["soft_avgs"] * 2
+            params_def["rounds"] = (
+                params_def["rounds"] * 2
             )  # Double averages for fine measurements
         elif style == "fast":
             params_def["expts"] = 30  # Fewer points for fast measurements

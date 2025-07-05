@@ -24,7 +24,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
             "span": span,
             "center": center,
             "npts": npts,
-            "soft_avgs": 5,
+            "rounds": 5,
             "final_delay": 15,
             "pulse_e": True,
         },
@@ -40,7 +40,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
                 "span": span,
                 "center": center,
                 "npts": npts,
-                "soft_avgs": 5,
+                "rounds": 5,
                 "final_delay": 15,
                 "pulse_e": True,
                 "pulse_f": True,
@@ -56,7 +56,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
             "span": span,
             "center": center,
             "npts": npts,
-            "soft_avgs": 2,
+            "rounds": 2,
             "final_delay": 15,
         },
         go=False,
@@ -145,7 +145,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
     )
 
 
-def measure_temp(cfg_dict, qi, expts=20, soft_avgs=1, chan=None):
+def measure_temp(cfg_dict, qi, expts=20, rounds=1, chan=None):
 
     rabief = meas.RabiExperiment(
         cfg_dict, qi=qi, params={"pulse_ge": True, "checkEF": True}
@@ -157,7 +157,7 @@ def measure_temp(cfg_dict, qi, expts=20, soft_avgs=1, chan=None):
             "expts": expts,
             "pulse_ge": False,
             "checkEF": True,
-            "soft_avgs": soft_avgs,
+            "rounds": rounds,
         },
         style="temp",
     )

@@ -4,8 +4,8 @@ from qick import *
 from exp_handling.datamanagement import AttrDict
 from datetime import datetime
 import fitting as fitter
-from gen.qick_experiment_2q import QickExperiment2Q
-from gen.qick_program import QickProgram2Q
+from experiments.general.qick_experiment_2q import QickExperiment2Q
+from experiments.general.qick_program import QickProgram2Q
 from qick.asm_v2 import QickSweep1D
 from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
@@ -116,7 +116,7 @@ class T1Cont2QExperiment(QickExperiment2Q):
         params_def = {
             "shots": 50000,
             "reps": 1,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "wait_time": max([self.cfg.device.qubit.T1[q] for q in qi]),
             "span": [self.cfg.device.qubit.T1[q] for q in qi],
             "active_reset": np.all(
@@ -192,7 +192,7 @@ class T1Cont2QExperiment(QickExperiment2Q):
 
         iq_list = prog.acquire(
             self.im[self.cfg.aliases.soc],
-            soft_avgs=self.cfg.expt.soft_avgs,
+            rounds=self.cfg.expt.rounds,
             threshold=None,
             load_pulses=True,
             progress=progress,
