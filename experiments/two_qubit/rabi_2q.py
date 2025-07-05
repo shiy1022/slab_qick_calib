@@ -329,7 +329,7 @@ class RabiChevron_2Q(QickExperiment2DSimple):
                 self.cfg.device.qubit.f_ge[qi] - params["span_f"] / 2
             )
 
-        self.expt = RabiExperiment(cfg_dict, qi, go=False, params=params, style=style)
+        self.expt = RabiExperiment(cfg_dict, qi, go=False, params=params, style=style, check_params=False)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params

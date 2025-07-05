@@ -788,7 +788,7 @@ class ResSpecPower(QickExperiment2DSimple):
 
         # Create a ResSpec experiment but don't run it
         exp_name = ResSpec
-        self.expt = exp_name(cfg_dict, qi=qi, go=False, style="coarse", params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, style="coarse", params=params, check_params=False)
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
 
@@ -1028,7 +1028,7 @@ class ResSpec2D(QickExperiment2DSimple):
         params = {**params_def, **params}
 
         # Create a ResSpec experiment but don't run it
-        self.expt = ResSpec(cfg_dict, prefix=prefix, qi=qi, go=False, params=params)
+        self.expt = ResSpec(cfg_dict, prefix=prefix, qi=qi, go=False, params=params, check_params=False)
 
         # Set experiment configuration
         self.cfg.expt = {**self.expt.cfg.expt, **params}

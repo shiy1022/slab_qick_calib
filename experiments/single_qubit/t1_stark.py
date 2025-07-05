@@ -256,7 +256,7 @@ class T1StarkPowerExperiment(QickExperiment2DSimple):
             "qubit": [qi],
         }
         self.expt = T1StarkExperiment(
-            cfg_dict, qi=qi, go=False, params=params, acStark=acStark, style=style
+            cfg_dict, qi=qi, go=False, params=params, acStark=acStark, style=style, check_params=False
         )
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
@@ -382,7 +382,7 @@ class T1StarkFreqExperiment(QickExperiment2DSimple):
         params = {**params_def, **params}
         params["start_f"] = self.cfg.device.qubit.f_ge[qi] + params["start_df"]
         self.expt = T1StarkExperiment(
-            cfg_dict, qi=qi, go=False, params=params, acStark=acStark, style=style
+            cfg_dict, qi=qi, go=False, params=params, acStark=acStark, style=style, check_params=False
         )
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}

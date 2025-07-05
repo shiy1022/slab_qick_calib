@@ -771,7 +771,7 @@ class RabiChevronExperiment(QickExperiment2DSimple):
 
         # Create a RabiExperiment instance but don't run it yet
         self.expt = RabiExperiment(
-            cfg_dict, qi=qi, go=False, params=params, style=style
+            cfg_dict, qi=qi, go=False, params=params, style=style, check_params=False
         )
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
@@ -990,7 +990,7 @@ class Rabi2D(QickExperiment2DSimple):
 
         # Create a RabiExperiment instance but don't run it yet
         self.expt = RabiExperiment(
-            cfg_dict, qi=qi, go=False, params=params, style=style
+            cfg_dict, qi=qi, go=False, params=params, style=style, check_params=False
         )
         self.cfg.expt = {**self.expt.cfg.expt, **params}
 

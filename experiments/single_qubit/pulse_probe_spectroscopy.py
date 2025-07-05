@@ -494,7 +494,7 @@ class QubitSpecPower(QickExperiment2DSimple):
 
         # Create a QubitSpec experiment but don't run it
         exp_name = QubitSpec
-        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi=qi, go=False, params=params, check_params=False)
 
         # Get parameters from the QubitSpec experiment
         params = {**self.expt.cfg.expt, **params}
