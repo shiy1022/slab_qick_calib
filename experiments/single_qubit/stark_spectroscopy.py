@@ -16,11 +16,12 @@ import matplotlib.pyplot as plt
 from qick.asm_v2 import QickSweep1D
 from qick import *
 
-from exp_handling.datamanagement import AttrDict
-from experiments.general.qick_experiment import QickExperiment2DSweep
-from experiments.general.qick_program import QickProgram
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import QickExperiment2DSweep
+from ..general.qick_program import QickProgram
 
-import fitting as fitter
+
+from ... import fitting as fitter
 
 
 class QubitSpecProgram(QickProgram):

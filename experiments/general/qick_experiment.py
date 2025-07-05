@@ -8,9 +8,9 @@ from scipy.optimize import curve_fit
 
 from qick import *
 
-from exp_handling.experiment import Experiment
-import fitting as fitter
-from calib import readout_helpers as helpers
+from ...exp_handling.experiment import Experiment
+from ... import fitting as fitter
+from ...calib import readout_helpers as helpers
 
 """
 QICK Experiment Module

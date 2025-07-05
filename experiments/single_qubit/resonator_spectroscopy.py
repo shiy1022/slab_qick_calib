@@ -25,15 +25,16 @@ from qick.asm_v2 import QickSweep1D
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
 
-from exp_handling.datamanagement import AttrDict
-from experiments.general.qick_experiment import (
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
-from experiments.general.qick_program import QickProgram
-import fitting as fitter
-import config
+from ..general.qick_program import QickProgram
+
+from ... import fitting as fitter
+from ... import config
 
 
 def generate_filename(experiment_type, qubit_idx, style=None, state=None, extra=None):

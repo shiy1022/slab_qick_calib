@@ -19,10 +19,11 @@ import numpy as np
 from qick import *
 from qick.asm_v2 import QickSweep1D
 
-import fitting as fitter
-from experiments.general.qick_experiment import QickExperiment
-from experiments.general.qick_program import QickProgram
-from exp_handling.datamanagement import AttrDict
+from ... import fitting as fitter
+from ..general.qick_experiment import QickExperiment
+from ..general.qick_program import QickProgram
+
+from ...exp_handling.datamanagement import AttrDict
 
 
 class T2Program(QickProgram):

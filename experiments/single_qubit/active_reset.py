@@ -7,9 +7,10 @@ import copy
 import seaborn as sns
 
 from qick import *
-from exp_handling.datamanagement import AttrDict
-from experiments.general.qick_experiment import QickExperiment
-from experiments.general.qick_program import QickProgram
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import QickExperiment
+from ..general.qick_program import QickProgram
+
 
 
 blue = "#4053d3"

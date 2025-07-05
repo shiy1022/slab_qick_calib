@@ -22,11 +22,12 @@ from qick import *
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-from exp_handling.datamanagement import AttrDict
-from experiments.general.qick_experiment import QickExperiment, QickExperiment2D
-from experiments.general.qick_program import QickProgram
-from exp_handling.datamanagement import AttrDict
-from analysis import time_series
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import QickExperiment, QickExperiment2D
+from ..general.qick_program import QickProgram
+
+from ...exp_handling.datamanagement import AttrDict
+from ...analysis import time_series
 
 
 class T1ContProgram(QickProgram):

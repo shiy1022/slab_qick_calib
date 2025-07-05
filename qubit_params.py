@@ -1,5 +1,5 @@
 import scqubits as scq
-import config 
+from ... import config 
 import numpy as np
 from scipy import constants as cs
 

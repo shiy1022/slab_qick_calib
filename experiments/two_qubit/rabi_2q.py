@@ -5,11 +5,11 @@ from qick import *
 from qick.asm_v2 import QickSweep1D
 from scipy.optimize import curve_fit
 
-from exp_handling.datamanagement import AttrDict
-from experiments.general.qick_experiment import QickExperiment2DSimple
-from experiments.general.qick_experiment_2q import QickExperiment2Q
-from experiments.general.qick_program import QickProgram2Q
-import fitting as fitter
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import QickExperiment2DSimple
+from ..general.qick_experiment_2q import QickExperiment2Q
+from ..general.qick_program import QickProgram2Q
+from ... import fitting as fitter
 
 
 # ====================================================== #

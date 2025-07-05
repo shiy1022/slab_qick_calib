@@ -4,9 +4,9 @@ from qick import *
 import seaborn as sns
 from tqdm import tqdm_notebook as tqdm
 
-from experiments.general.qick_experiment import QickExperiment
-import experiments as meas
-import config
+from ..general.qick_experiment import QickExperiment
+from .single_shot import HistogramExperiment
+from ... import config
 
 blue = "#4053d3"
 red = "#b51d14"
@@ -200,7 +200,7 @@ class SingleShotOptExperiment(QickExperiment):
                     If[-1].append([])
                     Qf[-1].append([])
                 for l_ind, l in enumerate(tqdm(lenpts, disable=not lprog)):
-                    shot = meas.HistogramExperiment(
+                    shot = HistogramExperiment(
                         self.cfg_dict,
                         go=False,
                         progress=False,

@@ -15,7 +15,7 @@ This document provides a guide to configuring and running various quantum experi
 
 The SLAB QICK calibration framework provides a comprehensive set of experiments for characterizing and calibrating superconducting qubits. The framework is built on top of the QICK hardware platform and provides a high-level interface for running quantum experiments.
 
-Before running experiments, make sure a nameserver is running on the network, the QICK board is connected to it, and the IP address in your configuration matches that of the nameserver.
+Before running experiments, make sure a nameserver is running on the network (on whatever computer you want to run it, open NameServer.ipynb and run with that computer's IP address). Then, on QICK board, go to pyro4 folder and open Notebook 1, setting th.  the QICK board is connected to it, and the IP address in your configuration matches that of the nameserver.
 
 ## Experiment Configuration
 
@@ -94,6 +94,8 @@ Each experiment accepts a `params` dictionary that allows you to customize the e
 
 Experiment-specific parameters are documented in the respective experiment classes.
 
+All times are in us. All gains are out of 1. 
+
 ## Available Experiments
 
 ### Single Qubit Experiments
@@ -102,7 +104,8 @@ Experiment-specific parameters are documented in the respective experiment class
 
 **File**: `experiments/single_qubit/tof_calibration.py`
 
-**Description**: Measures the time it takes for the signal to run through the wires. It determines the time in clock ticks that we should wait to make measurements. Time of flight (tof) is stored in parameter cfg.device.readout.trig_offset.
+**Description**: Measures the time it takes for the signal to run through the cables, plus latency. It determines the time that we should wait to make measurements. Time of flight (tof) is stored in parameter cfg.device.readout.trig_offset.
+Not automated, need to figure out trig_offset by eye.
 
 **Purpose**: Run this calibration when the wiring of the setup is changed. By calibrating this delay, we ensure that data acquisition starts at the optimal time when the signal actually arrives at the detector, avoiding dead time or missed signals.
 
@@ -117,7 +120,7 @@ Experiment-specific parameters are documented in the respective experiment class
 - `phase`: Phase of the readout pulse
 - `final_delay [us]`: Final delay after the pulse sequence
 - `check_e`: Whether to excite qubit to |1⟩ state before measurement
-- `use_readout`: Whether to use existing readout parameters (gain and phase)
+- `use_readout`: Whether to use current readout parameters (gain and phase)
 
 **Example**:
 ```python
@@ -126,7 +129,7 @@ tof = meas.ToFCalibrationExperiment(cfg_dict=cfg_dict, qi=0)
 
 **2D Time of Flight Calibration**:
 
-The package also provides a 2D Time of Flight calibration experiment (`ToF2D`) that performs multiple measurements over time. This can be useful for monitoring the stability of the time of flight or for more complex calibration procedures.
+The package also provides a 2D Time of Flight calibration experiment (`ToF2D`) that performs multiple measurements over time. This can be useful for performing many iterations of the readout trace.
 
 ```python
 tof_2d = meas.ToF2D(cfg_dict=cfg_dict, qi=0, params={'expts_count': 500})
@@ -144,7 +147,7 @@ The module includes:
 - `ResSpecPower`: 2D version that sweeps both frequency and power
 - `ResSpec2D`: 2D version for repeated measurements
 
-Note that harmonics of the clock frequency (6144 MHz) will show up as "infinitely" narrow peaks!
+Note that harmonics of the clock frequency will show up as "infinitely" narrow peaks!
 
 **Key Parameters**:
 - `start`: Start frequency (MHz)

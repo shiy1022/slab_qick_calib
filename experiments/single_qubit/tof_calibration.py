@@ -3,10 +3,11 @@ import matplotlib.pyplot as plt
 
 from qick import *
 
-from exp_handling.datamanagement import AttrDict
-from experiments.general.qick_experiment import QickExperiment
-from experiments.general.qick_program import QickProgram
-from experiments.general.qick_experiment import QickExperiment2DSimple
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import QickExperiment
+from ..general.qick_program import QickProgram
+
+from ..general.qick_experiment import QickExperiment2DSimple
 
 """
 Time of Flight (ToF) Calibration Module

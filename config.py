@@ -7,7 +7,7 @@ for different types of experiments.
 """
 
 import yaml
-from exp_handling.datamanagement import AttrDict
+from .exp_handling.datamanagement import AttrDict
 from functools import reduce
 import numpy as np
 from datetime import datetime

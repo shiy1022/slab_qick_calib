@@ -5,9 +5,9 @@ from scipy.optimize import curve_fit
 from qick import *
 from qick.asm_v2 import QickSweep1D
 
-from experiments.general.qick_experiment import QickExperiment2DSimple, QickExperiment
-import experiments as meas
-import fitting as fitter
+from ..general.qick_experiment import QickExperiment2DSimple, QickExperiment
+from .t2 import T2Program
+from ... import fitting as fitter
 
 
 class RamseyStarkExperiment(QickExperiment):
@@ -95,7 +95,7 @@ class RamseyStarkExperiment(QickExperiment):
             self.cfg.expt.start + self.cfg.expt.step * self.cfg.expt.expts,
         )
 
-        data = super().acquire(meas.T2Program, progress=progress)
+        data = super().acquire(T2Program, progress=progress)
         return data
 
     def analyze(self, data=None, fit=True, **kwargs):

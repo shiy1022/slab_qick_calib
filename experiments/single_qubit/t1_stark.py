@@ -8,17 +8,18 @@ import seaborn as sns
 from copy import deepcopy
 
 from qick.asm_v2 import QickSweep1D
-import fitting as fitter
-from experiments.general.qick_experiment import (
+from ... import fitting as fitter
+from ..general.qick_experiment import (
     QickExperiment,
     QickExperiment2DSimple,
     QickExperimentLoop,
 )
 
-from experiments.general.qick_program import QickProgram
-from exp_handling.datamanagement import AttrDict
+from ..general.qick_program import QickProgram
 
-import experiments as meas
+from ...exp_handling.datamanagement import AttrDict
+
+from .t1 import T1Program
 
 
 class T1MultiProgram(QickProgram):
@@ -172,7 +173,7 @@ class T1StarkExperiment(QickExperiment):
         self.cfg.expt.wait_time = QickSweep1D(
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
-        super().acquire(meas.T1Program, progress=progress)
+        super().acquire(T1Program, progress=progress)
 
         return self.data
 
@@ -525,15 +526,15 @@ class T1StarkPowerSingle(QickExperiment):
         self.cfg.expt.stark_gain = QickSweep1D(
             "wait_loop", self.cfg.expt.start, self.cfg.expt.max_gain
         )
-        super().acquire(meas.T1Program, progress=progress)
+        super().acquire(T1Program, progress=progress)
         data_t1 = deepcopy(self.data)
         self.cfg.expt.wait_time = 3.3 * self.cfg.device.qubit.T1[qi]
         self.cfg.expt.reps = int(4 * self.reps)
-        data_g = super().acquire(meas.T1Program, progress=progress)
+        data_g = super().acquire(T1Program, progress=progress)
 
         self.cfg.expt.wait_time = 0.025
         self.cfg.expt.reps = int(2.5 * self.reps)
-        data_e = super().acquire(meas.T1Program, progress=progress)
+        data_e = super().acquire(T1Program, progress=progress)
 
         data_types = ["avgi", "avgq", "amps", "phases"]
         for item in data_types:
@@ -669,7 +670,7 @@ class T1StarkPowerQuadSingle(QickExperimentLoop):
             {"var": "stark_freq", "pts": stark_freq},
         ]
         self.cfg.expt.expts = 1
-        super().acquire(meas.T1Program, x_sweep, progress=progress)
+        super().acquire(T1Program, x_sweep, progress=progress)
         self.data["f_pts"] = f_pts
 
         return self.data
@@ -809,7 +810,7 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
         for i, t in enumerate(self.cfg.expt.wait_times):
             self.cfg.expt.wait_time = t
 
-            super().acquire(meas.T1Program, x_sweep, progress=progress)
+            super().acquire(T1Program, x_sweep, progress=progress)
             for lab in labs:
                 save_data[lab + "_" + str(i)] = self.data[lab]
 
