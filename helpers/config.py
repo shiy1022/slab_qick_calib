@@ -561,3 +561,79 @@ def init_model_config(file_name, num_qubits):
         modified_file.write(cfg_yaml)
 
     return cfg_yaml
+
+
+def init_stark_section(file_name, num_qubits):
+    """
+    Initializes a 'stark' section in a configuration file.
+
+    This function loads an existing configuration, adds a 'stark' section with
+    np.nan values for various parameters, and saves the updated configuration.
+
+    Args:
+        file_name (str): Path to the configuration file.
+        num_qubits (int): The number of qubits, used to determine the length of the parameter arrays.
+
+    Returns:
+        AttrDict: The updated configuration object.
+    """
+    # Load the existing configuration
+    cfg = load(file_name)
+
+    # Define the stark parameters
+    stark_params = ['q', 'l', 'o', 'qneg', 'lneg', 'oneg', 'f', 'fneg']
+
+    # Create the stark section with null values
+    stark_section = {param: [np.nan] * num_qubits for param in stark_params}
+
+    # Add the stark section to the configuration
+    cfg['stark'] = stark_section
+
+    # Save the updated configuration and return it
+    return save(cfg, file_name)
+
+
+def add_pulse(file_name, pulse_name, pulse_type="gauss"):
+    """
+    Add a new pulse to the configuration.
+    The new pulse will be added to the device/qubit/pulses section.
+
+    Args:
+        file_name (str): Path to the configuration file.
+        pulse_name (str): Name of the new pulse to add.
+
+    Returns:
+        AttrDict: The updated configuration object.
+    """
+    cfg = load(file_name)
+    num_qubits = len(cfg.device.qubit.T1)
+
+    def init_array(value, length=num_qubits):
+        """Create an array with the same value repeated."""
+        return [value] * length
+
+    if pulse_type=='gauss':
+        new_pulse = {
+            "gain": init_array(0.15),
+            "sigma": init_array(0.1),
+            "sigma_inc": init_array(4),
+            "type": init_array(pulse_type),
+        }
+    elif pulse_type=='const':
+        new_pulse = {
+            "gain": init_array(0.15),
+            "length": init_array(1),
+            "type": init_array(pulse_type),
+        }
+    elif pulse_type=='flat_top':
+        new_pulse = {
+            "gain": init_array(0.15),
+            "length": init_array(0.1),
+            "ramp_sigma": init_array(0.02),
+            "ramp_sigma_inc": init_array(4),
+            "type": init_array(pulse_type),
+        }
+
+    cfg.device.qubit.pulses[pulse_name] = new_pulse
+
+    return save(cfg, file_name)
