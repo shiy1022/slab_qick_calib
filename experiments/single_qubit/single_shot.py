@@ -234,6 +234,7 @@ class HistogramExperiment(QickExperiment):
         check_f=False,
         params={},
         display=True,
+        print=False,
     ):
         # Set default prefix if not provided
         if prefix is None:
@@ -267,6 +268,9 @@ class HistogramExperiment(QickExperiment):
         if self.cfg.expt.active_reset:
             super().configure_reset()
 
+        if print:
+            super().print()
+            go = False
         # Run the experiment if requested
         if go:
             self.go(analyze=True, display=display, progress=progress, save=True)

@@ -128,6 +128,7 @@ class ToFCalibrationExperiment(QickExperiment):
         qi=0,
         params={},
         go=True,
+        print=False,
     ):
         """
         Initialize the ToF calibration experiment.
@@ -171,7 +172,9 @@ class ToFCalibrationExperiment(QickExperiment):
 
         # Merge default parameters with provided parameters
         self.cfg.expt = {**params_def, **params}
-
+        if print:
+            super().print()
+            go = False
         # Run the experiment if go is True
         if go:
             self.go(analyze=False, display=False, progress=True, save=True)

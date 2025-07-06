@@ -41,7 +41,7 @@ class SingleShotOptExperiment(QickExperiment):
     Otherwise, it is calculated to center the sweep around the config value.
     """
 
-    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}):
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, print=False):
 
         if prefix is None:
             prefix = f"single_shot_opt_qubit_{qi}"
@@ -115,7 +115,9 @@ class SingleShotOptExperiment(QickExperiment):
 
         # Check for unexpected parameters
         super().check_params(params)
-
+        if print:
+            super().print()
+            go = False
         if go:
             self.go(analyze=False, display=False, progress=False, save=True)
             self.analyze()

@@ -148,6 +148,7 @@ class StarkSpec(QickExperiment2DSweep):
         style="medium",
         min_r2=None,
         max_err=None,
+        print=False,
     ):
         """
         Initialize the Stark spectroscopy experiment.
@@ -254,7 +255,9 @@ class StarkSpec(QickExperiment2DSweep):
 
         # Check for unexpected parameters
         super().check_params(params_def)
-
+        if print:
+            super().print()
+            go = False
         # Run the experiment if requested
         if go:
             super().run(
