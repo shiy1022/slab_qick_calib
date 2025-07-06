@@ -233,7 +233,7 @@ class MyExperiment(QickExperiment):
 - **Parameter Sweeps**: Use `QickSweep1D` for parameters swept on the QICK hardware
 - **Configuration**: Always define `params_def` with sensible defaults
 - **Parameter Validation**: Call `super().check_params(params_def)` to catch typos
-- **Metadata**: Set `self.param` to describe what parameter is being swept
+- **Metadata**: Set `self.param` to describe what parameter is being swept, so that QICK will return the sweep points used. 
 - **Fitting**: Choose appropriate fitting functions from the `fitter` module
 - **Display**: Provide meaningful titles, labels, and caption parameters
 
