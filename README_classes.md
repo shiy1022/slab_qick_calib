@@ -55,7 +55,7 @@ The `QickExperiment` class is the base for running quantum experiments on QICK h
 
 ## QickExperimentLoop
 
-The `QickExperimentLoop` class extends `QickExperiment` for loop-based parameter sweeps.
+The `QickExperimentLoop` class extends `QickExperiment` for loop-based parameter sweeps, generally because some parameters can't be adjusted with QickSweeps -- primarily for nonlinear sweep, or parameters that can't be swept that way (as with Gaussian pulses)
 
 ### Methods
 
@@ -66,7 +66,7 @@ The `QickExperimentLoop` class extends `QickExperiment` for loop-based parameter
 
 ## QickExperiment2D
 
-The `QickExperiment2D` class extends `QickExperimentLoop` for 2D parameter sweeps, where one parameter is swept by the program and another by the class.
+The `QickExperiment2D` class extends `QickExperimentLoop` for 2D parameter sweeps with maximum generality, remaking the program for each line of the y-sweep. 
 
 ### Methods
 
@@ -77,7 +77,7 @@ The `QickExperiment2D` class extends `QickExperimentLoop` for 2D parameter sweep
 
 ## QickExperiment2DSimple
 
-The `QickExperiment2DSimple` class is a simplified version of `QickExperiment2D` for nested experiments where the x-axis parameter is swept by a separate experiment instance.
+The `QickExperiment2DSimple` class is a simplified version of `QickExperiment2D` for experiments where the program is made once, and in each line of the y-sweep aspects of the cfg.expt list of params are changed. 
 
 ### Methods
 
@@ -86,7 +86,7 @@ The `QickExperiment2DSimple` class is a simplified version of `QickExperiment2D`
 
 ## QickExperiment2DSweep
 
-The `QickExperiment2DSweep` class extends `QickExperiment` for 2D parameter sweeps with a different analysis method.
+The `QickExperiment2DSweep` class extends `QickExperiment` for 2D parameter sweeps where both dimension of sweep are performed on the QICK, instead of the y-axis being swept in python. 
 
 ### Methods
 
