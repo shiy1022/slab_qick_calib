@@ -5,8 +5,8 @@ device:
     T2e: [60]
     T2r: [30]
     f_ef: [3800]
-    f_ge: [619.027]
-    kappa: [0]
+    f_ge: [619.0315]
+    kappa: [0.2172]
     low_gain: 0.003
     max_gain: 1
     pop: [0]
@@ -16,8 +16,14 @@ device:
         sigma: [0.1]
         sigma_inc: [5]
         type: [gauss]
+      pi_ge_flat:
+        gain: [0.9797]
+        length: [0.3]
+        ramp_sigma: [0.02]
+        ramp_sigma_inc: [4]
+        type: [flat_top]
       pi_ge:
-        gain: [0.501]
+        gain: [0.7187]
         sigma: [0.3]
         sigma_inc: [5]
         type: [gauss]
@@ -27,27 +33,27 @@ device:
   readout:
     active_reset: [false]
     chi: [0]
-    fidelity: [0]
+    fidelity: [0.0158]
     final_delay: [10]
-    frequency: [7724.3473]
-    gain: [0.005]
-    kappa: [0.1097]
+    frequency: [7724.3102]
+    gain: [0.006]
+    kappa: [0.2892]
     lamb: [-7.4786]
     max_gain: 1
-    phase: [0]
-    qe: [15.8795]
-    qi: [12.6519]
-    readout_length: [10]
+    phase: [-48.1425]
+    qe: [11.0184]
+    qi: [3.5251]
+    readout_length: [4.32]
     reps: [1]
-    reps_base: 10000
+    reps_base: 100
     rescale: [false]
     reset_e: [0]
     reset_g: [0]
     rounds: [1]
     rounds_base: 1
-    sigma: [0]
-    threshold: [10]
-    tm: [0]
+    sigma: [11.4011]
+    threshold: [-1.931]
+    tm: [0.2]
     trig_offset: [0.5]
 hw:
   soc:
@@ -57,10 +63,19 @@ hw:
         type: [dyn]
     dacs:
       qubit:
-        ch: [1]
+        ch: [2]
         nyquist: [1]
         type: [full]
       readout:
         ch: [0]
         nyquist: [2]
         type: [full]
+stark:
+  f: [null]
+  fneg: [null]
+  l: [null]
+  lneg: [null]
+  o: [null]
+  oneg: [null]
+  q: [null]
+  qneg: [null]

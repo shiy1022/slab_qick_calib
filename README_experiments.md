@@ -32,6 +32,7 @@ This separation of concerns allows for a modular and extensible framework where 
 ### Basic Configuration Setup
 
 To set up a new configuration or data folder:
+When you initalize the config, you will need to set the DAC/ADC channels for resonator and qubit. You can look at the soc printout to identify the channel number you are plugged into. 
 
 ```python
 # Set up paths

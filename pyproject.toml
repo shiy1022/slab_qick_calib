@@ -22,9 +22,9 @@ dependencies = [
     "pyyaml",
     "tqdm",
     "h5py",
-    "scipy",
     "Pyro4",
-    "python-dateutil"
+    "python-dateutil",
+    "ipywidgets",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

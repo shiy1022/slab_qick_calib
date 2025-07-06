@@ -73,15 +73,27 @@ class RabiProgram(QickProgram):
         # Add sweep loop for the experiment
         self.add_loop("sweep_loop", cfg.expt.expts)
 
+    
         # Define the qubit pulse with parameters from config
-        pulse = {
-            "sigma": cfg.expt.sigma,
-            "length": cfg.expt.length,
-            "freq": cfg.expt.freq,
-            "gain": cfg.expt.gain,
-            "phase": 0,
-            "type": cfg.expt.type,
-        }
+        if cfg.expt.type not in ["flat_top"]:
+            pulse = {
+                "sigma": cfg.expt.sigma,
+                "length": cfg.expt.length,
+                "freq": cfg.expt.freq,
+                "gain": cfg.expt.gain,
+                "phase": 0,
+                "type": cfg.expt.type,
+            }
+        else:
+            pulse = {
+                "length": cfg.expt.length,
+                "freq": cfg.expt.freq,
+                "gain": cfg.expt.gain,
+                "phase": 0,
+                "type": cfg.expt.type,
+                "ramp_sigma": cfg.expt.ramp_sigma,
+                "ramp_sigma_inc": cfg.expt.ramp_sigma_inc,
+            }
         super().make_pulse(pulse, "qubit_pulse")
 
         # If checking EF transition and using ge pulse, create a pi pulse
@@ -168,6 +180,7 @@ class RabiExperiment(QickExperiment):
         min_r2=None,
         max_err=None,
         print=False,
+        check_params=True,
     ):
         """
         Initialize the Rabi experiment.
@@ -215,7 +228,7 @@ class RabiExperiment(QickExperiment):
 
         prefix = f"{name}_rabi_{ef}qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi, check_params=check_params)
         params_def = {
             "expts": 60,
             "reps": self.reps,
@@ -327,7 +340,8 @@ class RabiExperiment(QickExperiment):
             elif self.cfg.expt.type == "const":
                 self.cfg.expt["length"] = self.cfg.expt.sigma
             elif self.cfg.expt.type == "flat_top":
-                self.cfg.expt["length"] = self.cfg.expt.sigma
+                pass
+                #self.cfg.expt["length"] = self.cfg.expt.sigma
         elif self.cfg.expt.sweep == "length":
             # Length sweep configuration
             param_pulse = "total_length"  # Parameter used to get xvals from QICK
@@ -460,8 +474,13 @@ class RabiExperiment(QickExperiment):
         q = self.cfg.expt.qubit[0]
         if self.cfg.expt.sweep == "amp":
             title = "Amplitude"
-            param = "sigma"
             xlabel = "Gain / Max Gain"
+            if self.cfg.expt.type == "gauss":
+                param = "sigma"
+            elif self.cfg.expt.type == "const":
+                param = "length"
+            elif self.cfg.expt.type == "flat_top":
+                param = "length"
         else:
             title = "Length"
             param = "gain"
@@ -871,15 +890,22 @@ class RabiChevronExperiment(QickExperiment2DSimple):
 
         if self.cfg.expt.sweep == "amp":
             title = "Amplitude"
-            param = "sigma"
+            unit='µs'
+            if self.cfg.expt.type == "gauss":
+                param = "sigma"
+            elif self.cfg.expt.type == "const":
+                param = "length"
+            elif self.cfg.expt.type == "flat_top":
+                param = "length"
             xlabel = "Gain / Max Gain"
         else:
             title = "Length"
+            unit = ''
             param = "gain"
             xlabel = "Pulse Length ($\mu$s)"
 
         title += (
-            f" Rabi Q{self.cfg.expt.qubit[0]} (Pulse {param} {self.cfg.expt[param]})"
+            f" Rabi Q{self.cfg.expt.qubit[0]} (Pulse {param} {self.cfg.expt[param]} {unit})"
         )
 
         xlabel = xlabel

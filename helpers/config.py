@@ -584,7 +584,7 @@ def init_stark_section(file_name, num_qubits):
     stark_params = ['q', 'l', 'o', 'qneg', 'lneg', 'oneg', 'f', 'fneg']
 
     # Create the stark section with null values
-    stark_section = {param: [np.nan] * num_qubits for param in stark_params}
+    stark_section = {param: [None] * num_qubits for param in stark_params}
 
     # Add the stark section to the configuration
     cfg['stark'] = stark_section
