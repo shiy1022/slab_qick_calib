@@ -122,12 +122,12 @@ All times are in μs. All gains are out of 1.
 - `trig_offset`: Current trigger offset for the ADC (μs)
 - `gain`: Amplitude of the readout pulse (DAC units)
 - `frequency`: Frequency of the readout pulse (MHz)
-- `reps`: Number of averages per point
+- `reps`: Number of averages per point. ToF largely only works for reps=1, so we crank up the rounds. 
 - `qubit`: List containing the qubit index to calibrate
 - `phase`: Phase of the readout pulse
 - `final_delay`: Final delay after the pulse sequence (μs)
 - `check_e`: Whether to excite qubit to |1⟩ state before measurement
-- `use_readout`: Whether to use current readout parameters (gain and phase)
+- `use_readout`: Whether to use current readout parameters (gain and phase) -- default is max gain, phase 0. 
 
 **Example**:
 ```python
@@ -158,7 +158,7 @@ Note that harmonics of the clock frequency will show up as "infinitely" narrow p
 
 **Key Parameters**:
 - `start`: Start frequency (MHz)
-- `span`: Frequency span (MHz) 
+- `span`: Frequency span (MHz), if `kappa` uses 7 * `kappa` from cfg as span 
 - `center`: Center frequency (MHz) - alternative to `start`
 - `expts`: Number of frequency points
 - `gain`: Gain of the readout resonator
@@ -168,11 +168,10 @@ Note that harmonics of the clock frequency will show up as "infinitely" narrow p
 - `pulse_f`: Boolean to add π pulse on |e⟩-|f⟩ prior to measurement (excite to 2nd level)
 - `style`: 'coarse' for wide frequency scan, 'fine' for narrow scan
 - `long_pulse`: Whether to use a long readout pulse, requiring 'periodic' mode where readout pulse occurs entire time, when pulse length exceeds hardware limit
-- `kappa`: Resonator linewidth (MHz)
 - `reps`: Number of repetitions
 - `rounds`: Number of software averages
-- `loop`: Whether to use loop mode for acquisition
-- `phase_const`: Whether to use constant phase spacing
+- `loop`: Whether to use loop mode for acquisition, needed for non-linear sweeps
+- `phase_const`: Whether to use constant phase spacing instead of frequency spacing (used with loop)
 - `active_reset`: Whether to use active reset
 
 **Style Parameters**:
@@ -201,19 +200,19 @@ rspec_e = meas.ResSpec(cfg_dict, qi=0, params={'pulse_e': True})
 
 **File**: `experiments/single_qubit/resonator_spectroscopy.py`
 
-**Description**: Performs a 2D sweep of both readout frequency and power to map out how the resonator response changes with power. This allows measurement of the Lamb shift and other power-dependent effects. It's useful for finding a good value for gain to park your readout at until you run readout optimization.
+**Description**: Performs a 2D sweep of both readout frequency and power to map out how the resonator response changes with power. This allows measurement of the Lamb shift and other power-dependent effects. It's useful for finding a good value for gain to park your readout at until you run readout optimization. When log sweep used, increases the number of averages to account for decrease in signal. 
 
 **Key Parameters**:
 - `rng`: Range for the gain sweep, going from max_gain to max_gain/rng (default: 100)
-- `max_gain`: Maximum gain value (default: qubit.max_gain)
+- `max_gain`: Maximum gain value for sweep (default: qubit.max_gain, the hardware max)
 - `expts_gain`: Number of gain points (default: 20)
 - `span`: Frequency span (MHz)
-- `f_off`: Frequency offset from resonant frequency in MHz (usually negative, default: 4)
-- `min_reps`: Minimum number of repetitions (default: 100)
+- `f_off`: Frequency offset of center from resonant frequency in MHz (usually negative, default: 4), to account for lamb shift. 
+- `min_reps`: Minimum number of repetitions (default: 100), used for the high power points of sweep. 
 - `log`: Whether to use logarithmic scaling for the gain sweep (default: True)
 - `pulse_e`: Whether to apply a π pulse to excite the qubit before measurement
 - `expts`: Number of frequency points (default: 200)
-- `reps`: Base number of repetitions, divided by 2400 for efficiency
+- `reps`: Base number of repetitions, divided by 2400 to prevent scan from taking forever. Can adjust for worse SNR. 
 
 **Example**:
 ```python
@@ -296,7 +295,7 @@ qspec_fine = meas.QubitSpec(cfg_dict, qi=0, style='fine')
 - `expts`: Number of frequency points
 - `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
 - `rng`: Range for logarithmic gain sweep (default: 50)
-- `max_gain`: Maximum gain value (default: qubit.max_gain)
+- `max_gain`: Maximum gain value of sweep (default: qubit.max_gain, max from hardware)
 - `expts_gain`: Number of gain points (default: 10)
 - `log`: Whether to use logarithmic gain spacing (default: True)
 - `checkEF`: Whether to check the e-f transition
@@ -321,7 +320,7 @@ qspec_pow_ef = meas.QubitSpecPower(cfg_dict, qi=0, params={'checkEF': True, 'spa
 qspec_pow_fine = meas.QubitSpecPower(cfg_dict, qi=0, style='fine', params={'expts_gain': 20})
 ```
 
-The experiment produces a 2D plot showing the qubit response as a function of both frequency and power. This can reveal features like AC Stark shifts, multi-photon transitions, and power broadening.
+The experiment produces a 2D plot showing the qubit response as a function of both frequency and power. This can reveal features like multi-photon transitions and power broadening.
 
 #### Rabi Experiment
 
@@ -340,14 +339,16 @@ The module includes:
 - `expts`: Number of amplitude/length points (default: 60)
 - `reps`: Number of repetitions for each experiment (default: self.reps)
 - `rounds`: Number of software averages (default: self.rounds)
-- `gain`: Maximum pulse amplitude (for length sweep)
-- `sigma`: Pulse width (for amplitude sweep)
+- `gain`: Pulse amplitude (for length sweep)
+- `sigma`: Pulse width in time (for amplitude sweep)
+- `max_gain`: Maximum gain used in amplitude sweep (if specified, used instead of gain)
+- `max_length`: Maximum length used in length sweep (if specified, used instead of sigma)
 - `sweep`: 'amp' or 'length' to specify what to sweep (default: 'amp')
 - `checkEF`: Whether to check the e-f transition (default: False)
-- `pulse_ge`: Boolean flag to indicate if pulse is for ground to excited state transition (default: True)
+- `pulse_ge`: Boolean flag to indicate if pulse is for ground to excited state transition (default: True), used for temp measurement
 - `start`: Starting point for the experiment (default: 0.003 for amp, 3*cycles2us(1) for length)
-- `pulse_type`: Type of pulse used in the experiment (default: 'gauss')
-- `num_osc`: Try to set max gain or length for this number of oscillations (default: 2.5)
+- `pulse_type`: Type of pulse used in the experiment (default: 'gauss', others are flat_top, const)
+- `num_osc`: Try to set max gain or length to measure this number of oscillations (default: 2.5)
 - `n_pulses`: Number of Rabi pulses to apply (default: 1)
 - `active_reset`: Whether to use active qubit reset
 - `loop`: Whether to use loop-based acquisition (default: False)
@@ -543,23 +544,7 @@ The experiment fits the data to a decaying sinusoid and extracts both the T2 tim
 shot = meas.HistogramExperiment(cfg_dict, qi=0, params={'shots': 20000})
 ```
 
-#### Active Reset
 
-**File**: `experiments/single_qubit/active_reset.py`
-
-**Description**: This experiment does not do any fitting. It is designed to test the memory and the active reset.
-
-**Key Parameters**:
-- `shots`: Number of shots per experiment
-- `check_e`: Whether to test the e state blob (true if unspecified)
-- `check_f`: Whether to also test the f state blob
-- `active_reset`: Boolean to add active reset
-- `read_wait`: Wait time between measurements in μs
-
-**Example**:
-```python
-reset_exp = meas.RepMeasExperiment(cfg_dict, qi=0, params={'shots': 20000, 'active_reset': True})
-```
 
 #### Single Shot Optimization
 
@@ -640,6 +625,24 @@ t1_stark = meas.T1Stark(cfg_dict, qi=0, params={'stark_gain': 0.1, 'stark_freq':
 **Example**:
 ```python
 t2_ramsey_stark = meas.T2RamseyStark(cfg_dict, qi=0, params={'stark_gain': 0.1, 'stark_freq': 4900})
+```
+
+#### Active Reset
+
+**File**: `experiments/single_qubit/active_reset.py`
+
+**Description**: This experiment does not do any fitting. It is designed to test the memory and the active reset.
+
+**Key Parameters**:
+- `shots`: Number of shots per experiment
+- `check_e`: Whether to test the e state blob (true if unspecified)
+- `check_f`: Whether to also test the f state blob
+- `active_reset`: Boolean to add active reset
+- `read_wait`: Wait time between measurements in μs
+
+**Example**:
+```python
+reset_exp = meas.RepMeasExperiment(cfg_dict, qi=0, params={'shots': 20000, 'active_reset': True})
 ```
 
 ### Two Qubit Experiments

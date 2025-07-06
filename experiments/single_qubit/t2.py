@@ -386,7 +386,7 @@ class T2Experiment(QickExperiment):
         if self.cfg.expt.num_pi == 0:
             coef = 1
         else:
-            coef = self.cfg.expt.num_pi  # For echo, we have num_pi + 1 segments
+            coef = 2*self.cfg.expt.num_pi  # For echo, we have num_pi + 1 segments
         self.data["xpts"] = coef * self.data["xpts"]
 
         return self.data

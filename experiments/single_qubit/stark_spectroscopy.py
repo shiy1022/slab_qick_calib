@@ -15,6 +15,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from qick.asm_v2 import QickSweep1D
 from qick import *
+from scipy.optimize import curve_fit
+
 
 from ...exp_handling.datamanagement import AttrDict
 from ..general.qick_experiment import QickExperiment2DSweep
@@ -315,10 +317,8 @@ class StarkSpec(QickExperiment2DSweep):
         self.fitfunc = fitter.lorfunc
         super().analyze(self.fitfunc, self.fitterfunc, use_i=True)
 
-        from scipy.optimize import curve_fit
-
+        # fit frequency of resonance moving
         f = [self.data["fit_avgi"][i][2] for i in range(len(self.data["fit_avgi"]))]
-        # fit frequency
 
         # Fit the data
         try:

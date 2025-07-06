@@ -79,7 +79,7 @@ if update:
 ```python
 status, ntries = qubit_tuning.find_spec(qi, cfg_dict, start='coarse')
 ```
-**Purpose**: Locate qubit transition frequency with iterative refinement
+**Purpose**: Locate qubit transition frequency with iterative refinement of gain/scan width.
 **Fitting**: Lorentzian fit: `lorfunc(f, y0, yscale, f0, linewidth)`
 **Updates**:
 - `f_ge`: Qubit |g⟩→|e⟩ transition frequency
@@ -92,10 +92,10 @@ if update and qspec.status:
     auto_cfg = config.update_qubit(cfg_path, 'f_ge', qspec.data["best_fit"][2], qi)
 ```
 **Styles Available**:
-- `'huge'`: Very wide scan (±250 MHz)
-- `'coarse'`: Wide scan (±50 MHz) 
-- `'medium'`: Medium scan (±10 MHz)
-- `'fine'`: Narrow scan (±3 MHz)
+- `'huge'`: Very wide scan (±750 MHz)
+- `'coarse'`: Wide scan (±250 MHz) 
+- `'medium'`: Medium scan (±25 MHz)
+- `'fine'`: Narrow scan (±2.5 MHz)
 
 ### 5. Pulse Calibration
 
@@ -266,7 +266,7 @@ config.update_qubit(cfg_path, 'T1', new_t1, qi, sig=2, rng_vals=[1, 500])
 ```
 
 ### Automated Tuning
-The `tune_up_qubit()` function provides fully automated tuning:
+The `tune_up_qubit()` function provides fully automated tuning, generally works better for qubits that have already been set up and need to be re-optimized. 
 
 ```python
 for qi in qubit_list: 
@@ -507,7 +507,7 @@ Used for AC Stark shift measurements:
 **Symptoms**: No clear oscillations, poor sinusoidal fit
 **Solutions**:
 - Check qubit frequency is correct
-- Adjust gain range (may be too high or too low)
+- Adjust gain range (may be too high or too low) or point spacing 
 - Increase averaging (`reps`, `rounds`)
 - Verify readout fidelity is reasonable (>60%)
 - Check for frequency drift
@@ -517,13 +517,12 @@ Used for AC Stark shift measurements:
 **Solutions**:
 - Verify π-pulse is calibrated correctly
 - Check for thermal population (measure temperature)
-- Increase span if T1 is longer than expected
-- Reduce measurement power to avoid heating
+- Increase span if T1 is longer than expected (or decrease for shorter)
 
 #### 5. T2 Ramsey Problems
 **Symptoms**: No oscillations, frequency error too large
 **Solutions**:
-- Adjust Ramsey frequency (try 1/T2r)
+- Adjust Ramsey frequency (try 1/T2r); may have too fast oscillations to resolve, or too slow so that single oscillation looks like decay
 - Check π/2 pulse calibration
 - Verify qubit frequency is accurate
 - Increase span if T2 is longer than expected

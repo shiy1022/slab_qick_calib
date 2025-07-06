@@ -107,8 +107,12 @@ from slab_qick_calib.exp_handling.instrumentmanager import InstrumentManager
   - Various Jupyter notebooks demonstrating package usage
 
 For detailed documentation on the experiments, see [README_experiments.md](README_experiments.md).
+
 For detailed documentation on the config file, see [config_manual.md](config_manual.md).
+
 For detailed documentation on the base classes, see [README_classes.md](README_classes.md).
+
+For documentation on the process of tuning up qubits, see [README_qubit_tuning.md](README_qubit_tuning.md).
 
 ## Testing
 
