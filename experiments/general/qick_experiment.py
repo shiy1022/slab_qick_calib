@@ -920,7 +920,7 @@ class QickExperiment2D(QickExperimentLoop):
                 self.im[self.cfg.aliases.soc],
                 rounds=self.cfg.expt.rounds,
                 threshold=None,
-                progress=False,
+                progress=progress,
             )
 
             # Store measurement data for this y value
