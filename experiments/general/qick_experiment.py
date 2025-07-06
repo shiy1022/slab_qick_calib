@@ -26,8 +26,8 @@ The module contains five main classes:
 - QickExperiment: Base class for single-shot quantum experiments
 - QickExperimentLoop: Extension for loop-based experiments (parameter sweeps)
 - QickExperiment2D: Extension for 2D parameter sweeps (e.g., parameter vs. time)
-- QickExperiment2DSimple: Simplified version of 2D experiments
-- QickExperiment2DSweep: Extension for 2D parameter sweeps with a different analysis method
+- QickExperiment2DSimple: Simplified version of 2D experiments, where you don't remake experiment each time.
+- QickExperiment2DSweep: Variation of 2D sweeps where entire experiment run as one program on QICK.
 
 These classes work with the QickProgram classes to implement complete quantum experiments.
 """
@@ -145,7 +145,7 @@ class QickExperiment(Experiment):
             self.im[self.cfg.aliases.soc],
             rounds=self.cfg.expt.rounds,
             threshold=None,
-            # load_pulses=True,
+            #load_pulses=True,
             progress=progress,
         )
 

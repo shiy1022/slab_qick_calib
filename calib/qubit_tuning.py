@@ -18,7 +18,7 @@ import numpy as np
 
 from ..helpers import config
 from . import measure_func
-from ..experiments import single_qubit as meas
+from .. import experiments as meas
 
 # Configure matplotlib
 plt.rcParams["legend.handlelength"] = 0.5

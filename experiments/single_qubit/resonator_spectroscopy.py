@@ -204,6 +204,7 @@ class ResSpec(QickExperiment):
         params={},
         style="fine",
         print=False,
+        check_params=True,
     ):
         """
         Initialize the resonator spectroscopy experiment.
@@ -259,7 +260,7 @@ class ResSpec(QickExperiment):
         if not prefix:
             prefix = generate_filename("spec", qi, style=style, state=state)
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, check_params=check_params, qi=qi)
 
         # Default parameters
         params_def = {
@@ -824,7 +825,9 @@ class ResSpecPower(QickExperiment2DSimple):
                 self.cfg.expt.reps
                 * (1 / rat ** np.arange(self.cfg.expt.expts_gain)) ** 2
             )
-            rep_list = np.maximum(rep_list, self.cfg.expt.min_reps).astype(int)
+            #rep_list = np.maximum(rep_list, self.cfg.expt.min_reps).astype(int)
+            rep_list = np.maximum(rep_list, self.cfg.expt.min_reps)
+            rep_list = [int(r) for r in rep_list]  # Ensure integer repetitions
         else:
             # Use linear gain spacing
             gain_pts = self.cfg.expt.start_gain + self.cfg.expt.step_gain * np.arange(

@@ -178,6 +178,7 @@ class QubitSpec(QickExperiment):
         min_r2=None,
         max_err=None,
         print=False,
+        check_params=True,
     ):
         """
         Initialize the pulse probe spectroscopy experiment.
@@ -199,7 +200,7 @@ class QubitSpec(QickExperiment):
         # Set prefix based on whether we're checking EF transition
         ef = "ef_" if "checkEF" in params and params["checkEF"] else ""
         prefix = f"qubit_spectroscopy_{ef}{style}_qubit{qi}"
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, check_params=check_params, qi=qi)
 
         # Define default parameters
         max_length = 100  # Based on qick error messages, but not investigated

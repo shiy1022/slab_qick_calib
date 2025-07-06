@@ -251,7 +251,7 @@ qspec_fine = meas.QubitSpec(cfg_dict, qi=0, style='fine')
 
 **File**: `experiments/single_qubit/pulse_probe_spectroscopy.py`
 
-**Description**: Performs a 2D sweep of frequency and power to map out the qubit response. This experiment is useful for identifying power-dependent frequency shifts, multi-photon transitions, and optimal drive powers. It creates a 2D map showing how the qubit spectrum changes with probe power.
+**Description**: Performs a 2D sweep of frequency and power to map out the qubit response. This experiment is useful for identifying power-dependent broadening and multi-photon or excited state transitions. It creates a 2D map showing how the qubit spectrum changes with probe power.
 
 **Key Parameters**:
 - `span`: Frequency span (MHz)

@@ -1,0 +1,66 @@
+aliases: {soc: Qick233}
+device:
+  qubit:
+    T1: [30]
+    T2e: [60]
+    T2r: [30]
+    f_ef: [3800]
+    f_ge: [619.027]
+    kappa: [0]
+    low_gain: 0.003
+    max_gain: 1
+    pop: [0]
+    pulses:
+      pi_ef:
+        gain: [0.15]
+        sigma: [0.1]
+        sigma_inc: [5]
+        type: [gauss]
+      pi_ge:
+        gain: [0.501]
+        sigma: [0.3]
+        sigma_inc: [5]
+        type: [gauss]
+    spec_gain: [40]
+    temp: [0]
+    tuned_up: [false]
+  readout:
+    active_reset: [false]
+    chi: [0]
+    fidelity: [0]
+    final_delay: [10]
+    frequency: [7724.3473]
+    gain: [0.005]
+    kappa: [0.1097]
+    lamb: [-7.4786]
+    max_gain: 1
+    phase: [0]
+    qe: [15.8795]
+    qi: [12.6519]
+    readout_length: [10]
+    reps: [1]
+    reps_base: 10000
+    rescale: [false]
+    reset_e: [0]
+    reset_g: [0]
+    rounds: [1]
+    rounds_base: 1
+    sigma: [0]
+    threshold: [10]
+    tm: [0]
+    trig_offset: [0.5]
+hw:
+  soc:
+    adcs:
+      readout:
+        ch: [0]
+        type: [dyn]
+    dacs:
+      qubit:
+        ch: [1]
+        nyquist: [1]
+        type: [full]
+      readout:
+        ch: [0]
+        nyquist: [2]
+        type: [full]
