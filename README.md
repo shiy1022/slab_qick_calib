@@ -114,6 +114,9 @@ For detailed documentation on the base classes, see [README_classes.md](README_c
 
 For documentation on the process of tuning up qubits, see [README_qubit_tuning.md](README_qubit_tuning.md).
 
+For information on the structure of data that is saved, see [README_data_structures.md](README_data_structures.md).
+
+
 ## Testing
 
 You can verify that the package is installed correctly by importing it in Python:
