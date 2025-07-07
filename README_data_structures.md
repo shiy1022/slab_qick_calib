@@ -23,6 +23,26 @@ Every experiment's `obj.data` dictionary contains these base fields from the `Qi
 
 ### Metadata
 - **`start_time`** (bytes): Timestamp when experiment started
+- **`attrs`** (dict): File attributes including the complete experiment configuration
+
+### Configuration Data (in `attrs`)
+When data is loaded from file using `load_data()`, the `attrs` field contains the complete experiment configuration:
+- **`attrs['config']`** (JSON string): Complete configuration including:
+  - **Device configuration**: Qubit parameters, readout settings, hardware configuration
+  - **Experiment parameters**: All parameters used for the specific experiment (stored in `cfg.expt`)
+  - **Hardware settings**: SOC configuration, channel mappings, mixer frequencies
+  - **Calibration data**: Current qubit frequencies, pulse parameters, T1/T2 values
+
+To access the configuration:
+```python
+import json
+config = json.loads(data['attrs']['config'])
+# Access device parameters
+qubit_freq = config['device']['qubit']['f_ge'][0]  # Qubit 0 frequency
+t1_time = config['device']['qubit']['T1'][0]       # Qubit 0 T1 time
+# Access experiment parameters  
+exp_params = config['expt']                        # Experiment-specific parameters
+```
 
 ### Fit Results (if `analyze()` called with `fit=True`)
 - **`fit_amps`** (array): Fit parameters for amplitude data
