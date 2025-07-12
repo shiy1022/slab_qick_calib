@@ -301,7 +301,7 @@ class QickProgram(AveragerProgramV2):
 
             # Create Gaussian envelope
             self.add_gauss(
-                ch=self.qubit_ch,
+                ch=self.pulse.chan,
                 name="ramp",
                 sigma=pulse.sigma,  # Width of Gaussian
                 length=length,
@@ -328,7 +328,7 @@ class QickProgram(AveragerProgramV2):
             ramp_length = pulse.ramp_sigma * pulse.ramp_sigma_inc
 
             self.add_gauss(
-                ch=self.qubit_ch,
+                ch=pulse.chan,
                 name="ramp",
                 sigma=pulse.ramp_sigma,  # Width of rise/fall
                 length=ramp_length,  # Length of rise/fall
@@ -716,10 +716,11 @@ class QickProgram2Q(AveragerProgramV2):
             - Other (default): Constant amplitude pulse
         """
         pulse = AttrDict(pulse)  # Convert to attribute dictionary
-
+        if "chan" not in pulse:
+            pulse.chan = self.qubit_ch[q]
         # Common pulse parameters
         pulse_args = {
-            "ch": self.qubit_ch[q],  # Channel for the specified qubit
+            "ch": pulse.chan,  # Channel for the specified qubit
             "name": name,
             "freq": pulse.freq,  # Pulse frequency
             "phase": pulse.phase,  # Pulse phase
@@ -739,7 +740,7 @@ class QickProgram2Q(AveragerProgramV2):
 
             # Create Gaussian envelope
             self.add_gauss(
-                ch=self.qubit_ch[q],
+                ch=pulse.chan,
                 name="ramp",
                 sigma=pulse.sigma,  # Width of Gaussian
                 length=length,

@@ -288,7 +288,7 @@ class RabiExperiment(QickExperiment):
 
         # Special configuration for temperature-dependent measurements
         if style == "temp":
-            params["reps"] = 40 * params["reps"]
+            params["reps"] = int(40 * params["reps"])
             params["rounds"] = int(
                 np.ceil(20 * params["rounds"] * 1.5 ** (params["temp"] / 40))
             )

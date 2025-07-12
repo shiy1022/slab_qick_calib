@@ -184,7 +184,68 @@ if update: shotopt.update(cfg_dict['cfg_file'])
 - `readout_length`: Optimal readout duration
 - `frequency`: Fine-tuned readout frequency
 
-### 8. Advanced Characterization
+### 8. Temperature Measurement
+
+#### Qubit Temperature Characterization
+**Purpose**: Measure the effective temperature of the qubit and thermal population
+
+**Prerequisites**: 
+- EF transition must be characterized first (requires completed EF spectroscopy and EF Rabi calibration)
+- This measurement uses the EF Rabi experiment with `checkEF=True` parameter
+
+```python
+from ..calib import measure_func
+
+# Ensure EF transition is characterized first
+# (This should be done in the Advanced Characterization section)
+
+# Measure qubit temperature
+qubit_temp, population = measure_func.measure_temp(cfg_dict, qi, temp=40, expts=20, rounds=1)
+
+# Update configuration with measured values
+if update:
+    config.update_qubit(cfg_path, 'temp', qubit_temp, qi)
+    config.update_qubit(cfg_path, 'pop', population, qi)
+```
+
+**Method**: 
+1. Perform EF Rabi experiment with π-pulse to measure excited state signal
+2. Perform EF Rabi experiment without π-pulse to measure thermal population
+3. Calculate temperature using Boltzmann distribution: `T = -ℏf_ge / (k_B × ln(P_e/P_g))`
+
+**Physical Model**: 
+The ratio of excited to ground state populations follows the Boltzmann distribution:
+```
+P_e/P_g = exp(-ℏω_ge / k_B T)
+```
+Where:
+- `P_e`: Excited state population (thermal)
+- `P_g`: Ground state population  
+- `ℏω_ge`: Qubit transition energy
+- `k_B`: Boltzmann constant
+- `T`: Temperature
+
+**Parameters**:
+- `temp`: Initial temperature guess in mK (used to optimize measurement parameters)
+- `expts`: Number of experiments per measurement (fewer = faster, less accurate)
+- `rounds`: Number of measurement rounds for averaging
+- `chan`: Optional specific readout channel
+
+**Analysis**: 
+- Temperature calculated from population ratio using quantum statistics
+- Typical values: 10-100 mK for dilution refrigerator operation
+- High temperature (>100 mK) may indicate heating or poor thermalization
+
+**Updates**:
+- `temp[qi]`: Measured qubit temperature in mK
+- `pop[qi]`: Thermal excited state population (dimensionless)
+
+**Quality Indicators**:
+- Temperature should be consistent with refrigerator base temperature
+- Population should be small (<0.1) for good qubit operation
+- Repeated measurements should show consistent values
+
+### 9. Advanced Characterization
 
 #### Dispersive Shift (χ) Measurement
 **Purpose**: Measure qubit-resonator coupling strength
@@ -413,6 +474,41 @@ lamb_shift = f_high_power - f_low_power
 **Config Updates**:
 - `device.readout.lamb[qi] = lamb_shift`
 
+### Temperature Measurement
+**Experiment**: `measure_func.measure_temp()`
+**Method**: Comparative Rabi experiments with and without π-pulse
+**Physical Model**: Boltzmann distribution for thermal populations
+**Analysis Steps**:
+1. **Reference Measurement**: Rabi experiment with π-pulse to measure maximum excited state signal
+2. **Thermal Measurement**: Rabi experiment without π-pulse to measure thermal population
+3. **Population Ratio**: `population = thermal_signal / reference_signal`
+4. **Temperature Calculation**: `T = -ℏf_ge / (k_B × ln(population))`
+
+**Key Physics**:
+- Uses quantum statistical mechanics: `P_e/P_g = exp(-ℏω/k_B T)`
+- Assumes thermal equilibrium between qubit and environment
+- Temperature reflects effective qubit environment, not necessarily fridge temperature
+
+**Parameters**:
+- `temp`: Initial guess (mK) - used to optimize measurement averaging
+- `expts`: Number of experiments (trade-off: speed vs. accuracy)
+- `rounds`: Measurement rounds for statistical averaging
+- `chan`: Optional readout channel specification
+
+**Quality Metrics**:
+- Consistent results across multiple measurements
+- Temperature reasonable for dilution refrigerator operation (10-100 mK)
+- Low thermal population (<0.1) indicates good isolation
+
+**Config Updates**:
+- `device.qubit.temp[qi] = temperature` (mK)
+- `device.qubit.pop[qi] = population` (dimensionless)
+
+**Troubleshooting**:
+- **High temperature (>100 mK)**: Check fridge performance, RF heating, pulse calibration
+- **Negative temperature**: Usually indicates measurement error or poor π-pulse calibration
+- **Inconsistent results**: Increase averaging, check for drift, verify readout stability
+
 ## Configuration Parameters Reference
 
 ### Qubit Parameters (`device.qubit`)
@@ -548,6 +644,8 @@ Always follow this sequence:
 6. T1 measurement
 7. T2 measurements
 8. Readout optimization
+9. EF transition characterization (required for temperature measurement)
+10. Temperature measurement
 
 #### 2. Parameter Validation
 - Always check fit quality (R² > 0.8, low fit errors)
