@@ -72,7 +72,6 @@ class RabiProgram(QickProgram):
 
         # Add sweep loop for the experiment
         self.add_loop("sweep_loop", cfg.expt.expts)
-
     
         # Define the qubit pulse with parameters from config
         if cfg.expt.type not in ["flat_top"]:
@@ -338,16 +337,16 @@ class RabiExperiment(QickExperiment):
             if self.cfg.expt.type == "gauss":
                 self.cfg.expt["length"] = self.cfg.expt.sigma * self.cfg.expt.sigma_inc
             elif self.cfg.expt.type == "const":
-                self.cfg.expt["length"] = self.cfg.expt.sigma
+                if "length" not in self.cfg.expt:
+                    self.cfg.expt["length"] = self.cfg.expt.sigma
             elif self.cfg.expt.type == "flat_top":
                 pass
                 #self.cfg.expt["length"] = self.cfg.expt.sigma
         elif self.cfg.expt.sweep == "length":
             # Length sweep configuration
             param_pulse = "total_length"  # Parameter used to get xvals from QICK
-            if (
-                self.cfg.expt.type == "gauss"
-            ):  # This does not work with QICK sweeps right now
+            if (self.cfg.expt.type == "gauss"):  
+                # This does not work with QICK sweeps right now
                 # For Gaussian pulses, sweep sigma
                 par = "sigma"
                 # self.cfg.expt['length'] = QickSweep1D(

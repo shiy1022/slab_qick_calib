@@ -324,7 +324,7 @@ class QickProgram(AveragerProgramV2):
             if "ramp_sigma" not in pulse:
                 pulse.ramp_sigma = 0.02
             if "ramp_sigma_inc" not in pulse:
-                pulse.ramp_sigma_inc = 5
+                pulse.ramp_sigma_inc = 3
             ramp_length = pulse.ramp_sigma * pulse.ramp_sigma_inc
 
             self.add_gauss(

@@ -69,10 +69,10 @@ class T2Program(QickProgram):
         # Create π/2 pulses for Ramsey/Echo sequence
         # First π/2 pulse has phase=0, second has phase based on wait time and Ramsey frequency
         pulse = {
-            "sigma": cfg.expt.sigma / 2,  # Half sigma for π/2 pulse
+            "sigma": cfg.expt.sigma,  # Half sigma for π/2 pulse
             "sigma_inc": cfg.expt.sigma_inc,
             "freq": cfg.expt.freq,
-            "gain": cfg.expt.gain,
+            "gain": cfg.expt.gain / 2,
             "phase": 0,  # First pulse has zero phase
             "type": cfg.expt.type,
         }
