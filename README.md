@@ -1,6 +1,7 @@
 # SLAB QICK Calibration
 
 A comprehensive package for calibrating and characterizing superconducting qubits using the QICK (Quantum Instrumentation Control Kit) framework.
+Note: Primary authorship of the READMEs and comments belongs to Cline; but they have largely been checked for accuracy and edited as needed. 
 
 ## Overview
 
