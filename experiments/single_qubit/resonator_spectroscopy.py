@@ -676,7 +676,7 @@ class ResSpecPower(QickExperiment2DSimple):
         # Generate standardized filename
         if not prefix:
             prefix = generate_filename('power', qi, state=state)
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi, live_plot=params.get("live_plot", False))
 
         # Default parameters
         params_def = {
@@ -715,6 +715,8 @@ class ResSpecPower(QickExperiment2DSimple):
             self.run(analyze=False, display=False, progress=False, save=True)
             self.analyze(fit=True, lowgain=None, highgain=None)
             self.display(fit=True)
+        
+
 
     def acquire(self, progress=False):
         """

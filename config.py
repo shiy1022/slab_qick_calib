@@ -538,3 +538,34 @@ def init_model_config(file_name, num_qubits):
         modified_file.write(cfg_yaml)
     
     return cfg_yaml
+
+
+
+def init_stark_section(file_name, num_qubits):
+    """
+    Initializes a 'stark' section in a configuration file.
+
+    This function loads an existing configuration, adds a 'stark' section with
+    np.nan values for various parameters, and saves the updated configuration.
+
+    Args:
+        file_name (str): Path to the configuration file.
+        num_qubits (int): The number of qubits, used to determine the length of the parameter arrays.
+
+    Returns:
+        AttrDict: The updated configuration object.
+    """
+    # Load the existing configuration
+    cfg = load(file_name)
+
+    # Define the stark parameters
+    stark_params = ['q', 'l', 'o', 'qneg', 'lneg', 'oneg', 'f', 'fneg']
+
+    # Create the stark section with null values
+    stark_section = {param: [None] * num_qubits for param in stark_params}
+
+    # Add the stark section to the configuration
+    cfg['stark'] = stark_section
+
+    # Save the updated configuration and return it
+    return save(cfg, file_name)

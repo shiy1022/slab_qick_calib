@@ -9,6 +9,7 @@ import slab_qick_calib.calib.readout_helpers as helpers
 import time
 from scipy.optimize import curve_fit
 from pathlib import Path
+from visdom import Visdom
 
 
 """
@@ -855,6 +856,7 @@ class QickExperiment2D(QickExperimentLoop):
     def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
 
+
     def acquire(self, prog_name, y_sweep, progress=True):
         """
         Acquire data for a 2D parameter sweep.
@@ -1084,7 +1086,7 @@ class QickExperiment2DSimple(QickExperiment2D):
     - Creating complex nested parameter sweeps
     """
 
-    def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0):
+    def __init__(self, cfg_dict=None, prefix="QickExp", progress=None, qi=0, live_plot=False):
         """
         Initialize the QickExperiment2DSimple.
 
@@ -1095,6 +1097,19 @@ class QickExperiment2DSimple(QickExperiment2D):
             qi: Qubit index to use for the experiment
         """
         super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+
+        self.live_plot = live_plot
+        self.viz = None
+        self.viz_window = None
+
+        if self.live_plot:
+            try:
+                self.viz = Visdom()
+                assert self.viz.check_connection(), "Visdom server not running."
+                self.viz_window = self.viz.text("Starting 2D Scan...", opts={"title": "Qick 2D Scan"})
+            except Exception as e:
+                print(f"[Visdom] Could not connect: {e}")
+                self.live_plot = False  # disable to avoid crashes later
 
     def acquire(self, y_sweep, progress=False):
         """
@@ -1139,6 +1154,57 @@ class QickExperiment2DSimple(QickExperiment2D):
                 if i==0:
                     data[key] = []
                 data[key].append(data_new[key])
+            
+            # 👉 Live update quad plot using Visdom
+            if self.live_plot:
+                try:
+                    import matplotlib.pyplot as plt
+                    from io import BytesIO
+                    import PIL.Image
+
+                    amps_so_far = np.array(data.get("amps", []))
+                    phases_so_far = np.array(data.get("phases", []))
+                    avgi_so_far = np.array(data.get("avgi", []))
+                    avgq_so_far = np.array(data.get("avgq", []))
+
+                    if amps_so_far.size == 0:
+                        continue  # wait for at least one sweep to populate
+
+                    fig, axs = plt.subplots(2, 2, figsize=(10, 8), dpi=100)
+
+                    im1 = axs[0, 0].imshow(amps_so_far, aspect='auto', cmap='viridis')
+                    axs[0, 0].set_title("Amps")
+                    plt.colorbar(im1, ax=axs[0, 0])
+
+                    im2 = axs[0, 1].imshow(phases_so_far, aspect='auto', cmap='twilight')
+                    axs[0, 1].set_title("Phases")
+                    plt.colorbar(im2, ax=axs[0, 1])
+
+                    im3 = axs[1, 0].imshow(avgi_so_far, aspect='auto', cmap='plasma')
+                    axs[1, 0].set_title("AvgI")
+                    plt.colorbar(im3, ax=axs[1, 0])
+
+                    im4 = axs[1, 1].imshow(avgq_so_far, aspect='auto', cmap='cividis')
+                    axs[1, 1].set_title("AvgQ")
+                    plt.colorbar(im4, ax=axs[1, 1])
+
+                    for ax in axs.flat:
+                        ax.set_xlabel("Frequency index")
+                        ax.set_ylabel("Gain index")
+
+                    plt.tight_layout()
+
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png')
+                    plt.close(fig)
+                    buf.seek(0)
+                    img = PIL.Image.open(buf).convert("RGB")
+                    img = np.array(img).transpose(2, 0, 1)  # Visdom expects CHW
+
+                    self.viz.image(img, win=self.viz_window, opts={"title": "Live Resonator Channels"})
+
+                except Exception as e:
+                    print(f"[Visdom] Quad plot failed at step {i}: {e}")
 
         # Set y-axis values (either time in hours or the swept parameter)
         if "count" in [y_sweep[j]["var"] for j in range(len(y_sweep))]:
@@ -1157,6 +1223,7 @@ class QickExperiment2DSimple(QickExperiment2D):
         for k, a in data.items():
             data[k] = np.array(a)
         self.data = data
+
         return data
 
 

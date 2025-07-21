@@ -74,7 +74,7 @@ class T1Program(QickProgram):
                 "freq": cfg.expt.stark_freq,  # Frequency of the AC Stark pulse
                 "gain": cfg.expt.stark_gain,  # Amplitude of the AC Stark pulse
                 "phase": 0,  # Phase of the pulse
-                "type": "const",  # Constant amplitude pulse
+                "type": "flat_top",  
             }
             super().make_pulse(pulse, "stark_pulse")
 
