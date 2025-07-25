@@ -14,7 +14,7 @@ in this way might look like this::
 
   f = SlabFile('test.h5')
   f['xpts'] = np.linspace(0, 2*np.pi, 100)
-  f['ypts'] = np.sin(f['xpts']) 
+  f['ypts'] = np.sin(f['xpts'])
   f.attrs['description'] = "One period of the sine function"
 
 Notice several features of this interaction.
@@ -38,7 +38,6 @@ import os.path
 import copy
 
 
-
 class h5File(h5py.File):
     def __init__(self, *args, **kwargs):
         h5py.File.__init__(self, *args, **kwargs)
@@ -46,28 +45,40 @@ class h5File(h5py.File):
     def add(self, key, data):
         data = np.array(data)
         try:
-            self.create_dataset(key, shape=data.shape,
-                                maxshape=tuple([None] * len(data.shape)),
-                                dtype=str(data.dtype))
+            self.create_dataset(
+                key,
+                shape=data.shape,
+                maxshape=tuple([None] * len(data.shape)),
+                dtype=str(data.dtype),
+            )
         except RuntimeError:
             del self[key]
-            self.create_dataset(key, shape=data.shape,
-                                maxshape=tuple([None] * len(data.shape)),
-                                dtype=str(data.dtype))
+            self.create_dataset(
+                key,
+                shape=data.shape,
+                maxshape=tuple([None] * len(data.shape)),
+                dtype=str(data.dtype),
+            )
         self[key][...] = data
 
     def append(self, key, data, forceInit=False):
         data = np.array(data)
         try:
-            self.create_dataset(key, shape=tuple([1] + list(data.shape)),
-                                maxshape=tuple([None] * (len(data.shape) + 1)),
-                                dtype=str(data.dtype))
+            self.create_dataset(
+                key,
+                shape=tuple([1] + list(data.shape)),
+                maxshape=tuple([None] * (len(data.shape) + 1)),
+                dtype=str(data.dtype),
+            )
         except RuntimeError:
             if forceInit == True:
                 del self[key]
-                self.create_dataset(key, shape=tuple([1] + list(data.shape)),
-                                    maxshape=tuple([None] * (len(data.shape) + 1)),
-                                    dtype=str(data.dtype))
+                self.create_dataset(
+                    key,
+                    shape=tuple([1] + list(data.shape)),
+                    maxshape=tuple([None] * (len(data.shape) + 1)),
+                    dtype=str(data.dtype),
+                )
             dataset = self[key]
             Shape = list(dataset.shape)
             Shape[0] = Shape[0] + 1
@@ -85,10 +96,10 @@ class h5File(h5py.File):
 class SlabFile(h5py.File):
     def __init__(self, *args, **kwargs):
         h5py.File.__init__(self, *args, **kwargs)
-       
+
         self.flush()
 
-    # Methods for proxy use    
+    # Methods for proxy use
     def _my_ds_from_path(self, dspath):
         """returns the object (dataset or group) specified by dspath"""
         branch = self
@@ -97,7 +108,7 @@ class SlabFile(h5py.File):
         return branch
 
     def _my_assign_dset(self, dspath, ds, val):
-        print('assigning', ds, val)
+        print("assigning", ds, val)
         branch = self._my_ds_from_path(dspath)
         branch[ds] = val
 
@@ -105,7 +116,7 @@ class SlabFile(h5py.File):
         """returns a pickle-safe array for the branch specified by dspath"""
         branch = self._my_ds_from_path(dspath)
         if isinstance(branch, h5py.Group):
-            return 'group'
+            return "group"
         else:
             return (H5Array(branch), dict(branch.attrs))
 
@@ -122,7 +133,7 @@ class SlabFile(h5py.File):
         return getattr(branch, method)(*args, **kwargs)
 
     def _ping(self):
-        return 'OK'
+        return "OK"
 
     def set_range(self, dataset, xmin, xmax, ymin=None, ymax=None):
         if ymin is not None and ymax is not None:
@@ -137,7 +148,8 @@ class SlabFile(h5py.File):
             dataset.attrs["_axes_labels"] = (x_lab, y_lab)
 
     def append_line(self, dataset, line, axis=0):
-        if isinstance(dataset,str): dataset=str(dataset)
+        if isinstance(dataset, str):
+            dataset = str(dataset)
         if isinstance(dataset, str):
             try:
                 dataset = self[dataset]
@@ -145,7 +157,9 @@ class SlabFile(h5py.File):
                 shape, maxshape = (0, len(line)), (None, len(line))
                 if axis == 1:
                     shape, maxshape = (shape[1], shape[0]), (maxshape[1], maxshape[0])
-                self.create_dataset(dataset, shape=shape, maxshape=maxshape, dtype='float64')
+                self.create_dataset(
+                    dataset, shape=shape, maxshape=maxshape, dtype="float64"
+                )
                 dataset = self[dataset]
         shape = list(dataset.shape)
         shape[axis] = shape[axis] + 1
@@ -157,12 +171,15 @@ class SlabFile(h5py.File):
         self.flush()
 
     def append_pt(self, dataset, pt):
-        if isinstance(dataset,str): dataset=str(dataset)
-        if isinstance(dataset, str) :
+        if isinstance(dataset, str):
+            dataset = str(dataset)
+        if isinstance(dataset, str):
             try:
                 dataset = self[dataset]
             except:
-                self.create_dataset(dataset, shape=(0,), maxshape=(None,), dtype='float64')
+                self.create_dataset(
+                    dataset, shape=(0,), maxshape=(None,), dtype="float64"
+                )
                 dataset = self[dataset]
         shape = list(dataset.shape)
         shape[0] = shape[0] + 1
@@ -173,7 +190,7 @@ class SlabFile(h5py.File):
     def append_dset_pt(self, dataset, pt):
         shape = dataset.shape[0]
         shape = shape + 1
-        dataset.resize((shape, ))
+        dataset.resize((shape,))
         dataset[-1] = pt
         dataset.flush()
 
@@ -181,14 +198,16 @@ class SlabFile(h5py.File):
         """Add a timestamped note to HDF file, in a dataset called 'notes'"""
         ts = datetime.datetime.now()
         try:
-            ds = self['notes']
+            ds = self["notes"]
         except:
-            ds = self.create_dataset('notes', (0,), maxshape=(None,), dtype=h5py.new_vlen(str))
+            ds = self.create_dataset(
+                "notes", (0,), maxshape=(None,), dtype=h5py.new_vlen(str)
+            )
 
         shape = list(ds.shape)
         shape[0] = shape[0] + 1
         ds.resize(shape)
-        ds[-1] = str(ts) + ' -- ' + note
+        ds[-1] = str(ts) + " -- " + note
         self.flush()
 
     def get_notes(self, one_string=False, print_notes=False):
@@ -197,26 +216,32 @@ class SlabFile(h5py.File):
         @param print_notes=False if True prints all the notes to stdout
         """
         try:
-            notes = list(self['notes'])
+            notes = list(self["notes"])
         except:
             notes = []
         if print_notes:
-            print('\n'.join(notes))
+            print("\n".join(notes))
         if one_string:
-            notes = '\n'.join(notes)
+            notes = "\n".join(notes)
         return notes
 
     def add_data(self, f, key, data):
         data = np.array(data)
         try:
-            f.create_dataset(key, shape=data.shape,
-                             maxshape=tuple([None] * len(data.shape)),
-                             dtype=str(data.dtype))
+            f.create_dataset(
+                key,
+                shape=data.shape,
+                maxshape=tuple([None] * len(data.shape)),
+                dtype=str(data.dtype),
+            )
         except RuntimeError:
             del f[key]
-            f.create_dataset(key, shape=data.shape,
-                             maxshape=tuple([None] * len(data.shape)),
-                             dtype=str(data.dtype))
+            f.create_dataset(
+                key,
+                shape=data.shape,
+                maxshape=tuple([None] * len(data.shape)),
+                dtype=str(data.dtype),
+            )
         f[key][...] = data
 
     def append_data(self, f, key, data, forceInit=False):
@@ -227,15 +252,21 @@ class SlabFile(h5py.File):
 
         data = np.array(data)
         try:
-            f.create_dataset(key, shape=tuple([1] + list(data.shape)),
-                             maxshape=tuple([None] * (len(data.shape) + 1)),
-                             dtype=str(data.dtype))
+            f.create_dataset(
+                key,
+                shape=tuple([1] + list(data.shape)),
+                maxshape=tuple([None] * (len(data.shape) + 1)),
+                dtype=str(data.dtype),
+            )
         except RuntimeError:
             if forceInit == True:
                 del f[key]
-                f.create_dataset(key, shape=tuple([1] + list(data.shape)),
-                                 maxshape=tuple([None] * (len(data.shape) + 1)),
-                                 dtype=str(data.dtype))
+                f.create_dataset(
+                    key,
+                    shape=tuple([1] + list(data.shape)),
+                    maxshape=tuple([None] * (len(data.shape) + 1)),
+                    dtype=str(data.dtype),
+                )
             dataset = f[key]
             Shape = list(dataset.shape)
             Shape[0] = Shape[0] + 1
@@ -257,15 +288,15 @@ class SlabFile(h5py.File):
 
     # def save_script(self, name="_script"):
     # self.attrs[name] = get_script()
-    def save_dict(self, dict, group='/'):
+    def save_dict(self, dict, group="/"):
         if group not in self:
             self.create_group(group)
         for k in list(dict.keys()):
             self[group].attrs[k] = dict[k]
 
-    def get_dict(self, group='/'):
+    def get_dict(self, group="/"):
         d = {}
-        g=self[group]
+        g = self[group]
         for k in g.attrs:
             d[k] = g.attrs[k]
         return d
@@ -273,26 +304,25 @@ class SlabFile(h5py.File):
     get_attrs = get_dict
     save_attrs = save_dict
 
-    def get_group_data(self, group='/'):
-        data={'attrs': self.get_dict(group)}
-        
-        g=self[group]
+    def get_group_data(self, group="/"):
+        data = {"attrs": self.get_dict(group)}
+
+        g = self[group]
         for k in g.keys():
-            data[k]=np.array(g[k])
+            data[k] = np.array(g[k])
         return data
 
-    def save_settings(self, dic, group='settings'):
+    def save_settings(self, dic, group="settings"):
         self.save_dict(dic, group)
 
-    def load_settings(self, group='settings'):
+    def load_settings(self, group="settings"):
         return self.get_dict(group)
 
     def load_config(self):
-        if 'config' in list(self.attrs.keys()):
-            return AttrDict(json.loads(self.attrs['config']))
+        if "config" in list(self.attrs.keys()):
+            return AttrDict(json.loads(self.attrs["config"]))
         else:
             return None
-        
 
 
 def set_range(dset, range_dsets, range_names=None):
@@ -313,16 +343,16 @@ def set_range(dset, range_dsets, range_names=None):
 def get_script():
     """returns currently running script file as a string"""
     fname = inspect.stack()[-1][1]
-    if fname == '<stdin>':
+    if fname == "<stdin>":
         return fname
     # print fname
-    f = open(fname, 'r')
+    f = open(fname, "r")
     s = f.read()
     f.close()
     return s
 
 
-def open_to_path(h5file, path, pathsep='/'):
+def open_to_path(h5file, path, pathsep="/"):
     f = h5file
     for name in path.split(pathsep):
         if name:
@@ -350,10 +380,11 @@ def load_array(f, array_name):
 
     return a
 
-def load_slabfile_data(fname, path='', group='/'):
-    fullname=os.path.join(path, fname)
-    with SlabFile(fullname, 'r') as f:
-        data=f.get_group_data(group)
+
+def load_slabfile_data(fname, path="", group="/"):
+    fullname = os.path.join(path, fname)
+    with SlabFile(fullname, "r") as f:
+        data = f.get_group_data(group)
     return data
 
 
@@ -366,38 +397,38 @@ class AttrDict(dict):
             for key in value:
                 self.__setitem__(key, value[key])
         else:
-            raise TypeError('expected dict')
+            raise TypeError("expected dict")
 
     def __setitem__(self, key, value):
         if isinstance(value, dict) and not isinstance(value, AttrDict):
             value = AttrDict(value)
-        super(AttrDict,self).__setitem__(key, value)
-
+        super(AttrDict, self).__setitem__(key, value)
 
     def __getitem__(self, key):
-        v=super().__getitem__(key)
-        if isinstance(v, dict) and not isinstance (v, AttrDict):
+        v = super().__getitem__(key)
+        if isinstance(v, dict) and not isinstance(v, AttrDict):
             return AttrDict(v)
         else:
             return v
 
-    def __setattr__(self, a ,v):
-        return self.__setitem__(a,v)
+    def __setattr__(self, a, v):
+        return self.__setitem__(a, v)
+
     def __getattr__(self, a):
         if a in self:
             return self.__getitem__(a)
         else:
-            return self.__getattribute__(a) #@IgnoreException
-        
+            return self.__getattribute__(a)  # @IgnoreException
+
     def to_dict(self):
-        d={}
-        for k,v in self.items():
+        d = {}
+        for k, v in self.items():
             if isinstance(v, AttrDict):
-                d[k]=v.to_dict()
+                d[k] = v.to_dict()
             else:
-                d[k]=v
+                d[k] = v
         return d
-    
+
     # def __deepcopy__(self, memo):
     #     # Deepcopy only the id attribute, then construct the new instance and map
     #     # the id() of the existing copy to the new instance in the memo dictionary
@@ -421,5 +452,3 @@ class AttrDict(dict):
     # def __getnewargs__(self):
     #     # Return the arguments that *must* be passed to __new__
     #     return (self.id,)
-
-   

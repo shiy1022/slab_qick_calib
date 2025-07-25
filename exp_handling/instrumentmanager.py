@@ -5,18 +5,18 @@ Created on Sat Sep 03 14:50:09 2011
 @author: David Schuster
 """
 import os
-import sys
 import socket
+import sys
 from optparse import OptionParser
-
 import Pyro4
+
 Pyro4Loaded = True
 # Block calls from running simultaneously
-Pyro4.config.SERVERTYPE = 'multiplex'
+Pyro4.config.SERVERTYPE = "multiplex"
 Pyro4.config.REQUIRE_EXPOSE = False
 # Pyro4.config.HMAC_KEY = b'6551d449b0564585a9d39c0bd327dcf1'
 Pyro4.config.SERIALIZER = "pickle"
-Pyro4.config.SERIALIZERS_ACCEPTED=set(['json', 'marshal', 'serpent','pickle'])
+Pyro4.config.SERIALIZERS_ACCEPTED = set(["json", "marshal", "serpent", "pickle"])
 # except ImportError:
 #     print("Warning: Pyro4 package is not present")
 #     print("Instrument Servers will not work.")
@@ -28,51 +28,51 @@ class InstrumentManager(dict):
     keeps track of listed instruments and their settings
     :param config_path: Path to configuration file
     """
+
     def __init__(self, config_path=None, server=False, ns_address=None):
         """Initializes InstrumentManager using config_path if available"""
-        
+
         dict.__init__(self)
         self.config_path = config_path
         self.config = None
         self.ns_address = ns_address
-        #self.instruments={}
+        # self.instruments={}
         if not server and Pyro4Loaded:
-                try:
-                    #self.clean_nameserver()
-                    self.connect_proxies()
-                except Exception as e:
-                    print("Warning: Could not connect proxies!")
-                    print(e)
+            try:
+                # self.clean_nameserver()
+                self.connect_proxies()
+            except Exception as e:
+                print("Warning: Could not connect proxies!")
+                print(e)
         if config_path is not None:
-            instruments=self.load_config_file(config_path)
+            instruments = self.load_config_file(config_path)
         else:
-            instruments=[]
+            instruments = []
         if server and Pyro4Loaded:
             self.serve_instruments(instruments)
         else:
             for instrument in instruments:
                 self[instrument.name] = instrument
 
-
-
     def line_is_comment_or_empty(self, line=""):
-        _line = line.strip();
+        _line = line.strip()
         if len(_line) == 0 or _line[0] == "#":
             return True
-        else : return False
+        else:
+            return False
 
     def parse_config_string(self, line):
-        params = line.split();
-        name, instrument_class, address = params;
-        return name, instrument_class, address;
+        params = line.split()
+        name, instrument_class, address = params
+        return name, instrument_class, address
 
     def load_config_file(self, config_path):
         """Loads configuration file"""
-        print("Loaded Instruments: ", end=' ')
-        f = open(config_path, 'r')
-        instruments=[]
+        print("Loaded Instruments: ", end=" ")
+        f = open(config_path, "r")
+        instruments = []
         for line in f.readlines():
-            isComment = self.line_is_comment_or_empty(line);
+            isComment = self.line_is_comment_or_empty(line)
             if not isComment:
                 name = self.parse_config_string(line)[0]
                 instruments.append(self.load_instrument(line))
@@ -81,8 +81,8 @@ class InstrumentManager(dict):
 
     def load_instrument(self, config_string):
         """Loads instrument based on config_string (Name\tAddress\tType)"""
-        #print config_string
-        name, in_class, addr = self.parse_config_string(config_string);
+        # print config_string
+        name, in_class, addr = self.parse_config_string(config_string)
         fn = getattr(slab.instruments, in_class)
         return fn(name=name, address=addr)
 
@@ -94,21 +94,21 @@ class InstrumentManager(dict):
             return self.__getitem__(item)
         except KeyError:
             raise AttributeError(item)
-            
-    def set_alias(self,name,alias):
+
+    def set_alias(self, name, alias):
         """Sets an alias for an instrument"""
-        self[alias]=self[name]
+        self[alias] = self[name]
 
     def serve_instruments(self, instruments=None):
         """inst_dict is in form {name:instrument_instance}"""
         Pyro4.config.SERVERTYPE = "multiplex"
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
-        host=s.getsockname()[0]
-        #host=socket.gethostbyname(socket.gethostname())
+        host = s.getsockname()[0]
+        # host=socket.gethostbyname(socket.gethostname())
         daemon = Pyro4.Daemon(host=host)
         ns = Pyro4.locateNS(self.ns_address)
-     
+
         for instrument in instruments:
             uri = daemon.register(instrument)
             ns.register(instrument.name, uri)
@@ -116,7 +116,7 @@ class InstrumentManager(dict):
             # register all the objects we expose as properties
             # https://pyro4.readthedocs.io/en/stable/servercode.html#autoproxying
             # https://github.com/irmen/Pyro4/blob/master/examples/autoproxy/server.py
-            if hasattr(instrument,"autoproxy"):
+            if hasattr(instrument, "autoproxy"):
                 for obj in instrument.autoproxy:
                     daemon.register(obj)
 
@@ -124,11 +124,10 @@ class InstrumentManager(dict):
         daemon.requestLoop()
 
     def connect_proxies(self):
-       
+
         ns = Pyro4.locateNS(self.ns_address)
         for name, uri in list(ns.list().items()):
             self[name] = Pyro4.Proxy(uri)
-
 
     def get_settings(self):
         """Get settings from all instruments"""
@@ -147,14 +146,14 @@ class InstrumentManager(dict):
         if prefix:
             fname = os.path.join(path, prefix)
         else:
-            #print "hey"
+            # print "hey"
             fname = path
         if ".cfg" not in fname.lower():
-            fname += '.cfg'
-        f = open(fname, 'w')
+            fname += ".cfg"
+        f = open(fname, "w")
         for s in settings:
             f.write(repr(s))
-            f.write('\n')
+            f.write("\n")
         f.close()
 
     def clean_nameserver(self):
@@ -163,38 +162,73 @@ class InstrumentManager(dict):
         ns = Pyro4.locateNS(self.ns_address)
         for name, uri in list(ns.list().items()):
             try:
-                proxy=Pyro4.Proxy(uri)
+                proxy = Pyro4.Proxy(uri)
                 proxy._pyroTimeout = 0.1
                 proxy.get_id()
             except:
                 ns.remove(name)
 
+
 def main(args):
-    parser=OptionParser()
-    parser.add_option("-f","--file",dest="filename",
-                      help="Config file to load",metavar="FILE")
-    parser.add_option("-s","--server",action="store_true",dest="server",
-                      default=False,help="Act as instrument server")
-    parser.add_option("-n","--nameserver","--ns_address",action="store",
-                      type="string",dest="ns_address",
-                      help="Address of name server (default auto-lookup)" )
-    parser.add_option("-g","--gui", action="store_true",dest="gui",default=False,
-                      help="Run Instrument Manager in gui mode")
-    parser.add_option("-i", action="store_true",dest="interact",default=False,
-                      help="interactive option not used.")
-    options,args=parser.parse_args(args)
+    parser = OptionParser()
+    parser.add_option(
+        "-f", "--file", dest="filename", help="Config file to load", metavar="FILE"
+    )
+    parser.add_option(
+        "-s",
+        "--server",
+        action="store_true",
+        dest="server",
+        default=False,
+        help="Act as instrument server",
+    )
+    parser.add_option(
+        "-n",
+        "--nameserver",
+        "--ns_address",
+        action="store",
+        type="string",
+        dest="ns_address",
+        help="Address of name server (default auto-lookup)",
+    )
+    parser.add_option(
+        "-g",
+        "--gui",
+        action="store_true",
+        dest="gui",
+        default=False,
+        help="Run Instrument Manager in gui mode",
+    )
+    parser.add_option(
+        "-i",
+        action="store_true",
+        dest="interact",
+        default=False,
+        help="interactive option not used.",
+    )
+    options, args = parser.parse_args(args)
 
     if options.gui:
-        sys.exit(slab.gui.runWin(InstrumentManagerWindow,filename=options.filename,nameserver=options.ns_address))
+        sys.exit(
+            slab.gui.runWin(
+                InstrumentManagerWindow,
+                filename=options.filename,
+                nameserver=options.ns_address,
+            )
+        )
     else:
-        im=InstrumentManager(config_path=options.filename,server=options.server,
-                             ns_address=options.ns_address)
+        im = InstrumentManager(
+            config_path=options.filename,
+            server=options.server,
+            ns_address=options.ns_address,
+        )
         globals().update(im)
-        globals()['im']=im
+        globals()["im"] = im
         try:
-            globals()['plotter']=liveplot.LivePlotClient()
+            globals()["plotter"] = liveplot.LivePlotClient()
         except:
             print("Warning: Couldn't load liveplotter")
+
 
 if __name__ == "__main__":
     try:
@@ -206,6 +240,5 @@ if __name__ == "__main__":
         import liveplot
     except:
         print("Warning: Could not load liveplot")
-
 
     main(sys.argv[1:])

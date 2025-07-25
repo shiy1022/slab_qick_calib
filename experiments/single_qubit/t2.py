@@ -4,9 +4,10 @@ T2 Measurement Module
 This module implements T2 (dephasing time) measurements for superconducting qubits.
 T2 is a measure of how long a qubit maintains phase coherence in the x-y plane of the Bloch sphere.
 
-The module supports two main measurement protocols:
+The module supports three main measurement protocols:
 1. Ramsey: Uses two π/2 pulses separated by a variable delay time
 2. Echo: Uses two π/2 pulses with one or more π pulses in between to refocus dephasing
+3. CPMG: Uses a sequence of π pulses to dynamically decouple the qubit from the environment
 
 Additional features include:
 - AC Stark shift measurements during Ramsey experiments
@@ -16,29 +17,31 @@ Additional features include:
 
 import numpy as np
 from qick import *
-
-from exp_handling.datamanagement import AttrDict
-from gen.qick_experiment import QickExperiment
-import slab_qick_calib.fitting as fitter
-from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
+
+from ...analysis import fitting as fitter
+from ..general.qick_experiment import QickExperiment
+from ..general.qick_program import QickProgram
+
+from ...exp_handling.datamanagement import AttrDict
 
 
 class T2Program(QickProgram):
     """
-    Quantum program for T2 measurements (Ramsey and Echo protocols).
-    
+    Quantum program for T2 measurements (Ramsey, Echo, and CPMG protocols).
+
     This class defines the pulse sequences for T2 measurements:
     - Ramsey: π/2 - wait - π/2 sequence to measure phase coherence
     - Echo: π/2 - wait - π - wait - π/2 sequence to refocus dephasing
-    
+    - CPMG: π/2 - (wait - π)^n - wait - π/2 sequence for dynamical decoupling
+
     Additional options include AC Stark shift during wait time and EF transition measurements.
     """
-    
+
     def __init__(self, soccfg, final_delay, cfg):
         """
         Initialize the T2 program.
-        
+
         Args:
             soccfg: SOC configuration
             final_delay: Delay after measurement before next experiment
@@ -49,12 +52,12 @@ class T2Program(QickProgram):
     def _initialize(self, cfg):
         """
         Initialize the program by setting up the pulse sequence.
-        
+
         Creates the necessary pulses for T2 measurements:
         - Two π/2 pulses (prep and read)
-        - Optional π pulse(s) for Echo
+        - Optional π pulse(s) for Echo and CPMG
         - Optional AC Stark pulse for Ramsey with AC Stark shift
-        
+
         Args:
             cfg: Configuration dictionary
         """
@@ -66,17 +69,17 @@ class T2Program(QickProgram):
         # Create π/2 pulses for Ramsey/Echo sequence
         # First π/2 pulse has phase=0, second has phase based on wait time and Ramsey frequency
         pulse = {
-            "sigma": cfg.expt.sigma / 2,  # Half sigma for π/2 pulse
+            "sigma": cfg.expt.sigma,  # Half sigma for π/2 pulse
             "sigma_inc": cfg.expt.sigma_inc,
             "freq": cfg.expt.freq,
-            "gain": cfg.expt.gain,
+            "gain": cfg.expt.gain / 2,
             "phase": 0,  # First pulse has zero phase
             "type": cfg.expt.type,
         }
-        
+
         # Create first π/2 pulse (preparation)
         super().make_pulse(pulse, "pi2_prep")
-        
+
         # Create second π/2 pulse (readout) with phase that depends on wait time
         # Phase advances at rate of ramsey_freq (MHz) * wait_time (μs) * 360 (deg/cycle)
         pulse["phase"] = cfg.expt.wait_time * 360 * cfg.expt.ramsey_freq
@@ -99,25 +102,42 @@ class T2Program(QickProgram):
             super().make_pulse(pulse, "stark_pulse")
 
         # Create π pulse for Echo or EF check
-        if cfg.expt.checkEF or cfg.expt.experiment_type == "echo":
+        if cfg.expt.experiment_type == "cpmg":
+            cfg.device.qubit.pulses.pi_ge.phase = 90 * np.ones(
+                len(cfg.device.qubit.f_ge)
+            )
             super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+        elif (
+            cfg.expt.checkEF
+            or cfg.expt.experiment_type == "echo"
+            or cfg.expt.active_reset
+        ):
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ge, "pi_ge")
+
+        if cfg.expt.checkEF and cfg.expt.experiment_type == "echo":
+            # Create π pulse for EF transition check
+            super().make_pi_pulse(cfg.expt.qubit[0], cfg.device.qubit.f_ef, "pi_ef")
+
+        for i in range(1000):
+            self.nop()
 
     def _body(self, cfg):
         """
         Define the main body of the pulse sequence.
-        
+
         Implements the actual T2 measurement sequence:
         - Ramsey: π/2 - wait - π/2
         - Echo: π/2 - wait/2 - π - wait/2 - π/2
         - With options for AC Stark and EF measurements
-        
+
         Args:
             cfg: Configuration dictionary
         """
         cfg = AttrDict(self.cfg)
-        
+
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == "dyn":
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # For EF transition check in Ramsey: Apply π pulse to excite |g⟩ to |e⟩ first
         if hasattr(cfg.expt, "checkEF") and cfg.expt.checkEF:
@@ -128,22 +148,34 @@ class T2Program(QickProgram):
         self.pulse(ch=self.qubit_ch, name="pi2_prep", t=0.0)
 
         # Handle different experiment types
-        if hasattr(cfg.expt, "acStark") and cfg.expt.acStark:  # Ramsey with AC Stark shift
+        if (
+            hasattr(cfg.expt, "acStark") and cfg.expt.acStark
+        ):  # Ramsey with AC Stark shift
             # Note: AC Stark shift is not compatible with Echo protocol
             self.delay_auto(t=0.01, tag="wait st")  # Small buffer delay
-            self.pulse(ch=self.qubit_ch, name="stark_pulse", t=0)  # Apply AC Stark pulse
+            self.pulse(
+                ch=self.qubit_ch, name="stark_pulse", t=0
+            )  # Apply AC Stark pulse
             self.delay_auto(t=0.025, tag="waiting")  # Additional wait time
         else:
             # Standard Ramsey or Echo sequence
             # For Echo, divide wait time by (num_pi + 1) to get segments between pulses
-            self.delay_auto(t=cfg.expt.wait_time / (cfg.expt.num_pi + 1), tag="wait")
-            
-            # Apply π pulses for Echo protocol (or multiple-pulse Echo)
-            for i in range(cfg.expt.num_pi):
-                self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)  # π pulse
+            if cfg.expt.num_pi > 0:
+                self.delay_auto(t=cfg.expt.wait_time / cfg.expt.num_pi / 2, tag="wait")
+
+                # Apply π pulses for Echo protocol (or multiple-pulse Echo)
+                for i in range(cfg.expt.num_pi):
+                    self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)  # π pulse
+                    if i < cfg.expt.num_pi - 1:
+                        self.delay_auto(
+                            t=cfg.expt.wait_time / cfg.expt.num_pi + 0.01,
+                            tag=f"wait{i}",
+                        )  # Wait time
                 self.delay_auto(
-                    t=cfg.expt.wait_time / (cfg.expt.num_pi + 1) + 0.01, tag=f"wait{i}"
-                )  # Wait time plus small buffer
+                    t=cfg.expt.wait_time / cfg.expt.num_pi / 2 + 0.01, tag=f"wait{i+1}"
+                )
+            else:
+                self.delay_auto(t=cfg.expt.wait_time, tag="wait")
 
         # Second π/2 pulse (readout)
         self.pulse(ch=self.qubit_ch, name="pi2_read", t=0)
@@ -160,17 +192,17 @@ class T2Program(QickProgram):
 
 class T2Experiment(QickExperiment):
     """
-    T2 Experiment - Supports both Ramsey and Echo protocols
+    T2 Experiment - Supports Ramsey, Echo, and CPMG protocols
 
     Experimental Config for Ramsey:
     expt = dict(
-        experiment_type: "ramsey" or "echo"
+        experiment_type: "ramsey", "echo", or "cpmg"
         start: total wait time b/w the two pi/2 pulses start sweep [us]
         span: total increment of wait time across experiments [us]
         expts: number experiments stepping from start
         ramsey_freq: frequency by which to advance phase [MHz]
         reps: number averages per experiment
-        soft_avgs: number soft_avgs to repeat experiment sweep
+        rounds: number rounds to repeat experiment sweep
         acStark: True/False (Ramsey only)
         checkEF: True/False (Ramsey only)
     )
@@ -188,6 +220,7 @@ class T2Experiment(QickExperiment):
         go=True,
         params={},
         prefix=None,
+        fname=None,
         progress=True,
         style="",
         disp_kwargs=None,
@@ -198,19 +231,35 @@ class T2Experiment(QickExperiment):
     ):
         """
         Initialize the T2 experiment.
-        
+
+        This experiment measures T2 using Ramsey, Echo, or CPMG protocols.
+        Default `params` values:
+        - 'reps': Number of repetitions, doubled from default (default: `2 * self.reps`)
+        - 'rounds': Number of software averages, from `self.rounds`
+        - 'expts': Number of wait time points (default: 100)
+        - 'span': Total span of wait times in µs, set to ~3xT2 (default: `3 * self.cfg.device.qubit[par][qi]`)
+        - 'start': Start time for wait sweep in µs (default: 0.01)
+        - 'ramsey_freq': Ramsey frequency for phase advancement, 'smart' sets it to 1.5/T2 (default: 'smart')
+        - 'active_reset': If True, uses active reset (default: from `cfg.device.readout.active_reset[qi]`)
+        - 'experiment_type': 'ramsey', 'echo', or 'cpmg' (default: 'ramsey')
+        - 'acStark': If True, applies an AC Stark pulse during the wait time (Ramsey only) (default: False)
+        - 'checkEF': If True, measures the |e>-|f> transition (default: False)
+        - 'num_pi': Number of π pulses for Echo/CPMG (default: 1 for 'echo', 0 for 'ramsey')
+
         Args:
-            cfg_dict: Configuration dictionary
-            qi: Qubit index to measure
-            go: Whether to immediately run the experiment
-            params: Additional parameters to override defaults
-            prefix: Filename prefix for saved data
-            progress: Whether to show progress bar
-            style: Measurement style ('fine' for more averages, 'fast' for fewer points)
-            disp_kwargs: Display options
-            min_r2: Minimum R² value for acceptable fit
-            max_err: Maximum error for acceptable fit
-            display: Whether to display results
+            cfg_dict (dict): Configuration dictionary.
+            qi (int): Qubit index to measure.
+            go (bool): Whether to immediately run the experiment.
+            params (dict): Additional parameters to override defaults.
+            prefix (str): Filename prefix for saved data.
+            fname (str): Full filename for saved data.
+            progress (bool): Whether to show a progress bar.
+            style (str): Measurement style ('fine' for more averages, 'fast' for fewer points).
+            disp_kwargs (dict): Display options.
+            min_r2 (float): Minimum R² value for acceptable fit.
+            max_err (float): Maximum error for acceptable fit.
+            display (bool): Whether to display results.
+            print (bool): If True, prints the experiment config and exits.
         """
         # Determine experiment type and parameter name based on protocol
         if "experiment_type" in params and params["experiment_type"] == "echo":
@@ -226,17 +275,24 @@ class T2Experiment(QickExperiment):
             prefix = f"{name}_{ef}qubit{qi}"
 
         # Initialize parent class
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(
+            cfg_dict=cfg_dict, prefix=prefix, fname=fname, progress=progress, qi=qi
+        )
 
         # Define default parameters
         params_def = {
             "reps": 2 * self.reps,  # Number of repetitions (inner loop)
-            "soft_avgs": self.soft_avgs,  # Number of averages (outer loop)
+            "rounds": self.rounds,  # Number of averages (outer loop)
             "expts": 100,  # Number of wait time points
-            "span": 3 * self.cfg.device.qubit[par][qi],  # Total span of wait times (μs), set to ~3*T2
+            "span": 3
+            * self.cfg.device.qubit[par][
+                qi
+            ],  # Total span of wait times (μs), set to ~3*T2
             "start": 0.01,  # Start time for wait sweep (μs)
             "ramsey_freq": "smart",  # Ramsey frequency for phase advancement
-            "active_reset": self.cfg.device.readout.active_reset[qi],  # Use active qubit reset
+            "active_reset": self.cfg.device.readout.active_reset[
+                qi
+            ],  # Use active qubit reset
             "qubit": [qi],  # Qubit index as a list
             "experiment_type": "ramsey",  # Default to Ramsey protocol
             "acStark": False,  # No AC Stark shift by default
@@ -246,24 +302,26 @@ class T2Experiment(QickExperiment):
 
         # Adjust parameters based on measurement style
         if style == "fine":
-            params_def["soft_avgs"] = params_def["soft_avgs"] * 2  # Double averages for fine measurements
+            params_def["rounds"] = (
+                params_def["rounds"] * 2
+            )  # Double averages for fine measurements
         elif style == "fast":
             params_def["expts"] = 50  # Fewer points for fast measurements
-            
+
         # Merge user parameters with defaults
         params = {**params_def, **params}
-        
+
         # Set Ramsey frequency intelligently if "smart" is specified
         if params["ramsey_freq"] == "smart":
             # Set Ramsey frequency to 1.5/T2 for optimal oscillation visibility
             params["ramsey_freq"] = 1.5 / self.cfg.device.qubit[par][qi]
-            
+
         # Set number of π pulses based on experiment type
         if params["experiment_type"] == "echo":
             params_def["num_pi"] = 1  # Standard echo has 1 π pulse
         else:
             params_def["num_pi"] = 0  # Ramsey has 0 π pulses
-            
+
         # Set pulse parameters based on transition type (g-e or e-f)
         if "checkEF" in params and params["checkEF"]:
             # For e-f transition measurements
@@ -284,69 +342,72 @@ class T2Experiment(QickExperiment):
 
         # Check for unexpected parameters
         super().check_params(params_def)
-        
-        # Configure active reset if enabled
-        if self.cfg.expt.active_reset:
-            super().configure_reset()
 
-        # For untuned qubits, show all data points by default
-        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
-            disp_kwargs = {"plot_all": True}
-        
-        if print: 
-            super().print()
-            go=False
-        # Run the experiment if go=True
         if go:
-            super().run(
+            super().qubit_run(
+                qi=qi,
                 display=display,
                 progress=progress,
                 min_r2=min_r2,
                 max_err=max_err,
+                print=print,
                 disp_kwargs=disp_kwargs,
             )
 
     def acquire(self, progress=False):
         """
         Acquire T2 measurement data.
-        
+
         This method:
         1. Sets up the wait time sweep parameters
         2. Runs the T2Program to collect data for each wait time
         3. Adjusts x-axis values to account for echo protocol
-        
+
         Args:
             progress: Whether to show progress bar
-            
+
         Returns:
             Measurement data dictionary
         """
         # Define parameter metadata for plotting
         self.param = {"label": "wait", "param": "t", "param_type": "time"}
-        
+
         # Create a 1D sweep for the wait time from start to start+span
         self.cfg.expt.wait_time = QickSweep1D(
             "wait_loop", self.cfg.expt.start, self.cfg.expt.start + self.cfg.expt.span
         )
 
         # Run the T2Program to acquire data
+
         super().acquire(T2Program, progress=progress)
 
         # Adjust x-axis values to account for echo protocol
         # For echo, the effective wait time is longer due to the π pulses
-        self.data["xpts"] = (self.cfg.expt.num_pi + 1) * self.data["xpts"]
+        if self.cfg.expt.num_pi == 0:
+            coef = 1
+        else:
+            coef = 2*self.cfg.expt.num_pi  # For echo, we have num_pi + 1 segments
+        self.data["xpts"] = coef * self.data["xpts"]
 
         return self.data
 
-    def analyze(self, data=None, fit=True, fit_twofreq=False, refit=False, verbose=False, **kwargs):
+    def analyze(
+        self,
+        data=None,
+        fit=True,
+        fit_twofreq=False,
+        refit=False,
+        verbose=False,
+        **kwargs,
+    ):
         """
         Analyze T2 measurement data by fitting to a decaying sinusoid.
-        
+
         This method:
         1. Fits the data to a decaying sinusoid (with or without slope)
         2. Calculates frequency errors from the fit
         3. Determines the corrected qubit frequency
-        
+
         Args:
             data: Data dictionary to analyze (uses self.data if None)
             fit: Whether to perform fitting
@@ -354,7 +415,7 @@ class T2Experiment(QickExperiment):
             refit: Whether to refit without slope
             verbose: Whether to print detailed information
             **kwargs: Additional arguments passed to the analyzer
-            
+
         Returns:
             Data dictionary with added fit results
         """
@@ -381,14 +442,26 @@ class T2Experiment(QickExperiment):
                 # Parameters: yscale, freq, phase_deg, decay, y0, slope
 
             # Perform the fit
-            super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data, inds=inds, **kwargs)
+            super().analyze(
+                fitfunc=self.fitfunc,
+                fitterfunc=self.fitterfunc,
+                data=data,
+                inds=inds,
+                **kwargs,
+            )
 
             # If the fit fails, try again without slope
             if not self.status and not refit:
                 self.fitfunc = fitter.decaysin
                 self.fitterfunc = fitter.fitdecaysin
-                super().analyze(fitfunc=self.fitfunc, fitterfunc=self.fitterfunc, data=data, inds=inds, **kwargs)
-                 
+                super().analyze(
+                    fitfunc=self.fitfunc,
+                    fitterfunc=self.fitterfunc,
+                    data=data,
+                    inds=inds,
+                    **kwargs,
+                )
+
             # Calculate average fit error
             inds = np.arange(5)
             data["fit_err"] = np.mean(np.abs(data["fit_err_par"][inds]))
@@ -445,7 +518,9 @@ class T2Experiment(QickExperiment):
 
             # Store the frequency error and corrected frequency
             data["f_err"] = t2r_adjust[0]  # Use the smallest error
-            data["new_freq"] = f_pi_test + t2r_adjust[0]  # Calculate corrected frequency
+            data["new_freq"] = (
+                f_pi_test + t2r_adjust[0]
+            )  # Calculate corrected frequency
 
         return data
 
@@ -460,13 +535,14 @@ class T2Experiment(QickExperiment):
         savefig=True,
         refit=False,
         show_hist=False,
+        rescale=False,
         **kwargs,
     ):
         """
         Display T2 measurement results.
-        
+
         Creates a plot showing the qubit state vs wait time and the exponentially decaying sinusoidal fit.
-        
+
         Args:
             data: Data dictionary to display (uses self.data if None)
             fit: Whether to show the fit curve
@@ -481,22 +557,21 @@ class T2Experiment(QickExperiment):
         """
         if data is None:
             data = self.data
-            
+
         # Get qubit index for plot title
         q = self.cfg.expt.qubit[0]
-        
+
         # Set experiment name based on type
-        if self.cfg.expt.experiment_type == "echo":
-            name = "Echo "
-        else:
-            name = ""
-            
+        name = "Echo " if self.cfg.expt.experiment_type == "echo" else ""
+        if self.cfg.expt.num_pi > 1:
+            name += f"{self.cfg.expt.num_pi} π pulses "
+
         # Set x-axis label
         xlabel = "Wait Time ($\mu$s)"
 
         # Add EF prefix if checking EF transition
         ef = "EF " if self.cfg.expt.checkEF else ""
-        
+
         # Create plot title
         title = f"{ef} Ramsey {name}Q{q} (Freq: {self.cfg.expt.ramsey_freq:.4} MHz)"
 
@@ -528,4 +603,5 @@ class T2Experiment(QickExperiment):
             fitfunc=self.fitfunc,
             caption_params=caption_params,
             savefig=savefig,
+            rescale=rescale,
         )

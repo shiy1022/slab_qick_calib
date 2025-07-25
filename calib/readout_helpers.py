@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.special import erf
 from copy import deepcopy
+import seaborn as sns
+import datetime
 
 # Standard colors for plotting
 BLUE = "#4053d3"  # Color for ground state
@@ -736,3 +738,76 @@ def fit_single_shot(d, plot=True, rot=True):
     }
     
     return data, p, paramsg, paramse2
+
+
+def plot_reset(d):
+    blue = "#4053d3"
+    red = "#b51d14"
+
+    num_plots = len(d)
+    fig, ax = plt.subplots(
+        int(np.ceil(num_plots / 4)), 4, figsize=(14, 1 * num_plots), sharey=True
+    )
+    ax = ax.flatten()
+
+    b = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d[0].data["Igr"]))
+    for i, shot in enumerate(d):
+        v, hist = make_hist(shot.data["Ig"], nbins=50)
+        ax[i].semilogy(v, hist, color=blue)
+        ax[i].set_title(f"{shot.cfg.expt.threshold_v:0.2f}")
+        ax[i].axvline(x=shot.cfg.expt.threshold_v, color="k", linestyle="--")
+        for j in range(len(shot.data["Igr"])):
+            v, hist = make_hist(shot.data["Igr"][j], nbins=50)
+            ax[i].semilogy(v, hist, color=b[j])
+
+    fig.tight_layout()
+    fig, ax = plt.subplots(
+        int(np.ceil(num_plots / 4)), 4, figsize=(14, 1 * num_plots), sharey=True
+    )
+    ax = ax.flatten()
+    for i, shot in enumerate(d):
+        v, hist = make_hist(shot.data["Ig"], nbins=50)
+        ax[i].semilogy(v, hist, color=blue)
+        v, hist = make_hist(shot.data["Ie"], nbins=50)
+        ax[i].semilogy(v, hist, color=red)
+        ax[i].set_title(f"{shot.cfg.expt.threshold_v:0.2f}")
+        ax[i].axvline(x=shot.cfg.expt.threshold_v, color="k", linestyle="--")
+        for j in range(len(shot.data["Ier"])):
+            v, hist = make_hist(shot.data["Ier"][j], nbins=50)
+            ax[i].semilogy(v, hist, color=b[j])
+
+    fig.tight_layout()
+
+    nplots = 6
+    fig, ax = plt.subplots(2, nplots, figsize=(nplots * 4, 8))
+    b = sns.color_palette("ch:s=-.2,r=.6", n_colors=len(d))
+
+    for i, shot in enumerate(d):
+        vg, histg = make_hist(shot.data["Ig"], nbins=50)
+        ve, histe = make_hist(shot.data["Ie"], nbins=50)
+        for j in range(nplots):
+
+            ax[0, j].semilogy(vg, histg, color=blue, linewidth=1)
+            ax[1, j].semilogy(vg, histg, color=blue, linewidth=1)
+
+            ax[1, j].semilogy(ve, histe, color=red, linewidth=1)
+
+            v, hist = make_hist(shot.data["Igr"][j, :], nbins=50)
+            ax[0, j].semilogy(
+                v, hist, label=f"{shot.cfg.expt.threshold_v:0.1f}", color=b[i]
+            )
+
+            v, hist = make_hist(shot.data["Ier"][j, :], nbins=50)
+            ax[1, j].semilogy(v, hist, label=shot.cfg.expt.threshold_v, color=b[i])
+
+    ax[0, 0].legend(ncol=int(np.ceil(len(d) / 6)), fontsize=8)
+
+    ax[0, 0].set_title("Ground state")
+    ax[1, 0].set_title("Excited state")
+    fig.tight_layout()
+    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # fig.savefig(
+    #             shot.fname[0 : -len(imname)] + "images\\" +  + ".png"
+    #         )
+    fig.savefig(f"reset_hist_{current_time}.png")

@@ -1,48 +1,47 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from qick import *
-import copy
 import seaborn as sns
-from exp_handling.datamanagement import AttrDict
 from tqdm import tqdm_notebook as tqdm
-from gen.qick_experiment import QickExperiment
-from gen.qick_program import QickProgram
-import experiments as meas
 
-import slab_qick_calib.config as config
+from ..general.qick_experiment import QickExperiment
+from .single_shot import HistogramExperiment
+from ...helpers import config
+
 blue = "#4053d3"
 red = "#b51d14"
 int_rgain = True
-import slab_qick_calib.calib.readout_helpers as helpers
+
 
 class SingleShotOptExperiment(QickExperiment):
     """
-    start_f (float): Starting frequency for the experiment.
-    span_f (float): Frequency span for the experiment.
-    expts_f (int): Number of frequency experiments.
+    A class for optimizing single-shot readout experiments by sweeping frequency, gain, and readout length.
 
-    start_gain (float): Starting gain for the experiment.
-    span_gain (float): Gain span for the experiment.
-    expts_gain (int): Number of gain experiments.
+    This experiment iterates through a parameter space to find the optimal
+    combination of readout frequency, gain, and length that maximizes readout fidelity.
 
-    start_len (float): Starting readout length for the experiment.
-    span_len (float): Readout length span for the experiment.
-    expts_len (int): Number of readout length experiments.
-    reps (int): Number of repetitions for each experiment.
-    check_f (bool): Flag to check frequency.
+    The parameters for this experiment can be configured via the `params` dictionary.
+    If a parameter is not provided, a default value will be used.
 
-    step_f (float): Frequency step size.
-    step_gain (float): Gain step size.
-    step_len (float): Readout length step size.
+    Default Parameters
+    ------------------
+    - `span_f`: Readout frequency span, defaults to `0.8 * kappa` from the device config.
+    - `expts_f`: Number of frequency points, defaults to 5.
+    - `expts_gain`: Number of gain points, defaults to 5.
+    - `expts_len`: Number of readout length points, defaults to 5.
+    - `shots`: Number of shots per measurement, defaults to 10000.
+    - `check_f`: Boolean to check the f-state, defaults to `False`.
+    - `qubit`: Qubit index, defaults to the one specified in `qi`.
+    - `save_data`: Boolean to save the raw data, defaults to `True`.
+    - `qubit_chan`: Readout channel, defaults to the one from the hardware config.
 
-    qubit (list): List of qubits to be used in the experiment.
-    save_data (bool): Flag to save data.
-    qubit_chan (int): Qubit channel for readout.
+    The starting points for frequency, gain, and length are determined based on the
+    device configuration and the number of experiment points. If `expts_f`, `expts_gain`,
+    or `expts_len` is 1, the starting value is taken directly from the device config.
+    Otherwise, it is calculated to center the sweep around the config value.
     """
 
-    def __init__(
-        self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, style=""
-    ):
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, print=False):
 
         if prefix is None:
             prefix = f"single_shot_opt_qubit_{qi}"
@@ -54,7 +53,7 @@ class SingleShotOptExperiment(QickExperiment):
         self.cfg_dict = cfg_dict
 
         params_def = {
-            "span_f": self.cfg.device.readout.kappa[qi]*0.8,
+            "span_f": self.cfg.device.readout.kappa[qi] * 0.8,
             "expts_f": 5,
             "expts_gain": 5,
             "expts_len": 5,
@@ -78,30 +77,18 @@ class SingleShotOptExperiment(QickExperiment):
             params_def["start_gain"] = self.cfg.device.readout.gain[qi]
             params_def["span_gain"] = 0
         else:
-            if style == "fine":
-                params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.8
-                params_def["span_gain"] = 0.4 * self.cfg.device.readout.gain[qi]
-            else:
-                params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.3
-                params_def["span_gain"] = 1.8 * self.cfg.device.readout.gain[qi]
+            params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.3
+            params_def["span_gain"] = 1.8 * self.cfg.device.readout.gain[qi]
 
         if params["expts_len"] == 1:
             params_def["start_len"] = self.cfg.device.readout.readout_length[qi]
         else:
-            if style == "fine":
-                params_def["start_len"] = (
-                    self.cfg.device.readout.readout_length[qi] * 0.8
-                )
-                params_def["span_len"] = (
-                    0.4 * self.cfg.device.readout.readout_length[qi]
-                )
-            else:
-                params_def["start_len"] = (
-                    self.cfg.device.readout.readout_length[qi] * 0.3
-                )
-                params_def["span_len"] = (
-                    1.8 * self.cfg.device.readout.readout_length[qi]
-                )
+            params_def["start_len"] = (
+                self.cfg.device.readout.readout_length[qi] * 0.3
+            )
+            params_def["span_len"] = (
+                1.8 * self.cfg.device.readout.readout_length[qi]
+            )
 
         params = {**params_def, **params}
         if params["expts_f"] == 1:
@@ -121,12 +108,16 @@ class SingleShotOptExperiment(QickExperiment):
             params_def["step_len"] = params["span_len"] / (params["expts_len"] - 1)
 
         if params["span_gain"] + params["start_gain"] > self.cfg.device.qubit.max_gain:
-            params_def["span_gain"] = self.cfg.device.qubit.max_gain - params["start_gain"]
+            params_def["span_gain"] = (
+                self.cfg.device.qubit.max_gain - params["start_gain"]
+            )
         self.cfg.expt = {**params_def, **params}
 
         # Check for unexpected parameters
         super().check_params(params)
-
+        if print:
+            super().print()
+            go = False
         if go:
             self.go(analyze=False, display=False, progress=False, save=True)
             self.analyze()
@@ -141,11 +132,13 @@ class SingleShotOptExperiment(QickExperiment):
             self.cfg.expt["expts_gain"] - 1
         )
         if max_gain > self.cfg.device.qubit.max_gain:
-            self.cfg.expt["step_gain"] = (self.cfg.device.qubit.max_gain - self.cfg.expt["start_gain"])/(self.cfg.expt["expts_gain"]-1)
+            self.cfg.expt["step_gain"] = (
+                self.cfg.device.qubit.max_gain - self.cfg.expt["start_gain"]
+            ) / (self.cfg.expt["expts_gain"] - 1)
         gainpts = self.cfg.expt["start_gain"] + self.cfg.expt["step_gain"] * np.arange(
             self.cfg.expt["expts_gain"]
         )
-        
+
         lenpts = self.cfg.expt["start_len"] + self.cfg.expt["step_len"] * np.arange(
             self.cfg.expt["expts_len"]
         )
@@ -198,7 +191,7 @@ class SingleShotOptExperiment(QickExperiment):
                     If[-1].append([])
                     Qf[-1].append([])
                 for l_ind, l in enumerate(tqdm(lenpts, disable=not lprog)):
-                    shot = meas.HistogramExperiment(
+                    shot = HistogramExperiment(
                         self.cfg_dict,
                         go=False,
                         progress=False,
@@ -215,8 +208,8 @@ class SingleShotOptExperiment(QickExperiment):
                             qubit_chan=self.cfg.expt.qubit_chan,
                         ),
                     )
-                    #shot.cfg = self.cfg
-                    
+                    # shot.cfg = self.cfg
+
                     shot.go(analyze=False, display=False, progress=progress, save=False)
                     Ig[-1][-1].append(shot.data["Ig"])
                     Ie[-1][-1].append(shot.data["Ie"])
@@ -237,7 +230,7 @@ class SingleShotOptExperiment(QickExperiment):
                     try:
                         tm[f_ind, g_ind, l_ind] = results["tm"]
                         sigma[f_ind, g_ind, l_ind] = results["sigma"]
-                    except: 
+                    except:
                         pass
                     angle[f_ind, g_ind, l_ind] = results["angle"]
                     # print(f'freq: {f}, gain: {gain}, len: {l}')
@@ -259,7 +252,9 @@ class SingleShotOptExperiment(QickExperiment):
                 Ig=Ig,
                 Ie=Ie,
                 Qg=Qg,
-                Qe=Qe,tm=tm, sigma=sigma,
+                Qe=Qe,
+                tm=tm,
+                sigma=sigma,
             )
             if check_f:
                 self.data["If"] = If
@@ -271,7 +266,9 @@ class SingleShotOptExperiment(QickExperiment):
                 lenpts=lenpts,
                 fid=fid,
                 threshold=threshold,
-                angle=angle,tm=tm, sigma=sigma,
+                angle=angle,
+                tm=tm,
+                sigma=sigma,
             )
 
         for key in self.data.keys():
@@ -287,41 +284,44 @@ class SingleShotOptExperiment(QickExperiment):
         lenpts = data["lenpts"]
 
         imax = np.unravel_index(np.argmax(fid), shape=fid.shape)
-        perc_fid = 0.95 
+        perc_fid = 0.95
         max_fid = np.max(fid)
         print(f"Max fidelity {100*max_fid:.3f} %")
-        
+
         print(
-                f"Optimal params: \n Freq (MHz) {fpts[imax[0]]:.3f} \n Gain (DAC units) {gainpts[imax[1]]:.3f} \n Readout length (us) {lenpts[imax[2]]:.3f}"
-            )
-       
-        if low_gain:
+            f"Optimal params: \n Freq (MHz) {fpts[imax[0]]:.3f} \n Gain (DAC units) {gainpts[imax[1]]:.3f} \n Readout length (us) {lenpts[imax[2]]:.3f}"
+        )
+        self.do_more = self.check_edges()
+        if low_gain and not self.do_more:
             min_accept = max_fid * perc_fid
-            
+
             # Find values above threshold
             above_threshold = fid >= min_accept
-        
+
             # For each row, get first index that's above threshold
             freq_indices = np.where(above_threshold)[0]
             gain_indices = np.where(above_threshold)[1]
             time_indices = np.where(above_threshold)[2]
-            min_ind = gain_indices+time_indices
+            min_ind = gain_indices + time_indices
             a = np.argmin(min_ind)
-            
+
             # Get the first occurrence
-            imax = (freq_indices[a],gain_indices[a], time_indices[a])
-            print(f'Set fidelity: {100*fid[imax]:.3f} %')
+            imax = (freq_indices[a], gain_indices[a], time_indices[a])
+            print(f"Set fidelity: {100*fid[imax]:.3f} %")
             print(
                 f"Set params: \n Freq (MHz) {fpts[imax[0]]:.3f} \n Gain (DAC units) {gainpts[imax[1]]:.3f} \n Readout length (us) {lenpts[imax[2]]:.3f}"
             )
-            
+
         self.data["freq"] = fpts[imax[0]]
         self.data["gain"] = gainpts[imax[1]]
         self.data["length"] = lenpts[imax[2]]
 
+        if self.data["gain"] == 1:  # change to max_gain
+            self.do_more = False
+
         return imax
 
-    def display(self, data=None,plot_pars=False, **kwargs):
+    def display(self, data=None, plot_pars=False, **kwargs):
         if data is None:
             data = self.data
 
@@ -378,6 +378,10 @@ class SingleShotOptExperiment(QickExperiment):
                     return data[:, i[0], i[1]].reshape(-1)
 
         m = 0.5
+        imname = self.fname.split("\\")[-1]
+        folder = self.fname[0 : -len(imname)]
+        imname = imname[0:-3]
+
         if ndims == 1:
             row, col = smart_ax(npts[0])
             fig, ax = plt.subplots(row, col, figsize=(col * 3, row * 3))
@@ -402,6 +406,7 @@ class SingleShotOptExperiment(QickExperiment):
                 )
 
                 ax[i].set_title(f"{labs[inds[0]]} {data[sweep_var[0]][i]:.2f}")
+            fig.savefig(folder + "images\\" + f"{imname}_raw_{k}.png")
 
         elif ndims == 2:
             fig, ax = plt.subplots(npts[0], npts[1], figsize=(npts[1] * 3, npts[0] * 3))
@@ -433,6 +438,7 @@ class SingleShotOptExperiment(QickExperiment):
             plt.figtext(
                 0.0, 0.5, labs[inds[0]], verticalalignment="center", rotation="vertical"
             )
+            fig.savefig(folder + "images\\" + f"{imname}_raw.png")
         else:
             for k in range(npts[2]):
                 fig, ax = plt.subplots(
@@ -458,20 +464,7 @@ class SingleShotOptExperiment(QickExperiment):
                         )
                 fig.suptitle(title)
                 fig.tight_layout()
-                imname = self.fname.split("\\")[-1]
-                fig.savefig(
-                    self.fname[0 : -len(imname)]
-                    + "images\\"
-                    + imname[0:-3]
-                    + f"_raw_{k}.png"
-                )
-
-                fig.suptitle(title)
-                fig.tight_layout()
-                imname = self.fname.split("\\")[-1]
-                fig.savefig(
-                    self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + f"_raw_{k}.png"
-                )
+                fig.savefig(folder + "images\\" + f"{imname}_raw_{k}.png")
 
         title = f"Single Shot Optimization Q{self.cfg.expt.qubit[0]}"
         fig = plt.figure(figsize=(9, 5.5))
@@ -531,59 +524,70 @@ class SingleShotOptExperiment(QickExperiment):
         plt.xlabel(xlabel)
         plt.ylabel(f"Fidelity [%]")
         plt.legend(title=leg_title)
-        imname = self.fname.split("\\")[-1]
-        fig.savefig(self.fname[0 : -len(imname)] + "images\\" + imname[0:-3] + ".png")
+        fig.savefig(folder + "images\\" + imname + ".png")
         plt.show()
 
         if plot_pars:
-
-            tmv = self.data['tm'][0]
-            tmv[tmv<0.001]=np.nan
-            sns.set_palette('coolwarm', len(tmv))
-            fig, ax = plt.subplots(2,1, figsize=(8,6))
-            #tm = np.transpose(tmv)
+            tmv = self.data["tm"][0]
+            tmv[tmv < 0.001] = np.nan
+            sns.set_palette("coolwarm", len(tmv))
+            fig, ax = plt.subplots(2, 1, figsize=(8, 6))
+            # tm = np.transpose(tmv)
             for i, tm_arr in enumerate(tmv):
-                gain=self.data['gainpts'][i]
-                ax[0].plot(self.data['lenpts'],self.data['lenpts']/tm_arr,'o-', label=f"{gain:.2f}")
-            ax[0].set_xlabel('Readout Length')
-            ax[0].axhline(y=self.cfg.device.qubit.T1[self.cfg.expt.qubit[0]], color='k', linestyle='--', label='T1')
-            ax[0].set_ylabel('$T_m/(T_m/T_1)$')
+                gain = self.data["gainpts"][i]
+                ax[0].plot(
+                    self.data["lenpts"],
+                    self.data["lenpts"] / tm_arr,
+                    "o-",
+                    label=f"{gain:.2f}",
+                )
+            ax[0].set_xlabel("Readout Length")
+            ax[0].axhline(
+                y=self.cfg.device.qubit.T1[self.cfg.expt.qubit[0]],
+                color="k",
+                linestyle="--",
+                label="T1",
+            )
+            ax[0].set_ylabel("$T_m/(T_m/T_1)$")
             ax[0].legend()
-            sigma = self.data['sigma'][0]
+            sigma = self.data["sigma"][0]
 
             for i, s in enumerate(sigma):
-                gain=self.data['gainpts'][i]
-                ax[1].loglog(self.data['lenpts'],s,'o-', label=f"{gain:.2f}")
+                gain = self.data["gainpts"][i]
+                ax[1].loglog(self.data["lenpts"], s, "o-", label=f"{gain:.2f}")
             ax[1].legend()
-            ax[1].set_xlabel('Readout Length')
-            ax[1].set_ylabel('$\sigma$')
+            ax[1].set_xlabel("Readout Length")
+            ax[1].set_ylabel("$\sigma$")
             fig.tight_layout()
 
-        self.do_more= self.check_edges()
-        if self.data['gain']==1: # change to max_gain 
-            self.do_more=False
-        
-    
     def check_edges(self):
-        do_more=False
+        do_more = False
         fid = self.data["fid"]
         fid_expts = fid.shape
         if all(dim % 2 != 0 for dim in fid_expts):
             old_fid = fid[(fid_expts[0] // 2), (fid_expts[1] // 2), (fid_expts[2] // 2)]
             max_fid = np.max(fid)
-            if (max_fid - old_fid)/old_fid > 0.1:
+            if (max_fid - old_fid) / old_fid > 0.1:
                 print("Fidelity is not maximized at the center of the sweep.")
                 max_indices = np.unravel_index(np.argmax(fid), fid.shape)
                 print(f"Max fidelity found at indices: {max_indices}")
-                if max_indices[1]==0 or max_indices[1]==fid_expts[1]-1 or max_indices[2]==0 or max_indices[2]==fid_expts[2]-1:
-                    do_more=True
+                if (
+                    max_indices[1] == 0
+                    or max_indices[1] == fid_expts[1] - 1
+                    or max_indices[2] == 0
+                    or max_indices[2] == fid_expts[2] - 1
+                ):
+                    do_more = True
         else:
             print("Not all elements in fid_expts are odd.")
         return do_more
 
     def update(self, cfg_file, verbose=True):
         qi = self.cfg.expt.qubit[0]
-        config.update_readout(cfg_file, 'gain', self.data['gain'], qi, verbose=verbose);
-        config.update_readout(cfg_file, 'readout_length', self.data['length'], qi, verbose=verbose);
-        config.update_readout(cfg_file, 'frequency', self.data['freq'], qi, verbose=verbose);
-        
+        config.update_readout(cfg_file, "gain", self.data["gain"], qi, verbose=verbose)
+        config.update_readout(
+            cfg_file, "readout_length", self.data["length"], qi, verbose=verbose
+        )
+        config.update_readout(
+            cfg_file, "frequency", self.data["freq"], qi, verbose=verbose
+        )

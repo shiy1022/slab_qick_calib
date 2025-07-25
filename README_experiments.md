@@ -1,6 +1,6 @@
 # SLAB QICK Calibration Experiments
 
-This document provides a guide to configuring and running various quantum experiments using the SLAB QICK calibration framework. The framework is designed for calibrating and characterizing superconducting qubits using the QICK (Quantum Instrumentation Control Kit) hardware.
+This document provides a comprehensive guide to configuring and running various quantum experiments using the SLAB QICK calibration framework. The framework is designed for calibrating and characterizing superconducting qubits using the QICK (Quantum Instrumentation Control Kit) hardware.
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -15,15 +15,23 @@ This document provides a guide to configuring and running various quantum experi
 
 The SLAB QICK calibration framework provides a comprehensive set of experiments for characterizing and calibrating superconducting qubits. The framework is built on top of the QICK hardware platform and provides a high-level interface for running quantum experiments.
 
-Before running experiments, make sure a nameserver is running on the network, the QICK board is connected to it, and the IP address in your configuration matches that of the nameserver.
+Before running experiments, make sure a nameserver is running on the network (on whatever computer you want to run it, open NameServer.ipynb and run with that computer's IP address). Then, on QICK board, go to pyro4 folder and open 01_server.ipynb, setting an alias for the board that you will use when connecting to the board on your client computer, and setting the ip address to that of the nameserver. This is also where you would specify the location of firmware.
 
 ## Experiment Configuration
 
-Experiments are configured using parameter dictionaries that are passed to the experiment constructor. Each experiment has a set of default parameters that can be overridden by the user.
+### QICK Program vs. QICK Experiment
+
+In this framework, it's important to understand the distinction between a `QickProgram` and a `QickExperiment`:
+
+- **`QickProgram`**: This is a lower-level class that directly interacts with the QICK's pulse processor. It is responsible for defining the pulse sequences, acquiring data, and managing the hardware registers. Each experiment has an associated `QickProgram` that handles the hardware communication.
+- **`QickExperiment`**: This is a higher-level class that encapsulates the entire experimental procedure. It handles data processing, fitting, plotting, and saving. It uses a `QickProgram` to execute the pulse sequence on the hardware. When you run an experiment, you will typically interact with the `QickExperiment` class.
+
+This separation of concerns allows for a modular and extensible framework where the high-level experiment logic is decoupled from the low-level hardware control.
 
 ### Basic Configuration Setup
 
 To set up a new configuration or data folder:
+When you initialize the config, you will need to set the DAC/ADC channels for resonator and qubit. You can look at the soc printout to identify the channel number you are plugged into.
 
 ```python
 # Set up paths
@@ -83,7 +91,7 @@ rspec = meas.ResSpec(cfg_dict, qi=qi, style='coarse', params={'start': 5000, 'sp
 Each experiment accepts a `params` dictionary that allows you to customize the experiment. Common parameters include:
 
 - `reps`: Number of repetitions for each experiment point
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages
 - `expts`: Number of experiment points
 - `start`: Start value for the swept parameter
 - `span`: Span of the swept parameter
@@ -93,6 +101,8 @@ Each experiment accepts a `params` dictionary that allows you to customize the e
 - `active_reset`: Whether to use active reset
 
 Experiment-specific parameters are documented in the respective experiment classes.
+Experiments are configured using parameter dictionaries that are passed to the experiment constructor. Each experiment has a set of default parameters that can be overridden by the user.
+All times are in μs. All gains are out of 1.
 
 ## Available Experiments
 
@@ -102,22 +112,22 @@ Experiment-specific parameters are documented in the respective experiment class
 
 **File**: `experiments/single_qubit/tof_calibration.py`
 
-**Description**: Measures the time it takes for the signal to run through the wires. It determines the time in clock ticks that we should wait to make measurements. Time of flight (tof) is stored in parameter cfg.device.readout.trig_offset.
+**Description**: Measures the time it takes for the signal to run through the cables, plus latency. It determines the time that we should wait to make measurements. Time of flight (tof) is stored in parameter `cfg.device.readout.trig_offset`.
 
-**Purpose**: Run this calibration when the wiring of the setup is changed. By calibrating this delay, we ensure that data acquisition starts at the optimal time when the signal actually arrives at the detector, avoiding dead time or missed signals.
+**Purpose**: Run this calibration when the wiring of the setup is changed. By calibrating this delay, we ensure that data acquisition starts at the optimal time when the signal actually arrives at the detector, avoiding dead time or missed signals. Not automated, need to figure out trig_offset by eye.
 
-**Parameters**:
-- `soft_avgs`: Number of software averages for the measurement
-- `readout_length [us]`: Length of the readout pulse
-- `trig_offset [us]`: Current trigger offset for the ADC
-- `gain [DAC units]`: Amplitude of the readout pulse
-- `frequency [MHz]`: Frequency of the readout pulse
-- `reps`: Number of averages per point
+**Key Parameters**:
+- `rounds`: Number of software averages for the measurement
+- `readout_length`: Length of the readout pulse (μs)
+- `trig_offset`: Current trigger offset for the ADC (μs)
+- `gain`: Amplitude of the readout pulse (DAC units)
+- `frequency`: Frequency of the readout pulse (MHz)
+- `reps`: Number of averages per point. ToF largely only works for reps=1, so we crank up the rounds. 
 - `qubit`: List containing the qubit index to calibrate
 - `phase`: Phase of the readout pulse
-- `final_delay [us]`: Final delay after the pulse sequence
+- `final_delay`: Final delay after the pulse sequence (μs)
 - `check_e`: Whether to excite qubit to |1⟩ state before measurement
-- `use_readout`: Whether to use existing readout parameters (gain and phase)
+- `use_readout`: Whether to use current readout parameters (gain and phase) -- default is max gain, phase 0. 
 
 **Example**:
 ```python
@@ -126,7 +136,7 @@ tof = meas.ToFCalibrationExperiment(cfg_dict=cfg_dict, qi=0)
 
 **2D Time of Flight Calibration**:
 
-The package also provides a 2D Time of Flight calibration experiment (`ToF2D`) that performs multiple measurements over time. This can be useful for monitoring the stability of the time of flight or for more complex calibration procedures.
+The package also provides a 2D Time of Flight calibration experiment (`ToF2D`) that performs multiple measurements over time. This can be useful for performing many iterations of the readout trace.
 
 ```python
 tof_2d = meas.ToF2D(cfg_dict=cfg_dict, qi=0, params={'expts_count': 500})
@@ -136,7 +146,7 @@ tof_2d = meas.ToF2D(cfg_dict=cfg_dict, qi=0, params={'expts_count': 500})
 
 **File**: `experiments/single_qubit/resonator_spectroscopy.py`
 
-**Description**: Measures the resonant frequency of the readout resonator by sweeping the readout pulse frequency and looking for the frequency with the maximum measured amplitude. The resonator frequency is stored in the parameter cfg.device.readout.frequency.
+**Description**: Measures the resonant frequency of the readout resonator by sweeping the readout pulse frequency and looking for the frequency with the maximum measured amplitude. The resonator frequency is stored in the parameter `cfg.device.readout.frequency`.
 
 The module includes:
 - `ResSpecProgram`: Defines the pulse sequence for the resonator spectroscopy experiment
@@ -144,21 +154,35 @@ The module includes:
 - `ResSpecPower`: 2D version that sweeps both frequency and power
 - `ResSpec2D`: 2D version for repeated measurements
 
-Note that harmonics of the clock frequency (6144 MHz) will show up as "infinitely" narrow peaks!
+Note that harmonics of the clock frequency will show up as "infinitely" narrow peaks!
 
 **Key Parameters**:
 - `start`: Start frequency (MHz)
-- `span`: Frequency span (MHz)
-- `center`: Center frequency (MHz) - alternative to start
+- `span`: Frequency span (MHz), if `kappa` uses 7 * `kappa` from cfg as span 
+- `center`: Center frequency (MHz) - alternative to `start`
 - `expts`: Number of frequency points
 - `gain`: Gain of the readout resonator
-- `length`: Length of the readout pulse
-- `final_delay`: Delay time between repetitions in μs
-- `pulse_e`: Boolean to add e pulse prior to measurement (excite qubit)
-- `pulse_f`: Boolean to add f pulse prior to measurement (excite to 2nd level)
+- `length`: Length of the readout pulse (μs)
+- `final_delay`: Delay time between repetitions (μs)
+- `pulse_e`: Boolean to add π pulse prior to measurement (excite qubit)
+- `pulse_f`: Boolean to add π pulse on |e⟩-|f⟩ prior to measurement (excite to 2nd level)
 - `style`: 'coarse' for wide frequency scan, 'fine' for narrow scan
-- `long_pulse`: Whether to use a long readout pulse
-- `kappa`: Resonator linewidth
+- `long_pulse`: Whether to use a long readout pulse, requiring 'periodic' mode where readout pulse occurs entire time, when pulse length exceeds hardware limit
+- `reps`: Number of repetitions
+- `rounds`: Number of software averages
+- `loop`: Whether to use loop mode for acquisition, needed for non-linear sweeps
+- `phase_const`: Whether to use constant phase spacing instead of frequency spacing (used with loop)
+- `active_reset`: Whether to use active reset
+
+**Style Parameters**:
+- **'coarse'**: Wide frequency span for initial search
+  - `start`: 6000 MHz
+  - `expts`: 5000 points
+  - `span`: 500 MHz
+- **'fine'** (default): Narrow span for precise measurement
+  - `center`: Resonator frequency from config
+  - `expts`: 220 points
+  - `span`: 5 MHz
 
 **Example**:
 ```python
@@ -176,17 +200,19 @@ rspec_e = meas.ResSpec(cfg_dict, qi=0, params={'pulse_e': True})
 
 **File**: `experiments/single_qubit/resonator_spectroscopy.py`
 
-**Description**: Performs a 2D sweep of both readout frequency and power to map out how the resonator response changes with power. This allows measurement of the Lamb shift and other power-dependent effects. It's useful for finding a good value for gain to park your readout at until you run readout optimization.
+**Description**: Performs a 2D sweep of both readout frequency and power to map out how the resonator response changes with power. This allows measurement of the Lamb shift and other power-dependent effects. It's useful for finding a good value for gain to park your readout at until you run readout optimization. When log sweep used, increases the number of averages to account for decrease in signal. 
 
 **Key Parameters**:
 - `rng`: Range for the gain sweep, going from max_gain to max_gain/rng (default: 100)
-- `max_gain`: Maximum gain value (default: qubit.max_gain)
+- `max_gain`: Maximum gain value for sweep (default: qubit.max_gain, the hardware max)
 - `expts_gain`: Number of gain points (default: 20)
 - `span`: Frequency span (MHz)
-- `f_off`: Frequency offset from resonant frequency in MHz (usually negative)
-- `min_reps`: Minimum number of repetitions (default: 100)
+- `f_off`: Frequency offset of center from resonant frequency in MHz (usually negative, default: 4), to account for lamb shift. 
+- `min_reps`: Minimum number of repetitions (default: 100), used for the high power points of sweep. 
 - `log`: Whether to use logarithmic scaling for the gain sweep (default: True)
 - `pulse_e`: Whether to apply a π pulse to excite the qubit before measurement
+- `expts`: Number of frequency points (default: 200)
+- `reps`: Base number of repetitions, divided by 2400 to prevent scan from taking forever. Can adjust for worse SNR. 
 
 **Example**:
 ```python
@@ -221,8 +247,30 @@ This experiment is particularly useful for finding qubit frequencies and charact
 - `checkEF`: Whether to check the e-f transition
 - `pulse_type`: Type of pulse ('const' or 'gauss')
 - `sep_readout`: Whether to separate the probe pulse and readout
-- `readout_length`: Length of the readout pulse
-- `style`: 'huge', 'coarse', 'medium', or 'fine' for different scan ranges and powers
+- `readout_length`: Length of the readout pulse (μs)
+- `reps`: Number of repetitions
+- `rounds`: Number of software averages
+- `final_delay`: Delay time between repetitions (μs)
+- `active_reset`: Whether to use active reset
+
+**Style Parameters**:
+- **'huge'**: Very wide frequency span with high power
+  - `gain`: 80 * low_gain * spec_gain
+  - `span`: 1500 MHz
+  - `expts`: 1000 points
+- **'coarse'**: Wide frequency span with medium power
+  - `gain`: 20 * low_gain * spec_gain
+  - `span`: 500 MHz
+  - `expts`: 500 points
+- **'medium'**: Medium frequency span with low power
+  - `gain`: 5 * low_gain * spec_gain
+  - `span`: 50 MHz
+  - `expts`: 200 points
+- **'fine'**: Narrow frequency span with very low power
+  - `gain`: low_gain * spec_gain
+  - `span`: 5 MHz
+  - `expts`: 100 points
+  - `reps`: 2 * self.reps
 
 **Example**:
 ```python
@@ -240,18 +288,25 @@ qspec_fine = meas.QubitSpec(cfg_dict, qi=0, style='fine')
 
 **File**: `experiments/single_qubit/pulse_probe_spectroscopy.py`
 
-**Description**: Performs a 2D sweep of frequency and power to map out the qubit response. This experiment is useful for identifying power-dependent frequency shifts, multi-photon transitions, and optimal drive powers. It creates a 2D map showing how the qubit spectrum changes with probe power.
+**Description**: Performs a 2D sweep of frequency and power to map out the qubit response. This experiment is useful for identifying power-dependent broadening and multi-photon or excited state transitions. It creates a 2D map showing how the qubit spectrum changes with probe power.
 
 **Key Parameters**:
 - `span`: Frequency span (MHz)
 - `expts`: Number of frequency points
-- `reps`: Number of repetitions for each experiment
+- `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
 - `rng`: Range for logarithmic gain sweep (default: 50)
-- `max_gain`: Maximum gain value (default: qubit.max_gain)
+- `max_gain`: Maximum gain value of sweep (default: qubit.max_gain, max from hardware)
 - `expts_gain`: Number of gain points (default: 10)
 - `log`: Whether to use logarithmic gain spacing (default: True)
 - `checkEF`: Whether to check the e-f transition
-- `style`: 'coarse' for wide frequency span with many points, 'fine' for narrow span with fewer points
+
+**Style Parameters**:
+- **'coarse'**: Wide frequency span with many points
+  - `span`: 800 MHz
+  - `expts`: 500 points
+- **'fine'**: Narrow frequency span with fewer points
+  - `span`: 40 MHz
+  - `expts`: 100 points
 
 **Example**:
 ```python
@@ -265,7 +320,7 @@ qspec_pow_ef = meas.QubitSpecPower(cfg_dict, qi=0, params={'checkEF': True, 'spa
 qspec_pow_fine = meas.QubitSpecPower(cfg_dict, qi=0, style='fine', params={'expts_gain': 20})
 ```
 
-The experiment produces a 2D plot showing the qubit response as a function of both frequency and power. This can reveal features like AC Stark shifts, multi-photon transitions, and power broadening.
+The experiment produces a 2D plot showing the qubit response as a function of both frequency and power. This can reveal features like multi-photon transitions and power broadening.
 
 #### Rabi Experiment
 
@@ -278,18 +333,31 @@ The module includes:
 - `RabiExperiment`: Main experiment class for amplitude or length Rabi oscillations
 - `ReadoutCheck`: Class for checking readout parameters
 - `RabiChevronExperiment`: 2D version that sweeps both frequency and amplitude/length
+- `Rabi2D`: 2D version that sweeps both length and gain
 
 **Key Parameters**:
 - `expts`: Number of amplitude/length points (default: 60)
-- `reps`: Number of repetitions for each experiment
-- `soft_avgs`: Number of software averages
-- `gain`: Maximum pulse amplitude (for length sweep)
-- `sigma`: Pulse width (for amplitude sweep)
-- `sweep`: 'amp' or 'length' to specify what to sweep
+- `reps`: Number of repetitions for each experiment (default: self.reps)
+- `rounds`: Number of software averages (default: self.rounds)
+- `gain`: Pulse amplitude (for length sweep)
+- `sigma`: Pulse width in time (for amplitude sweep)
+- `max_gain`: Maximum gain used in amplitude sweep (if specified, used instead of gain)
+- `max_length`: Maximum length used in length sweep (if specified, used instead of sigma)
+- `sweep`: 'amp' or 'length' to specify what to sweep (default: 'amp')
 - `checkEF`: Whether to check the e-f transition (default: False)
-- `pulse_ge`: Boolean flag to indicate if pulse is for ground to excited state transition (default: True)
-- `start`: Starting point for the experiment (default: 0)
-- `pulse_type`: Type of pulse used in the experiment (default: 'gauss')
+- `pulse_ge`: Boolean flag to indicate if pulse is for ground to excited state transition (default: True), used for temp measurement
+- `start`: Starting point for the experiment (default: 0.003 for amp, 3*cycles2us(1) for length)
+- `pulse_type`: Type of pulse used in the experiment (default: 'gauss', others are flat_top, const)
+- `num_osc`: Try to set max gain or length to measure this number of oscillations (default: 2.5)
+- `n_pulses`: Number of Rabi pulses to apply (default: 1)
+- `active_reset`: Whether to use active qubit reset
+- `loop`: Whether to use loop-based acquisition (default: False)
+
+**Style Parameters**:
+- **'fine'**: More averages for better precision
+  - `rounds`: 2 * self.rounds
+- **'fast'**: Fewer points for quick measurements
+  - `expts`: 25
 
 **Example**:
 ```python
@@ -310,12 +378,11 @@ ef_rabi = meas.RabiExperiment(cfg_dict, qi=0, params={'checkEF': True})
 **Description**: Performs a 2D sweep of pulse amplitude/length and frequency to map out Rabi oscillations as a function of detuning. This experiment creates a 2D map showing how the Rabi oscillation frequency changes with detuning from the qubit frequency, creating a characteristic chevron pattern.
 
 **Key Parameters**:
-- `span_f`: Frequency span (MHz)
+- `span_f`: Frequency span (MHz) (default: 20)
 - `expts_f`: Number of frequency points (default: 30)
 - `sweep`: 'amp' or 'length' to specify what to sweep (default: 'amp')
 - `checkEF`: Whether to check the e-f transition (default: False)
-- `start_f`: Start qubit frequency (MHz) (default: f_ge - span_f/2)
-- `type`: Type of sweep ('amp' or 'length')
+- `start_f`: Start qubit frequency (MHz) (calculated from f_ge/f_ef and span_f)
 
 **Example**:
 ```python
@@ -327,6 +394,33 @@ len_rabi_chevron = meas.RabiChevronExperiment(cfg_dict, qi=0, params={'span_f': 
 ```
 
 The experiment produces a 2D plot showing the qubit response as a function of both drive frequency and amplitude/length. The chevron pattern allows visualization of how the Rabi oscillation frequency increases with detuning from the qubit frequency.
+
+#### ReadoutCheck
+
+**File**: `experiments/single_qubit/rabi.py`
+
+**Description**: Class for checking readout parameters. This experiment is used to characterize the readout by sweeping either the end wait time or the gain of a qubit pulse and measuring the response.
+
+**Key Parameters**:
+- `expts`: Number of points in the sweep (default: 30)
+- `reps`: Number of repetitions, multiplied by 5 (default: 5 * self.reps)
+- `rounds`: Number of software averages (default: self.rounds)
+- `df`: Frequency detuning in MHz (default: 50)
+- `length`: Pulse length in μs (default: 10)
+- `gain`: Pulse gain (default: 0.5)
+- `type`: Pulse type (default: 'const')
+- `max_wait`: Maximum wait time for 'end_wait' sweep (default: 10)
+- `max_gain`: Maximum gain for 'gain' sweep (default: 1)
+- `expt_type`: Type of sweep, 'end_wait' or 'gain' (default: 'end_wait')
+
+**Example**:
+```python
+# Check end wait time
+readout_check = meas.ReadoutCheck(cfg_dict, qi=0, params={'expt_type': 'end_wait'})
+
+# Check gain
+readout_check_gain = meas.ReadoutCheck(cfg_dict, qi=0, params={'expt_type': 'gain'})
+```
 
 #### T1 Experiment
 
@@ -346,12 +440,21 @@ The module provides several experiment classes:
 **Key Parameters**:
 - `expts`: Number of wait time points (default: 60)
 - `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages (default: self.rounds)
 - `start`: Start wait time (μs) (default: 0)
 - `span`: Total span of wait times (μs) (default: 3.7 * T1)
 - `acStark`: Whether to apply AC Stark shift during wait time (default: False)
 - `active_reset`: Whether to use active qubit reset
 - `qubit`: List of qubit indices to measure
+- `stark_freq`: Frequency of AC Stark pulse (MHz) (if acStark=True)
+- `stark_gain`: Amplitude of AC Stark pulse (if acStark=True)
+- `end_wait`: Additional wait time after AC Stark pulse (μs)
+
+**Style Parameters**:
+- **'fine'**: More averages for better precision
+  - `rounds`: 2 * self.rounds
+- **'fast'**: Fewer points for quick measurements
+  - `expts`: 30
 
 **Example**:
 ```python
@@ -373,9 +476,10 @@ The experiment fits the data to an exponential decay function and extracts the T
 
 **Description**: Measures the phase coherence time (T2*) using a Ramsey sequence (π/2 - wait - π/2). T2 is a measure of how long a qubit maintains phase coherence in the x-y plane of the Bloch sphere. The Ramsey protocol uses two π/2 pulses separated by a variable delay time.
 
-The module supports two main measurement protocols:
-1. Ramsey: Uses two π/2 pulses separated by a variable delay time
-2. Echo: Uses two π/2 pulses with one or more π pulses in between to refocus dephasing
+The module supports three main measurement protocols:
+1. **Ramsey**: Uses two π/2 pulses separated by a variable delay time
+2. **Echo**: Uses two π/2 pulses with one or more π pulses in between to refocus dephasing
+3. **CPMG**: Uses a sequence of π pulses to dynamically decouple the qubit from the environment
 
 Additional features include:
 - AC Stark shift measurements during Ramsey experiments
@@ -383,16 +487,25 @@ Additional features include:
 - Automatic frequency error detection and correction
 
 **Key Parameters**:
-- `experiment_type`: "ramsey" or "echo" (default: "ramsey")
+- `experiment_type`: "ramsey", "echo", or "cpmg" (default: "ramsey")
 - `expts`: Number of wait time points (default: 100)
 - `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
-- `soft_avgs`: Number of software averages
+- `rounds`: Number of software averages (default: self.rounds)
 - `start`: Start wait time (μs) (default: 0.01)
-- `span`: Total span of wait times (μs) (default: 3 * T2r)
+- `span`: Total span of wait times (μs) (default: 3 * T2r for Ramsey, 3 * T2e for Echo)
 - `ramsey_freq`: Frequency detuning for phase advancement (MHz) (default: "smart", which sets to 1.5/T2)
 - `checkEF`: Whether to check the e-f transition (default: False)
-- `acStark`: Whether to apply AC Stark shift during wait time (default: False)
+- `acStark`: Whether to apply AC Stark shift during wait time (Ramsey only) (default: False)
 - `active_reset`: Whether to use active qubit reset
+- `num_pi`: Number of π pulses for Echo/CPMG (default: 1 for 'echo', 0 for 'ramsey')
+- `stark_freq`: Frequency of AC Stark pulse (MHz) (if acStark=True)
+- `stark_gain`: Amplitude of AC Stark pulse (if acStark=True)
+
+**Style Parameters**:
+- **'fine'**: More averages for better precision
+  - `rounds`: 2 * self.rounds
+- **'fast'**: Fewer points for quick measurements
+  - `expts`: 50
 
 **Example**:
 ```python
@@ -404,36 +517,15 @@ t2r_custom = meas.T2Experiment(cfg_dict, qi=0, params={'ramsey_freq': 0.5})
 
 # Ramsey for EF transition
 t2r_ef = meas.T2Experiment(cfg_dict, qi=0, params={'checkEF': True})
-```
 
-The experiment fits the data to a decaying sinusoid and extracts both the T2 time and the frequency error. The frequency error can be used to correct the qubit frequency in the configuration.
-
-#### T2 Echo Experiment
-
-**File**: `experiments/single_qubit/t2.py`
-
-**Description**: Measures the echo coherence time (T2E) using a Hahn echo sequence (π/2 - wait/2 - π - wait/2 - π/2). The echo protocol adds one or more π pulses between the π/2 pulses to refocus dephasing caused by low-frequency noise, typically resulting in longer coherence times than the Ramsey measurement.
-
-**Key Parameters**:
-- `experiment_type`: Set to 'echo' for echo experiment
-- `expts`: Number of wait time points (default: 100)
-- `reps`: Number of repetitions for each experiment (default: 2 * self.reps)
-- `soft_avgs`: Number of software averages
-- `start`: Start wait time (μs) (default: 0.01)
-- `span`: Total span of wait times (μs) (default: 3 * T2e)
-- `num_pi`: Number of π pulses (default: 1 for standard echo)
-- `active_reset`: Whether to use active qubit reset
-
-**Example**:
-```python
-# Standard Echo experiment
+# Echo experiment
 t2e = meas.T2Experiment(cfg_dict, qi=0, params={'experiment_type': 'echo'})
 
 # Echo with multiple π pulses (CPMG sequence)
 t2e_cpmg = meas.T2Experiment(cfg_dict, qi=0, params={'experiment_type': 'echo', 'num_pi': 3})
 ```
 
-The experiment fits the data to a decaying sinusoid (or exponential if no oscillations are visible) and extracts the T2E time. The T2E time is typically longer than the T2* time measured by the Ramsey experiment because the echo sequence refocuses dephasing caused by low-frequency noise.
+The experiment fits the data to a decaying sinusoid and extracts both the T2 time and the frequency error. The frequency error can be used to correct the qubit frequency in the configuration. For Echo experiments, the T2E time is typically longer than the T2* time measured by the Ramsey experiment because the echo sequence refocuses dephasing caused by low-frequency noise.
 
 #### Single Shot Readout
 
@@ -452,9 +544,11 @@ The experiment fits the data to a decaying sinusoid (or exponential if no oscill
 shot = meas.HistogramExperiment(cfg_dict, qi=0, params={'shots': 20000})
 ```
 
+
+
 #### Single Shot Optimization
 
-**File**: `experiments/single_qubit/single_shot.py`
+**File**: `experiments/single_qubit/single_shot_opt.py`
 
 **Description**: Optimizes readout parameters (frequency, gain, length) to maximize readout fidelity.
 
@@ -485,6 +579,72 @@ shotopt = meas.SingleShotOptExperiment(cfg_dict, qi=0, params={'expts_f': 5, 'ex
 stark_spec = meas.StarkSpec(cfg_dict, qi=0, style='medium')
 ```
 
+#### T1 Continuous Measurement
+
+**File**: `experiments/single_qubit/t1_cont.py`
+
+**Description**: This experiment performs continuous T1 measurements to monitor the stability of the qubit's relaxation time. It repeatedly runs a T1 experiment and plots the results over time.
+
+**Key Parameters**:
+- `t1_expts`: Number of T1 experiments to run
+- `t1_reps`: Number of repetitions for each T1 experiment
+- `t1_rounds`: Number of software averages for each T1 experiment
+
+**Example**:
+```python
+t1_cont = meas.T1Cont(cfg_dict, qi=0, params={'t1_expts': 100})
+```
+
+#### T1 Stark Measurement
+
+**File**: `experiments/single_qubit/t1_stark.py`
+
+**Description**: This experiment measures the T1 relaxation time in the presence of a Stark drive applied to the readout resonator. It is useful for characterizing the impact of the Stark drive on qubit coherence.
+
+**Key Parameters**:
+- `stark_gain`: Amplitude of the Stark pulse
+- `stark_freq`: Frequency of the Stark pulse (MHz)
+- `wait_time`: Wait time for the T1 measurement (μs)
+
+**Example**:
+```python
+t1_stark = meas.T1Stark(cfg_dict, qi=0, params={'stark_gain': 0.1, 'stark_freq': 4900})
+```
+
+#### T2 Ramsey Stark Measurement
+
+**File**: `experiments/single_qubit/t2_ramsey_stark.py`
+
+**Description**: This experiment measures the T2 Ramsey coherence time while applying a Stark drive to the readout resonator. It helps to understand how the Stark drive affects qubit dephasing.
+
+**Key Parameters**:
+- `stark_gain`: Amplitude of the Stark pulse
+- `stark_freq`: Frequency of the Stark pulse (MHz)
+- `ramsey_freq`: Ramsey frequency for phase advancement (MHz)
+
+**Example**:
+```python
+t2_ramsey_stark = meas.T2RamseyStark(cfg_dict, qi=0, params={'stark_gain': 0.1, 'stark_freq': 4900})
+```
+
+#### Active Reset
+
+**File**: `experiments/single_qubit/active_reset.py`
+
+**Description**: This experiment does not do any fitting. It is designed to test the memory and the active reset.
+
+**Key Parameters**:
+- `shots`: Number of shots per experiment
+- `check_e`: Whether to test the e state blob (true if unspecified)
+- `check_f`: Whether to also test the f state blob
+- `active_reset`: Boolean to add active reset
+- `read_wait`: Wait time between measurements in μs
+
+**Example**:
+```python
+reset_exp = meas.RepMeasExperiment(cfg_dict, qi=0, params={'shots': 20000, 'active_reset': True})
+```
+
 ### Two Qubit Experiments
 
 #### Two-Qubit Rabi
@@ -513,6 +673,29 @@ rabi_2q = meas.Rabi_2Q(cfg_dict, qi=[0, 1])
 **Example**:
 ```python
 t1_2q = meas.T1_2Q(cfg_dict, qi=[0, 1])
+```
+
+#### Two-Qubit T1 Continuous
+
+**File**: `experiments/two_qubit/t1_2q_cont.py`
+
+**Description**: This experiment continuously measures the T1 relaxation time for two qubits simultaneously. It is useful for monitoring the stability of T1 for both qubits over time.
+
+**Key Parameters**:
+- `shots`: Number of shots per experiment
+- `reps`: Number of repetitions for each experiment
+- `rounds`: Number of software averages
+- `wait_time`: Wait time for the T1 measurement (μs)
+- `active_reset`: Whether to use active reset
+- `final_delay`: Delay between measurements (μs)
+- `readout`: Readout pulse length (μs)
+- `n_g`: Number of ground state measurements
+- `n_e`: Number of excited state measurements
+- `n_t1`: Number of T1 measurements
+
+**Example**:
+```python
+t1_2q_cont = meas.T1Cont2QExperiment(cfg_dict, qi=[0, 1], params={'shots': 50000})
 ```
 
 ## Common Experiment Workflows
@@ -614,7 +797,7 @@ t1_2q = meas.T1_2Q(cfg_dict, qi=[0, 1])
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `reps` | Number of repetitions for each experiment point | Varies by experiment |
-| `soft_avgs` | Number of software averages | Varies by experiment |
+| `rounds` | Number of software averages | Varies by experiment |
 | `expts` | Number of experiment points | Varies by experiment |
 | `start` | Start value for the swept parameter | Varies by experiment |
 | `span` | Span of the swept parameter | Varies by experiment |
@@ -625,6 +808,49 @@ t1_2q = meas.T1_2Q(cfg_dict, qi=[0, 1])
 | `qubit` | List of qubit indices | [qi] |
 | `qubit_chan` | Qubit channel for readout | From config |
 
+### Style Parameters Summary
+
+| Experiment | Style | Description | Key Changes |
+|------------|-------|-------------|-------------|
+| **ResSpec** | 'coarse' | Wide frequency scan | start: 6000 MHz, span: 500 MHz, expts: 5000 |
+| | 'fine' | Narrow scan around resonator | center: from config, span: 5 MHz, expts: 220 |
+| **QubitSpec** | 'huge' | Very wide scan, high power | span: 1500 MHz, gain: 80×low_gain×spec_gain |
+| | 'coarse' | Wide scan, medium power | span: 500 MHz, gain: 20×low_gain×spec_gain |
+| | 'medium' | Medium scan, low power | span: 50 MHz, gain: 5×low_gain×spec_gain |
+| | 'fine' | Narrow scan, very low power | span: 5 MHz, gain: low_gain×spec_gain |
+| **Rabi** | 'fine' | More averages | rounds: 2×self.rounds |
+| | 'fast' | Fewer points | expts: 25 |
+| **T1** | 'fine' | More averages | rounds: 2×self.rounds |
+| | 'fast' | Fewer points | expts: 30 |
+| **T2** | 'fine' | More averages | rounds: 2×self.rounds |
+| | 'fast' | Fewer points | expts: 50 |
+
 ### Experiment-Specific Parameters
 
 Each experiment has additional parameters specific to its functionality. Refer to the experiment class documentation for details.
+
+### Units and Conventions
+
+- **Time**: All times are in microseconds (μs)
+- **Frequency**: All frequencies are in megahertz (MHz)
+- **Gain**: All gains are normalized (0 to 1)
+- **Phase**: All phases are in degrees unless otherwise specified
+- **Power**: Power levels are specified as DAC units or normalized gains
+
+### Configuration File Updates
+
+Many experiments provide an `update()` method to automatically update the configuration file with measured parameters:
+
+```python
+# Example: Update resonator frequency after measurement
+rspec.update(cfg_path, freq=True)
+
+# Example: Update T1 time and related parameters
+t1.update(cfg_path, rng_vals=[1, 500], first_time=True)
+
+# Example: Update qubit frequency after Ramsey measurement
+if t2r.status:
+    config.update_qubit(cfg_path, 'f_ge', t2r.data['new_freq'], 0)
+```
+
+This automated updating helps maintain accurate configuration parameters as you characterize and tune your qubits.

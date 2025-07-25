@@ -12,6 +12,20 @@ license = {text = "MIT"}
 authors = [
     {name = "", email = "circuitqed@gmail.com"}
 ]
+dependencies = [
+    "numpy",
+    "scipy",
+    "datetime",
+    "seaborn", 
+    "matplotlib",
+    "qick",
+    "pyyaml",
+    "tqdm",
+    "h5py",
+    "Pyro4",
+    "python-dateutil",
+    "ipywidgets",
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -20,4 +34,10 @@ classifiers = [
 
 [project.urls]
 "Homepage" = "www.github.com/SchusterLab/slab_qick_calib"
-"Bug Tracker" = "www.github.com/SchusterLab/slab_qick_calib/issuse"
+"Bug Tracker" = "www.github.com/SchusterLab/slab_qick_calib/issues"
+
+[tool.setuptools]
+packages = ["slab_qick_calib"]
+
+[tool.setuptools.package-dir]
+"slab_qick_calib" = "."

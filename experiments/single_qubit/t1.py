@@ -1,13 +1,14 @@
 import numpy as np
 from qick import *
-
-from exp_handling.datamanagement import AttrDict
-from datetime import datetime
-import slab_qick_calib.fitting as fitter
-from gen.qick_experiment import QickExperiment, QickExperiment2DSimple
-from gen.qick_program import QickProgram
 from qick.asm_v2 import QickSweep1D
-import slab_qick_calib.config as config
+
+from ...helpers import config
+from ...analysis import fitting as fitter
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import QickExperiment, QickExperiment2DSimple
+from ..general.qick_program import QickProgram
+
+
 """
 T1 Experiment Module
 
@@ -92,7 +93,8 @@ class T1Program(QickProgram):
         """
         cfg = AttrDict(self.cfg)
         # Configure readout
-        self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
+        if self.adc_type == "dyn":
+            self.send_readoutconfig(ch=self.adc_ch, name="readout", t=0)
 
         # Apply π pulse to excite qubit from |0⟩ to |1⟩
         self.pulse(ch=self.qubit_ch, name="pi_ge", t=0)
@@ -113,16 +115,6 @@ class T1Program(QickProgram):
         super().measure(cfg)
 
 
-    def reset(self, i):
-        """
-        Reset the program state for the next iteration
-
-        Args:
-            i: Current iteration index
-        """
-        super().reset(i)
-
-
 class T1Experiment(QickExperiment):
     """
     T1Experiment: Main class for running T1 relaxation time measurements
@@ -137,11 +129,23 @@ class T1Experiment(QickExperiment):
         - span (float): The total span of the wait time sweep in microseconds.
         - expts (int): The number of experiments to be performed.
         - reps (int): The number of repetitions for each experiment (inner loop)
-        - soft_avgs (int): The number of soft_avgs for the experiment (outer loop)
+        - rounds (int): The number of rounds for the experiment (outer loop)
         - qubit (int): The index of the qubit being used in the experiment.
         - qubit_chan (int): The channel of the qubit being read out.
         - acStark (bool): Whether to apply AC Stark shift during wait time
         - active_reset (bool): Whether to use active qubit reset
+
+    Default values are defined in the `params_def` dictionary in the __init__ function.
+    The default values are:
+        - reps (int): 2 * self.reps
+        - rounds (int): self.rounds
+        - expts (int): 60
+        - start (float): 0
+        - span (float): 3.7 * self.cfg.device.qubit.T1[qi]
+        - acStark (bool): False
+        - active_reset (bool): self.cfg.device.readout.active_reset[qi]
+        - qubit (list): [qi]
+        - qubit_chan (int): self.cfg.hw.soc.adcs.readout.ch[qi]
     """
 
     def __init__(
@@ -151,6 +155,7 @@ class T1Experiment(QickExperiment):
         go=True,
         params={},
         prefix=None,
+        fname=None,
         progress=True,
         style="",
         disp_kwargs=None,
@@ -158,6 +163,7 @@ class T1Experiment(QickExperiment):
         max_err=None,
         display=True,
         print=False,
+        check_params=True,
     ):
         """
         Initialize the T1 experiment
@@ -179,12 +185,19 @@ class T1Experiment(QickExperiment):
         if prefix is None:
             prefix = f"t1_qubit{qi}"
 
-        super().__init__(cfg_dict=cfg_dict, prefix=prefix, progress=progress, qi=qi)
+        super().__init__(
+            cfg_dict=cfg_dict,
+            prefix=prefix,
+            fname=fname,
+            progress=progress,
+            qi=qi,
+            check_params=check_params,
+        )
 
         # Define default parameters
         params_def = {
             "reps": 2 * self.reps,  # Number of repetitions (inner loop)
-            "soft_avgs": self.soft_avgs,  # Number of averages (outer loop)
+            "rounds": self.rounds,  # Number of averages (outer loop)
             "expts": 60,  # Number of wait time points
             "start": 0,  # Start time for wait sweep (μs)
             "span": 3.7
@@ -203,8 +216,8 @@ class T1Experiment(QickExperiment):
 
         # Adjust parameters based on measurement style
         if style == "fine":
-            params_def["soft_avgs"] = (
-                params_def["soft_avgs"] * 2
+            params_def["rounds"] = (
+                params_def["rounds"] * 2
             )  # Double averages for fine measurements
         elif style == "fast":
             params_def["expts"] = 30  # Fewer points for fast measurements
@@ -213,24 +226,14 @@ class T1Experiment(QickExperiment):
         self.cfg.expt = {**params_def, **params}
         super().check_params(params_def)
 
-        # Configure active reset if enabled
-        if self.cfg.expt.active_reset:
-            super().configure_reset()
-
-        # For untuned qubits, show all data points by default
-        if not self.cfg.device.qubit.tuned_up[qi] and disp_kwargs is None:
-            disp_kwargs = {"plot_all": True}
-
-        # Run the experiment if go=True
-        if print: 
-            super().print()
-            go=False
         if go:
-            super().run(
+            super().qubit_run(
+                qi=qi,
                 display=display,
                 progress=progress,
                 min_r2=min_r2,
                 max_err=max_err,
+                print=print,
                 disp_kwargs=disp_kwargs,
             )
 
@@ -326,7 +329,6 @@ class T1Experiment(QickExperiment):
         caption_params = [
             {"index": 2, "format": "$T_1$ fit: {val:.3} $\pm$ {err:.2} $\mu$s"},
         ]
-        fitfunc = fitter.expfunc
 
         # Call parent class display method
         super().display(
@@ -342,14 +344,47 @@ class T1Experiment(QickExperiment):
             rescale=rescale,
         )
 
-    def update(self, cfg_file, rng_vals=[1,500],first_time=False, verbose=True):
+    def update(self, cfg_file, rng_vals=[1, 500], first_time=False, verbose=True):
         qi = self.cfg.expt.qubit[0]
-        if self.status: 
-            config.update_qubit(cfg_file, 'T1', self.data['new_t1_i'], qi, sig=2, rng_vals=rng_vals, verbose=verbose)
-            config.update_readout(cfg_file, 'final_delay', 6*self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0]*10, rng_vals[1]*3], verbose=verbose)
+        if self.status:
+            config.update_qubit(
+                cfg_file,
+                "T1",
+                self.data["new_t1_i"],
+                qi,
+                sig=2,
+                rng_vals=rng_vals,
+                verbose=verbose,
+            )
+            config.update_readout(
+                cfg_file,
+                "final_delay",
+                6 * self.data["new_t1_i"],
+                qi,
+                sig=2,
+                rng_vals=[rng_vals[0] * 10, rng_vals[1] * 3],
+                verbose=verbose,
+            )
             if first_time:
-                config.update_qubit(cfg_file, 'T2r', self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
-                config.update_qubit(cfg_file, 'T2e', 2*self.data['new_t1_i'], qi, sig=2, rng_vals=[rng_vals[0], rng_vals[1]*2], verbose=verbose)        
+                config.update_qubit(
+                    cfg_file,
+                    "T2r",
+                    self.data["new_t1_i"],
+                    qi,
+                    sig=2,
+                    rng_vals=[rng_vals[0], rng_vals[1] * 2],
+                    verbose=verbose,
+                )
+                config.update_qubit(
+                    cfg_file,
+                    "T2e",
+                    2 * self.data["new_t1_i"],
+                    qi,
+                    sig=2,
+                    rng_vals=[rng_vals[0], rng_vals[1] * 2],
+                    verbose=verbose,
+                )
+
 
 class T1_2D(QickExperiment2DSimple):
     """
@@ -405,7 +440,7 @@ class T1_2D(QickExperiment2DSimple):
 
         # Merge default parameters with user-provided parameters
         exp_name = T1Experiment
-        self.expt = exp_name(cfg_dict, qi, go=False, params=params)
+        self.expt = exp_name(cfg_dict, qi, go=False, params=params, check_params=False)
         params = {**params_def, **params}
         params = {**self.expt.cfg.expt, **params}
         self.cfg.expt = params
@@ -487,4 +522,3 @@ class T1_2D(QickExperiment2DSimple):
             fit=fit,
             **kwargs,
         )
-
