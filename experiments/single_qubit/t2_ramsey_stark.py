@@ -55,8 +55,9 @@ class RamseyStarkExperiment(QickExperiment):
             "df": 70,
             "acStark": True,
             "checkEF": False,
-            "active_reset": self.cfg.device.readout.active_reset[qi],
-            "experiment_type": "ramsey",
+            'active_reset': self.cfg.device.readout.active_reset[qi],
+            'experiment_type': 'ramsey',
+            "num_pi":1, 
             "qubit": [qi],
             "qubit_chan": self.cfg.hw.soc.adcs.readout.ch[qi],
         }
