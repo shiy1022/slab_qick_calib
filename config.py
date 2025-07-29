@@ -519,7 +519,7 @@ def init_model_config(file_name, num_qubits):
             "T1max_nopurcell": init_array(None),
             "g_lamb": init_array(None),
             "g_chi": init_array(None),
-            "kappa_low": init_array(None),
+            "kappa_low": init_array(0),
             "Q1_mean": init_array(None),
             "Q1_max": init_array(None),
             "ratio": init_array(None),

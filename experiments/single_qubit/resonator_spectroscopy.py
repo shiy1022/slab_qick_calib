@@ -680,7 +680,7 @@ class ResSpecPower(QickExperiment2DSimple):
 
         # Default parameters
         params_def = {
-            "reps": self.reps / 2400,  # Reduce repetitions for efficiency
+            "reps": self.reps / 5000,  # Reduce repetitions for efficiency
             "rng": 100,                # Dynamic range for logarithmic gain sweep
             "max_gain": self.cfg.device.qubit.max_gain, # Maximum gain used in log sweep
             "span": 15,                # Frequency span in MHz
