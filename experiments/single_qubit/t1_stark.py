@@ -788,7 +788,10 @@ class T1StarkPowerQuadMulti(QickExperimentLoop):
 
         f_pts_pos = np.linspace(0, self.cfg.expt.stop_f, int(self.cfg.expt.expts / 2))
         gain_pos = find_inverse_quad_fit(f_pts_pos, *self.cfg.expt.quad_fit_pos)
-        f_pts_neg = np.linspace(-self.cfg.expt.stop_f, 0, int(self.cfg.expt.expts / 2))
+        print(f"gain_pos: {gain_pos}, shape: {np.shape(gain_pos)}")
+        f_pts_neg = np.linspace(
+            -self.cfg.expt.stop_f, 0, int(self.cfg.expt.expts / 2)
+        )
         gain_neg = find_inverse_quad_fit(-f_pts_neg, *self.cfg.expt.quad_fit_neg)
         gain_pts = np.concatenate((gain_neg[0:-1], gain_pos))
         f_pts = np.concatenate((f_pts_neg[0:-1], f_pts_pos))
@@ -1297,9 +1300,15 @@ class T1StarkPowerContTime(QickExperiment2DSimple):
 def find_inverse_quad_fit(y, a, b, c):
     rt = []
     for yt in y:
+        if yt == 0:
+            rt.append(0.0)
+            continue
         # Solving the quadratic equation a*x^2 + b*x + (c - y) = 0
         discriminant = b**2 - 4 * a * (c - yt)
+        #print("discriminant: ",discriminant)
         if discriminant < 0:
+            print("discriminant < 0, no real roots")
+            print("yt: ", yt, " a: ", a, " b: ", b, " c: ", c)
             return None  # No real roots
         elif discriminant == 0:
             return -b / (2 * a)  # One real root

@@ -97,7 +97,7 @@ class T2Program(QickProgram):
                 "freq": cfg.expt.stark_freq,
                 "gain": cfg.expt.stark_gain,
                 "phase": 0,
-                "type": "const",  # Constant amplitude pulse
+                "type": "flat_top",  # Constant amplitude pulse
             }
             super().make_pulse(pulse, "stark_pulse")
 
