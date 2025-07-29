@@ -1,0 +1,66 @@
+aliases: {soc: bf3_soc}
+device:
+  qubit:
+    T1: [117.31, 150, 150, 150, 150, 150]
+    T2e: [161.08, 300, 300, 300, 300, 300]
+    T2r: [180.28, 150, 150, 150, 150, 150]
+    f_ef: [3800, 3800, 3800, 3800, 3800, 3800]
+    f_ge: [3584.9699, 4000, 4000, 4000, 4000, 4000]
+    kappa: [-0.1747, 0, 0, 0, 0, 0]
+    low_gain: 0.003
+    max_gain: 1
+    pop: [0, 0, 0, 0, 0, 0]
+    pulses:
+      pi_ef:
+        gain: [0.15, 0.15, 0.15, 0.15, 0.15, 0.15]
+        sigma: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        sigma_inc: [5, 5, 5, 5, 5, 5]
+        type: [gauss, gauss, gauss, gauss, gauss, gauss]
+      pi_ge:
+        gain: [0.2, 0.15, 0.15, 0.15, 0.15, 0.15]
+        sigma: [0.667, 0.1, 0.1, 0.1, 0.1, 0.1]
+        sigma_inc: [4, 4, 4, 4, 5, 5]
+        type: [const, gauss, gauss, gauss, gauss, gauss]
+    spec_gain: [1, 1, 1, 1, 1, 1]
+    temp: [0, 0, 0, 0, 0, 0]
+    tuned_up: [true, false, false, false, false, false]
+  readout:
+    active_reset: [false, false, false, false, false, false]
+    chi: [0, 0, 0, 0, 0, 0]
+    fidelity: [0.6426, 0, 0, 0, 0, 0]
+    final_delay: [703.84, 900, 900, 900, 900, 900]
+    frequency: [7145.3815, 7174.3805, 7000, 7246.6119, 7247.044, 7000]
+    gain: [0.495, 0.3, 0.05, 0.05, 0.05, 0.05]
+    kappa: [0.2158, 2.9889, 0.5, 98.7024, 10.9174, 0.5]
+    lamb: [-0.0169, 0, 0, 0, 0, 0]
+    max_gain: 1
+    phase: [-0.9793, 0, 0, 0, 0, 0]
+    qe: [7.6129, 0.2948, 0, 0.0073, 0.0664, 0]
+    qi: [5.8589, 1.2865, 0, 8291.1746, 351624.1232, 0]
+    readout_length: [3.75, 5, 5, 5, 5, 5]
+    reps: [1, 1, 1, 1, 1, 1]
+    reps_base: 250
+    rescale: [false, false, false, false, false, false]
+    reset_e: [0, 0, 0, 0, 0, 0]
+    reset_g: [0, 0, 0, 0, 0, 0]
+    rounds: [1, 1, 1, 1, 1, 1]
+    rounds_base: 1
+    sigma: [0.1164, 0, 0, 0, 0, 0]
+    threshold: [1.1864, 10, 10, 10, 10, 10]
+    tm: [0.5651, 0, 0, 0, 0, 0]
+    trig_offset: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+hw:
+  soc:
+    adcs:
+      readout:
+        ch: [0, 0, 0, 0, 0, 0]
+        type: [dyn, dyn, dyn, dyn, dyn, dyn]
+    dacs:
+      qubit:
+        ch: [1, 1, 1, 1, 1, 1]
+        nyquist: [1, 1, 1, 1, 1, 1]
+        type: [full, full, full, full, full, full]
+      readout:
+        ch: [0, 0, 0, 0, 0, 0]
+        nyquist: [2, 2, 2, 2, 2, 2]
+        type: [full, full, full, full, full, full]

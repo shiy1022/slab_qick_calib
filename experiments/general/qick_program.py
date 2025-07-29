@@ -301,7 +301,7 @@ class QickProgram(AveragerProgramV2):
 
             # Create Gaussian envelope
             self.add_gauss(
-                ch=self.pulse.chan,
+                ch=pulse.chan,
                 name="ramp",
                 sigma=pulse.sigma,  # Width of Gaussian
                 length=length,

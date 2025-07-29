@@ -561,7 +561,7 @@ class ResSpec(QickExperiment):
         hanger=True,
         debug=False,
         ax=None,
-        plot_res=True,
+        plot_res=False,
         **kwargs,
     ):
         """
