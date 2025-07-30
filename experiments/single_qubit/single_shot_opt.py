@@ -41,7 +41,7 @@ class SingleShotOptExperiment(QickExperiment):
     Otherwise, it is calculated to center the sweep around the config value.
     """
 
-    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, print=False):
+    def __init__(self, cfg_dict, prefix=None, progress=None, qi=0, go=True, params={}, print=False, style=''):
 
         if prefix is None:
             prefix = f"single_shot_opt_qubit_{qi}"
@@ -77,18 +77,30 @@ class SingleShotOptExperiment(QickExperiment):
             params_def["start_gain"] = self.cfg.device.readout.gain[qi]
             params_def["span_gain"] = 0
         else:
-            params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.3
-            params_def["span_gain"] = 1.8 * self.cfg.device.readout.gain[qi]
+            if style == "fine":
+                params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.8
+                params_def["span_gain"] = 0.4 * self.cfg.device.readout.gain[qi]
+            else:
+                params_def["start_gain"] = self.cfg.device.readout.gain[qi] * 0.3
+                params_def["span_gain"] = 1.8 * self.cfg.device.readout.gain[qi]
 
         if params["expts_len"] == 1:
             params_def["start_len"] = self.cfg.device.readout.readout_length[qi]
         else:
-            params_def["start_len"] = (
-                self.cfg.device.readout.readout_length[qi] * 0.3
-            )
-            params_def["span_len"] = (
-                1.8 * self.cfg.device.readout.readout_length[qi]
-            )
+            if style == "fine":
+                params_def["start_len"] = (
+                    self.cfg.device.readout.readout_length[qi] * 0.8
+                )
+                params_def["span_len"] = (
+                    0.4 * self.cfg.device.readout.readout_length[qi]
+                )
+            else:
+                params_def["start_len"] = (
+                    self.cfg.device.readout.readout_length[qi] * 0.3
+                )
+                params_def["span_len"] = (
+                    1.8 * self.cfg.device.readout.readout_length[qi]
+                )
 
         params = {**params_def, **params}
         if params["expts_f"] == 1:

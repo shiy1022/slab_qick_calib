@@ -6,7 +6,8 @@ import seaborn as sns
 
 
 from ..helpers import config
-from ..experiments import single_qubit as meas
+from ..experiments.single_qubit.resonator_spectroscopy import ResSpec
+from ..experiments.single_qubit.rabi import RabiExperiment
 
 colors = ["#0869c8", "#b51d14"]
 
@@ -41,7 +42,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
     freq = auto_cfg["device"]["readout"]["frequency"][qi]
     start = freq - 4.5
     center = start + span / 2
-    chi = meas.ResSpec(
+    chi = ResSpec(
         cfg_dict,
         qi=qi,
         params={
@@ -57,7 +58,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
     chi.go(analyze=True, display=False, progress=True, save=True)
 
     if check_f:
-        chif = meas.ResSpec(
+        chif =ResSpec(
             cfg_dict,
             qi=qi,
             params={
@@ -73,7 +74,7 @@ def check_chi(cfg_dict, qi=0, span=7, npts=301, plot=False, check_f=False):
         )
         chif.go(analyze=True, display=False, progress=True, save=True)
 
-    rspec = meas.ResSpec(
+    rspec = ResSpec(
         cfg_dict,
         qi=qi,
         params={
@@ -181,10 +182,10 @@ def measure_temp(cfg_dict, qi, temp=40, expts=20, rounds=1, chan=None):
     tuple
         A tuple containing the qubit temperature and the population of the excited state.
     """
-    rabief = meas.RabiExperiment(
+    rabief = RabiExperiment(
         cfg_dict, qi=qi, params={"pulse_ge": True, "checkEF": True}
     )
-    rabief_nopulse = meas.RabiExperiment(
+    rabief_nopulse = RabiExperiment(
         cfg_dict,
         qi=qi,
         params={

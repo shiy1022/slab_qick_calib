@@ -23,13 +23,19 @@ from datetime import datetime
 
 from qick import *
 from qick.asm_v2 import QickSweep1D
-from exp_handling.datamanagement import AttrDict
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
-from gen.qick_experiment import QickExperiment, QickExperiment2DSimple, QickExperimentLoop
-from gen.qick_program import QickProgram
-import slab_qick_calib.fitting as fitter
-import slab_qick_calib.config as config
+
+from ...exp_handling.datamanagement import AttrDict
+from ..general.qick_experiment import (
+    QickExperiment,
+    QickExperiment2DSimple,
+    QickExperimentLoop,
+)
+from ..general.qick_program import QickProgram
+
+from ...analysis import fitting as fitter
+from ...helpers import config
 
 
 def generate_filename(experiment_type, qubit_idx, style=None, state=None, extra=None):
@@ -231,7 +237,7 @@ class ResSpec(QickExperiment):
         params_def = {
             "gain": self.cfg.device.readout.gain[qi],
             "reps": self.reps,
-            "soft_avgs": self.soft_avgs,
+            "rounds": self.rounds,
             "length": self.cfg.device.readout.readout_length[qi],
             "final_delay": 5,
             "pulse_e": False,

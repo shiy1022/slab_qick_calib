@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..helpers import config
-from ..experiments import single_qubit as meas
+import slab_qick_calib.experiments as meas
 from . import qubit_tuning
 
 # Configure matplotlib
@@ -410,7 +410,7 @@ def time_tracking(qubit_list, cfg_dict, total_time=12, display=False, fast=True)
     tracking_path = os.path.join(base_path, tracking_id)
     os.makedirs(tracking_path, exist_ok=True)
     os.mkdir(os.path.join(tracking_path, "images"))
-    cfg_dict = deepcopy(cfg_dict)  # Avoid modifying original cfg_dict
+    #cfg_dict = deepcopy(cfg_dict)  # Avoid modifying original cfg_dict
     cfg_dict["expt_path"] = tracking_path
 
     # Initialize timing variables
